@@ -1,0 +1,39 @@
+name: Тесты интерфейса
+
+# On request only (Actions › «Тесты интерфейса» › Run workflow): E2E tests of the browser build and the start-up
+# budget. Not part of the installer build — the user asked for builds without waiting on tests.
+on:
+  workflow_dispatch:
+
+jobs:
+  # Playwright in Edge (the engine of WebView2) and the start-up code budget
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright test
+        env:
+          CI: 'true'
+      - name: Скорость запуска
+        shell: pwsh
+        run: |
+          npx vite build --mode web --outDir dist-web
+          $srv = Start-Process -PassThru -NoNewWindow npx.cmd -ArgumentList 'vite','preview','--mode','web','--outDir','dist-web','--port','4180','--strictPort'
+          Start-Sleep 4
+          $env:BUDGET_KB = '360'
+          node tests/perf/measure.mjs http://127.0.0.1:4180 3
+          $code = $LASTEXITCODE
+          Stop-Process -Id $srv.Id -Force -ErrorAction SilentlyContinue
+          exit $code
+      - uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: e2e-report
+          path: test-results
+

@@ -1,0 +1,14 @@
+node_modules
+dist
+src-tauri/target
+src-tauri/gen
+src-tauri/resources/autoremesher/*
+!src-tauri/resources/autoremesher/README.md
+test-results/
+playwright-report/
+dist-web
+src-tauri/resources/safari/
+dist-perf
+__pycache__/
+.claude/
+.mcp.json

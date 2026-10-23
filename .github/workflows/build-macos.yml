@@ -1,0 +1,69 @@
+name: Сборка для Mac
+
+# A .dmg for Apple Silicon and Intel at once (universal). Unsigned: the first start is right click › «Открыть»
+# (docs/install-mac.md). AutoRemesher has no macOS build — the Mac version goes without it (tauri.macos.conf.json).
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'Машина GitHub (macos-latest — Apple Silicon; когда их не хватает — macos-15-intel)'
+        default: macos-latest
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      # Safari: the same extension (integrations/browser) through Apple's converter into a small container app,
+      # ad-hoc signed (Safari › Develop › «Allow Unsigned Extensions»). It goes inside Oddments.app as a resource (the
+      # plugin hub opens it, which registers the extension) and as its own artifact. A failure here does not stop the
+      # build: the hub then says the Safari extension is missing.
+      - name: Safari extension
+        continue-on-error: true
+        run: |
+          set -e
+          mkdir -p src-tauri/resources/safari build-safari
+          xcrun safari-web-extension-converter integrations/browser --project-location build-safari             --app-name "Oddments for Safari" --bundle-identifier app.oddments.safari --macos-only --swift             --copy-resources --no-open --no-prompt --force
+          PROJ="build-safari/Oddments for Safari/Oddments for Safari.xcodeproj"
+          xcodebuild -list -project "$PROJ"
+          xcodebuild -project "$PROJ" -scheme "Oddments for Safari" -configuration Release -derivedDataPath build-safari/dd             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGNING_REQUIRED=NO build
+          cp -R "build-safari/dd/Build/Products/Release/Oddments for Safari.app" src-tauri/resources/safari/
+          (cd src-tauri/resources/safari && ditto -c -k --keepParent "Oddments for Safari.app" ../../../build-safari/oddments-safari.zip)
+      - name: Safari placeholder
+        run: mkdir -p src-tauri/resources/safari && [ -e src-tauri/resources/safari/README.txt ] || echo "Safari extension container app (built in CI)" > src-tauri/resources/safari/README.txt
+      - run: npm run tauri build -- --target universal-apple-darwin
+      - uses: actions/upload-artifact@v6
+        with:
+          name: oddments-mac-dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: oddments-safari
+          path: build-safari/oddments-safari.zip
+          if-no-files-found: ignore
+      # a pushed tag v* publishes a draft GitHub Release with the installer attached
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            build-safari/oddments-safari.zip

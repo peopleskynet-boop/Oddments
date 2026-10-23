@@ -1,0 +1,54 @@
+/* «Дубликаты» (dupes.js) — loaded with the screen, not at start */
+/* ——— duplicates ——— */
+body.dupes-on .scroll, body.dupes-on .dock { visibility: hidden; }
+.dupes { position: absolute; z-index: 2; top: calc(var(--barh) + var(--gap) * 2); bottom: 0; left: var(--pl); right: var(--pr); transition: left .35s var(--ease), right .35s var(--ease); animation: fade .25s; }
+.dupes[hidden] { display: none; }
+.dupes .orb-bar { padding-left: 14px; }
+.dupes .orb-bar .ibtn { height: 38px; }
+.dp-sum { white-space: nowrap; padding-right: 4px; }
+.dp-list { position: absolute; inset: 60px 0 0; overflow: auto; padding: 4px 4px 110px; scrollbar-width: none; outline: 0; }
+.dp-list::-webkit-scrollbar { display: none; }
+.dp-empty { text-align: center; color: var(--mut); margin-top: 18vh; }
+.dp-empty h2 { color: var(--fg); font-size: 22px; font-weight: 650; letter-spacing: -.02em; margin: 0 0 6px; }
+.dg { margin-bottom: 26px; }
+.dg header { display: flex; align-items: center; gap: 10px; margin: 0 2px 10px; }
+.dg header b { font-weight: 600; }
+.dg header span { color: var(--mut); font-size: 12px; }
+.dg header .sp { flex: 1; }
+.dg header .ibtn { height: 32px; font-size: 13px; }
+.dg header .ibtn svg.i { width: 15px; height: 15px; }
+.dg-row { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 6px; scrollbar-width: thin; }
+.dc { position: relative; flex: none; width: 200px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; border-radius: 18px; padding: 6px 6px 10px; transition: background .2s, box-shadow .2s; }
+.dc:hover { background: var(--hover); }
+.dc input { position: absolute; opacity: 0; pointer-events: none; }
+.dc:has(input:focus-visible) { box-shadow: 0 0 0 2px var(--acc); }
+.dc-img { position: relative; display: grid; place-items: center; height: 150px; border-radius: 13px; overflow: hidden; background: var(--card); margin-bottom: 5px; }
+.dc-img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s, filter .2s; }
+.dc-img b { color: var(--mut); font-size: 13px; }
+.dc:not(.keep) .dc-img img { opacity: .55; filter: saturate(.6); }
+.dc.keep .dc-img { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg); }
+/* keep / trash: a radio mark on the picture (filled = kept) and a plain state line under it — states, not buttons */
+.dc-st { position: absolute; left: 9px; top: 9px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--bg);
+  background: rgba(0, 0, 0, .3); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .9), 0 1px 4px rgba(0, 0, 0, .35); transition: background .2s, box-shadow .2s; }
+.dc-st svg.i { width: 13px; height: 13px; opacity: 0; scale: .6; transition: opacity .15s, scale .25s var(--ease); }
+.dc.keep .dc-st { background: var(--fg); box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+.dc.keep .dc-st svg.i { opacity: 1; scale: 1; }
+.dc-s { display: flex; align-items: center; gap: 5px; padding: 0 4px; font-size: 12px; font-weight: 600; color: var(--mut); }
+.dc-s svg.i { width: 13px; height: 13px; }
+.dc.keep .dc-s { color: var(--fg); }
+/* bar: progress line along the bottom, and the in-place confirmation of the bulk action */
+/* centred without left:50% — that caps the pill at half the width and the confirmation would not fit */
+.dupes .orb-bar { overflow: hidden; left: 0; right: 0; translate: none; margin-inline: auto; width: fit-content; }
+.dp-norm, .dp-conf { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.dp-q { padding: 0 8px 0 4px; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(52vw, 640px); }
+.dp-conf { animation: fade .2s; }
+.dupes .orb-bar:has(.dp-conf:not([hidden])) .orb-t { display: none; } /* the question needs the room */
+.dp-prog { position: absolute; left: 20px; right: 20px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.dp-prog b { display: block; height: 100%; width: 3%; border-radius: inherit; background: var(--fg); transition: width .2s ease-out; }
+.dp-empty .ibtn { margin-top: 16px; }
+.dc-n { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+.dc-m, .dc-f { font-size: 12px; color: var(--mut); padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-pv { position: absolute; right: 12px; top: 12px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, .55); color: #fff; backdrop-filter: blur(10px); opacity: 0; transition: opacity .15s; }
+.dc:hover .dc-pv, .dc-pv:focus-visible, .dc:has(input:focus-visible) .dc-pv { opacity: 1; }
+.dc-pv svg.i { width: 15px; height: 15px; }
+

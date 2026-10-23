@@ -1,0 +1,31 @@
+/* a flow collection: «Раскадровка» and «Пройти» (storyboard.js) */
+.sb-layer { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(24px); animation: fade .22s; }
+.sb-layer[hidden] { display: none; }
+.sb-top { display: flex; align-items: center; gap: 16px; padding: 22px 28px 10px; }
+.sb-top > div:first-child { margin-right: auto; min-width: 0; }
+.sb-t { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-sub { color: var(--mut); }
+.sb-seg { display: flex; padding: 3px; border-radius: 99px; background: var(--hover); }
+.sb-seg button { height: 34px; padding: 0 16px; border: 0; border-radius: 99px; background: none; color: var(--mut); font: inherit; font-weight: 600; cursor: pointer; }
+.sb-seg button[aria-pressed="true"] { background: var(--acc); color: var(--acc-fg); }
+.sb-top .ib { width: 40px; height: 40px; }
+.sb-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* the board: one row, scrolled sideways */
+.sb-row { flex: 1; display: flex; align-items: center; gap: 14px; overflow-x: auto; padding: 20px 28px 36px; scrollbar-width: thin; }
+.sb-step { margin: 0; flex: none; display: grid; gap: 8px; cursor: pointer; outline: 0; }
+.sb-step figcaption { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--mut); }
+.sb-step figcaption b { color: var(--acc); font-weight: 650; }
+:root[data-accent="mono"]:not([data-theme="marathon"]) .sb-step figcaption b { color: var(--fg); }
+.sb-step img { display: block; height: min(64vh, 620px); width: auto; border-radius: 22px; box-shadow: 0 0 0 1px var(--line), 0 18px 40px rgba(0, 0, 0, .35); transition: transform .25s var(--ease); }
+.sb-step:hover img, .sb-step:focus-visible img { transform: translateY(-4px); box-shadow: 0 0 0 2px var(--acc), 0 18px 40px rgba(0, 0, 0, .35); }
+.sb-arrow { flex: none; color: var(--mut); opacity: .7; padding-top: 22px; }
+.sb-arrow svg { width: 26px; height: 26px; }
+/* walking through: one step in a phone frame */
+.sb-walk { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 28px; padding: 8px 20px; }
+.sb-phone { height: min(76vh, 760px); aspect-ratio: 9 / 19.5; border-radius: 44px; padding: 10px; background: #050608; box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 30px 80px rgba(0, 0, 0, .5); cursor: pointer; display: grid; place-items: center; overflow: hidden; }
+.sb-phone img { max-width: 100%; max-height: 100%; border-radius: 34px; display: block; animation: fade .2s; }
+.sb-nav { width: 52px; height: 52px; flex: none; }
+.sb-nav:disabled { opacity: .25; }
+.sb-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 6px 20px 26px; }
+.sb-dots button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 99px; background: var(--line-2); cursor: pointer; transition: width .2s var(--ease), background .2s; }
+.sb-dots button.on { width: 22px; background: var(--acc); }

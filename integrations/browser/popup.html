@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Oddments</title>
+<style>
+  :root { --acc: #c6ff00; --bg: #0d0e0c; --fg: #f2f3ee; --mut: #8f9189; --line: rgba(255,255,255,.1); --field: rgba(255,255,255,.06); }
+  * { box-sizing: border-box; }
+  body { width: 320px; margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 13px/1.4 "Golos Text", "Segoe UI", system-ui, sans-serif; }
+  .top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .logo { width: 22px; height: 22px; border-radius: 7px; border: 2.5px solid var(--fg); position: relative; }
+  .logo::after { content: ''; position: absolute; right: 2px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: #ff2d6f; }
+  .top b { font-weight: 500; font-size: 15px; letter-spacing: .02em; }
+  #st { margin-left: auto; font-size: 12px; color: var(--mut); display: flex; align-items: center; gap: 6px; }
+  #st i { width: 7px; height: 7px; border-radius: 50%; background: var(--mut); }
+  #st.ok i { background: var(--acc); }
+  #st.err i { background: #ff2d6f; }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  button { height: 36px; border: 0; border-radius: 999px; background: var(--field); color: var(--fg); font: inherit; cursor: pointer; padding: 0 14px; }
+  button:hover { background: rgba(255,255,255,.12); }
+  button.pri { background: var(--acc); color: #0a0b09; font-weight: 500; }
+  button:disabled { opacity: .4; cursor: default; }
+  label { display: block; font-size: 12px; color: var(--mut); margin: 0 0 6px 4px; }
+  select, input[type=text], input[type=password] { width: 100%; height: 36px; border-radius: 999px; border: 0; background: var(--field); color: var(--fg);
+    font: inherit; padding: 0 14px; margin-bottom: 12px; outline: none; box-shadow: inset 0 0 0 1px var(--line); }
+  select:focus, input:focus { box-shadow: inset 0 0 0 1.5px var(--acc); }
+  select option { background: #1a1b18; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+  .chips:empty { display: none; }
+  .chip { height: 26px; padding: 0 6px 0 11px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; background: rgba(198,255,0,.12); color: var(--acc); }
+  .chip span { opacity: .7; padding: 0 4px; }
+  .opts { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; display: grid; gap: 8px; }
+  .opt { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--fg); margin: 0; cursor: pointer; }
+  .opt input { accent-color: var(--acc); width: 15px; height: 15px; margin: 0; }
+  .help { font-size: 12px; color: var(--mut); margin: 0 0 12px 4px; }
+  .help b { color: var(--fg); font-weight: 500; }
+  #pair { display: none; }
+  body.need #pair { display: block; }
+  body.need #main { display: none; }
+  kbd { font: 11px "Geist Mono", Consolas, monospace; color: var(--mut); }
+</style>
+</head>
+<body>
+  <div class="top"><span class="logo"></span><b>PERCH</b><span id="st"><i></i><span>проверяю…</span></span></div>
+
+  <div id="pair">
+    <p class="help" id="pairHelp">Откройте Oddments › Настройки › Интеграции, нажмите <b>«Скопировать токен»</b> и вставьте его сюда.</p>
+    <input type="password" id="tok" placeholder="Токен из Oddments" autocomplete="off">
+    <button class="pri" id="tokSave" style="width:100%">Подключить</button>
+  </div>
+
+  <div id="main">
+    <div class="acts">
+      <button class="pri" data-do="all">Все картинки</button>
+      <button data-do="page">Страницу</button>
+      <button data-do="article">Статью — читать в Oddments</button>
+      <button data-do="area">Снимок области</button>
+      <button data-do="shot">Видимую часть</button>
+    </div>
+    <label for="folder">Подборка</label>
+    <select id="folder"><option value="">Без подборки</option></select>
+    <label for="tag">Теги для сохранённого</label>
+    <input type="text" id="tag" list="tagList" placeholder="Тег и Enter" autocomplete="off">
+    <datalist id="tagList"></datalist>
+    <div class="chips" id="tags"></div>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" id="altClick"> Alt+клик по картинке — в Oddments</label>
+      <label class="opt"><input type="checkbox" id="hoverBtn"> Кнопка «В Oddments» на картинках</label>
+      <p class="help" style="margin:4px 0 0">Ещё: правый клик › Oddments, перетащить картинку на док справа. <kbd>Alt+Shift+A</kbd> — область, <kbd>Alt+Shift+S</kbd> — экран.</p>
+      <button id="unpair" style="height:30px;font-size:12px;justify-self:start">Сменить токен</button>
+    </div>
+  </div>
+<script src="popup.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+/* «SVG в 3D» / «Ремеш» (svg3d.js) — loaded with the screen, not at start */
+/* ——— SVG в 3D / Ремеш: a full-window layer, the 3D viewer on the left, settings in glass on the right ——— */
+.s3d { position: fixed; inset: 0; z-index: 95; background: var(--bg); animation: fade .25s; }
+.s3d[hidden] { display: none; }
+body.s3d-on { overflow: hidden; }
+.s3d-view { position: absolute; inset: 0 344px 0 0; display: grid; }
+.s3d-view.m3d { display: grid; }
+.s3d-bar { top: 12px; left: 16px; translate: none; padding-left: 14px; z-index: 4; }
+.s3d-bar .cap-sm { padding: 0 6px; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s3d-panel { position: absolute; z-index: 5; top: 12px; right: 12px; bottom: 12px; width: 320px; overflow: auto; scrollbar-width: none; padding: 16px; border-radius: 26px; display: flex; flex-direction: column; gap: 10px; outline: none; }
+.s3d-panel::-webkit-scrollbar { display: none; }
+.s3d-panel .seg { display: flex; padding: 3px; border-radius: 99px; background: var(--hover); gap: 2px; }
+.s3d-panel .seg button { flex: 1; height: 32px; border-radius: 99px; color: var(--mut); font-weight: 500; font-size: 13px; }
+.s3d-panel .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.s3d-panel [hidden] { display: none !important; }
+.s3d-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; font-size: 13px; }
+.s3d-row b { font-weight: 500; color: var(--mut); font-variant-numeric: tabular-nums; }
+.s3d-row input { grid-column: 1 / -1; width: 100%; accent-color: var(--fg); }
+.s3d-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.s3d-stats div { padding: 9px 11px; border-radius: 13px; background: var(--hover); }
+.s3d-stats b { display: block; font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.s3d-stats span { font-size: 11px; color: var(--mut); }
+.s3d-q { margin: 0; font-size: 12px; display: flex; gap: 8px; align-items: baseline; line-height: 1.4; }
+.s3d-q:empty { display: none; }
+.s3d-q::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; translate: 0 -1px; }
+.s3d-q.ok::before { background: #34c759; } .s3d-q.mid::before { background: #ffcc00; } .s3d-q.bad::before { background: #ff6b5e; }
+.s3d-note { margin: 0; font-size: 12px; color: var(--mut); line-height: 1.4; }
+.s3d-note:empty { display: none; }
+.s3d-prog { display: grid; gap: 6px; font-size: 12px; color: var(--mut); }
+.s3d-prog i { display: block; height: 4px; border-radius: 4px; background: var(--hover-2); overflow: hidden; }
+.s3d-prog b { display: block; height: 100%; width: 2%; background: var(--fg); border-radius: inherit; transition: width .2s ease-out; }
+@media (max-width: 860px) { .s3d-view { inset: 0 0 46vh 0; } .s3d-panel { top: auto; left: 12px; width: auto; height: calc(46vh - 24px); } .s3d-bar { left: 50%; } }
+
+/* ——— «SVG в 3D»: picking an SVG from the library (or the disk) ——— */
+.s3pick { position: fixed; z-index: 120; left: 50%; top: 50%; translate: -50% -50%; width: min(560px, calc(100vw - 32px)); max-height: min(640px, calc(100vh - 64px));
+  display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 26px; animation: rise .25s var(--ease); }
+.s3pick[hidden] { display: none; }
+.s3p-h { display: flex; align-items: center; justify-content: space-between; }
+.s3p-h h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
+.s3p-q { height: 40px; border: 0; border-radius: 99px; padding: 0 16px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line); outline: none; }
+.s3p-q:focus-visible { box-shadow: inset 0 0 0 1.5px var(--acc), 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent); }
+.s3p-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; overflow: auto; min-height: 120px; scrollbar-width: none; padding: 2px; }
+.s3p-grid::-webkit-scrollbar { display: none; }
+.s3p-t { display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: 16px; text-align: left; transition: background .15s; }
+.s3p-t:hover, .s3p-t:focus-visible { background: var(--hover); outline: none; }
+.s3p-t:focus-visible { box-shadow: 0 0 0 2px var(--acc); }
+.s3p-img { aspect-ratio: 1; border-radius: 12px; background: var(--card); display: grid; place-items: center; overflow: hidden; }
+.s3p-img img { width: 62%; height: 62%; object-fit: contain; }
+.s3p-n { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+.s3p-empty { grid-column: 1 / -1; margin: 18px 4px; color: var(--mut); font-size: 13px; line-height: 1.45; text-align: center; }
+@media (max-width: 520px) { .s3p-grid { grid-template-columns: repeat(3, 1fr); } }
+

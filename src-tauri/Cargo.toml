@@ -1,0 +1,37 @@
+[package]
+name = "perch"
+version = "0.1.0"
+description = "Oddments — менеджер визуальных референсов"
+license = "MIT"
+edition = "2021"
+
+[lib]
+name = "perch_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "image-png", "tray-icon"] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-persisted-scope = "2"
+# dragging files out of Perch into other programs (CrabNebula, MIT/Apache)
+tauri-plugin-drag = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true
+# no panic = "abort": a panic inside a plugin (the clipboard reading an odd bitmap from a browser's «Copy image»)
+# closed the whole app; unwinding lets Tauri turn it into an error for that one call

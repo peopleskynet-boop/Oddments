@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Oddments</title>
+    <link rel="icon" type="image/png" href="/src/assets/oddments-mark.png" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <div class="dragtop" data-tauri-drag-region aria-hidden="true" hidden></div>
+      <!-- functional layer (Liquid Glass) -->
+      <aside class="side glass" id="side">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"></span><span class="brand-n">Oddments</span><span class="sp"></span>
+          <button class="ib only-wide" id="sidePin" aria-label="Скрыть боковую панель" title="Скрыть панель ( [ )"></button>
+          <button class="ib only-narrow" id="navClose" aria-label="Закрыть меню"></button>
+        </div>
+        <nav class="side-scroll" id="sideScroll" aria-label="Разделы библиотеки"></nav>
+        <div class="side-foot"><button class="ib" id="setBtn" aria-label="Настройки" title="Настройки"></button><span class="cap-sm" id="libLabel"></span></div>
+      </aside>
+
+      <div class="bar" id="bar">
+        <div class="capg glass">
+          <button class="ib only-narrow" id="navBtn" aria-label="Меню"></button>
+          <button class="ib only-wide" id="sideTog" aria-label="Боковая панель" title="Боковая панель ( [ )"></button>
+          <button class="ib" id="backBtn" aria-label="Назад ко всем файлам" title="Ко всем файлам"></button>
+        </div>
+        <label class="search glass"><span id="icSearch"></span><input id="q" type="text" placeholder="Найти: название, #тег или что на картинке…" autocomplete="off" /><kbd>/</kbd><button type="button" class="ai-chip" id="aiChip" hidden></button><button type="button" class="ib" id="simBtn" aria-label="Похожие на выбранную" title="Похожие на выбранную картинку"></button><button type="button" class="ib" id="filtBtn" aria-label="Поиск по цвету" title="Поиск по цвету"></button></label>
+        <div class="split">
+          <button class="sb" id="addBtn"></button><span class="sep" aria-hidden="true"></span><button class="sb more" id="addMore" aria-label="Другие способы добавить" aria-haspopup="menu" title="Другие способы добавить"></button>
+          <div class="menu glass" id="addMenu">
+            <button class="mi" id="pasteBtn"></button>
+            <button class="mi" id="addDirBtn"></button>
+            <button class="mi" id="svg3dBtn"></button>
+            <button class="mi" id="ikBtn"></button>
+            <button class="mi" id="flowBtn"></button>
+            <button class="mi" id="matBtn"></button>
+          </div>
+        </div>
+        <div class="capg glass only-wide"><button class="ib" id="sndBtn" aria-pressed="true"></button><button class="ib" id="inspTog" aria-label="Панель свойств" title="Панель свойств ( ] )"></button></div>
+        <div class="capg glass wctl" id="wctl" hidden><button class="ib" id="wMin" aria-label="Свернуть" title="Свернуть"></button><button class="ib" id="wMax" aria-label="Развернуть" title="Развернуть"></button><button class="ib" id="wClose" aria-label="Закрыть" title="Закрыть"></button></div>
+      </div>
+      <div class="cpop glass" id="pop" role="dialog" aria-label="Поиск по цвету" hidden></div>
+      <div class="busy glass" id="busy" role="status" aria-live="polite" hidden><span class="busy-ic" id="busyI" aria-hidden="true"></span><span id="busyT"></span><span class="pxl-t" id="busyS"></span><i aria-hidden="true"><b id="busyP"></b></i></div>
+
+      <!-- content layer: the grid runs under the floating glass panels -->
+      <main class="main" id="main">
+        <div class="scroll" id="scroll">
+          <div class="head">
+            <div class="ht"><h1 id="vTitle"></h1><span class="count dots" id="vCount"></span></div>
+            <dl class="stats" id="stats"></dl>
+            <span id="vAct"></span>
+          </div>
+          <div class="covers" id="covers"></div>
+          <div class="tabrow">
+            <button type="button" class="tr-t glass" id="trTop" title="Наверх"><b id="trTitle"></b><span id="trCount"></span></button>
+            <div class="tabs glass" id="tabs"></div>
+            <div class="sortcap glass">
+              <select id="sort" aria-label="Сортировка">
+                <option value="added">Дата добавления</option>
+                <option value="name">Название</option>
+                <option value="size">Размер</option>
+                <option value="kind">Тип</option>
+                <option value="ai">По смыслу (ИИ)</option>
+              </select>
+              <button class="ib" id="dirBtn" aria-label="Направление сортировки"></button>
+            </div>
+          </div>
+          <div class="newbar" id="newbar" hidden></div>
+          <div class="matshelf" id="matShelf" hidden></div>
+          <div id="grid" tabindex="0" role="listbox" aria-multiselectable="true" aria-label="Файлы"></div>
+          <div class="empty" id="empty" hidden></div>
+        </div>
+        <div class="edge"></div>
+        <div class="edge-b"></div>
+        <div class="drop-ov" id="dropOv">Отпустите, чтобы добавить</div>
+      </main>
+
+      <aside class="insp glass" id="insp" aria-label="Свойства файла"></aside>
+
+      <div class="dock glass" id="dock">
+        <div class="seg">
+          <button class="ib on" id="lyM" aria-label="Мозаика" title="Мозаика"></button>
+          <button class="ib" id="lyG" aria-label="Сетка" title="Сетка"></button>
+        </div>
+        <label class="zoom" title="Размер превью"><input type="range" class="elastic" data-unit=" px" id="zoom" min="120" max="460" step="10" value="220" aria-label="Размер превью" /></label>
+        <span class="cap-sm">Размер</span>
+      </div>
+    </div>
+
+    <div class="pv" id="pv" role="dialog" aria-modal="true" aria-labelledby="pvT" tabindex="-1">
+      <div class="pv-top"><div class="t" id="pvT"></div><div class="c" id="pvC"></div><button id="pvDrag" class="pv-grip" title="Перетащите в другую программу: PureRef, Blender, Figma, Проводник" aria-label="Перетащить файл в другую программу"></button><button id="pvX" aria-label="Закрыть"></button></div>
+      <div class="pv-stage" id="pvS"></div>
+      <div class="pv-more" id="pvMore" hidden></div>
+    </div>
+
+    <aside class="settings" id="settings" role="dialog" aria-label="Настройки"></aside>
+
+    <div class="modal" id="modal">
+      <form class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT">
+        <h2 id="dlgT"></h2>
+        <input id="dlgIn" type="text" autocomplete="off" />
+        <div class="row"><button type="button" class="ibtn" id="dlgNo">Отмена</button><button type="submit" class="ibtn pri">Готово</button></div>
+      </form>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

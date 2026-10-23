@@ -1,0 +1,275 @@
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 12px/1.45 Inter, system-ui, sans-serif; color: var(--figma-color-text); background: var(--figma-color-bg); display: flex; flex-direction: column; height: 100vh; }
+  .tabs { display: flex; gap: 4px; padding: 10px 12px 0; }
+  .tabs button { flex: 1; height: 30px; border: 0; border-radius: 99px; background: none; color: var(--figma-color-text-secondary); font: 600 12px Inter, system-ui, sans-serif; cursor: pointer; }
+  .tabs button.on { background: var(--figma-color-bg-secondary); color: var(--figma-color-text); }
+  .pane { display: none; flex: 1; min-height: 0; flex-direction: column; padding: 10px 12px 12px; gap: 8px; }
+  .pane.on { display: flex; }
+  label { display: block; margin: 0 0 4px; color: var(--figma-color-text-secondary); }
+  input, select { width: 100%; height: 30px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--figma-color-border); background: var(--figma-color-bg); color: inherit; font: inherit; }
+  .row { display: flex; gap: 6px; }
+  .row select { flex: 1; min-width: 0; }
+  button.main { width: 100%; height: 34px; border: 0; border-radius: 99px; font: 600 12px Inter, system-ui, sans-serif; background: var(--figma-color-bg-brand); color: var(--figma-color-text-onbrand); cursor: pointer; flex: none; }
+  button.ghost { height: 30px; padding: 0 12px; border: 1px solid var(--figma-color-border); border-radius: 99px; background: none; color: inherit; font: inherit; cursor: pointer; white-space: nowrap; }
+  button:disabled { opacity: .5; cursor: default; }
+  /* square tiles without aspect-ratio: in Figma's webview grid rows with aspect-ratio buttons collapsed and the tiles
+     piled on top of each other (bug #49); the height comes from padding-top (a % of the width) instead */
+  .grid { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: max-content; gap: 6px; align-content: start; }
+  .tile { position: relative; display: block; width: 100%; height: 0; padding: 100% 0 0; border-radius: 10px; overflow: hidden; background: var(--figma-color-bg-secondary); border: 0; cursor: pointer; }
+  .tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile span { position: absolute; left: 4px; right: 4px; bottom: 4px; padding: 2px 6px; border-radius: 99px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .15s; }
+  .tile:hover span { opacity: 1; }
+  .tile:focus-visible { outline: 2px solid var(--figma-color-border-brand-strong); }
+  .empty { grid-column: 1 / -1; padding: 30px 8px; text-align: center; color: var(--figma-color-text-secondary); }
+  #st { min-height: 18px; color: var(--figma-color-text-secondary); }
+  .ic-list { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 6px; align-content: start; }
+  .ic-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 12px; background: var(--figma-color-bg-secondary); }
+  .ic-row img { width: 28px; height: 28px; flex: none; background: #fff; border-radius: 6px; padding: 2px; }
+  .ic-row b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .ic-row small { color: var(--figma-color-text-secondary); }
+  #st.err { color: var(--figma-color-text-danger); }
+  #st.ok { color: var(--figma-color-text-success); }
+  details { color: var(--figma-color-text-secondary); }
+  details input { margin-top: 6px; }
+</style>
+<div class="tabs"><button data-tab="lib" class="on">Библиотека</button><button data-tab="icons">Иконки</button><button data-tab="send">Отправить</button></div>
+
+<div class="pane on" id="lib">
+  <input id="q" type="search" placeholder="Поиск: название, тег" autocomplete="off">
+  <div class="row"><select id="folder"><option value="">Вся библиотека</option></select><button class="ghost" id="board" disabled title="Все картинки подборки — во фрейм на холсте">Мудборд</button></div>
+  <div class="row"><select id="click" title="Что делает клик по картинке"><option value="place">Клик — на холст</option><option value="styles">Клик — цвета картинки в стили Figma</option></select></div>
+  <div class="grid" id="grid"><div class="empty">Подключаюсь к Oddments…</div></div>
+</div>
+
+<div class="pane" id="icons">
+  <input id="iq" type="search" placeholder="Поиск иконки" autocomplete="off">
+  <div class="ic-list" id="icList"><div class="empty">Иконки из конструктора Oddments («Сохранить в библиотеку») появятся здесь.</div></div>
+</div>
+
+<div class="pane" id="send">
+  <label for="fmt">Формат</label>
+  <select id="fmt"><option value="PNG">PNG, 2×</option><option value="SVG">SVG</option></select>
+  <button class="main" id="go" disabled>Отправить в Oddments</button>
+</div>
+
+<div style="padding: 0 12px 12px">
+  <div id="st"></div>
+  <details id="tokBox"><summary>Токен из Oddments › Настройки › Интеграции</summary><input id="tok" type="password" placeholder="Вставьте токен" autocomplete="off"></details>
+</div>
+
+<script>
+  const PORTS = [47215, 47216, 47217, 47218, 47219];
+  const $ = (s) => document.getElementById(s);
+  const tok = $('tok'), fmt = $('fmt'), go = $('go'), st = $('st'), grid = $('grid'), q = $('q'), folder = $('folder'), board = $('board');
+  let port = null, count = 0, sent = 0, items = [], folders = [];
+  const status = (t, cls = '') => { st.textContent = t; st.className = cls; };
+  const save = () => parent.postMessage({ pluginMessage: { type: 'save', token: tok.value.trim(), format: fmt.value } }, '*');
+  const refresh = () => { go.disabled = !count || !tok.value.trim(); go.textContent = count ? `Отправить в Oddments (${count})` : 'Выделите фреймы или слои'; };
+  const api = (path, params = {}) => `http://localhost:${port}${path}?${new URLSearchParams({ ...params, token: tok.value.trim() })}`;
+
+  async function findPerch() {
+    for (const p of PORTS) {
+      try { const r = await fetch(`http://localhost:${p}/ping`); if ((await r.json()).app === 'perch') return p; } catch (e) { /* next */ }
+    }
+    return null;
+  }
+
+  document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => {
+    document.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === b.dataset.tab));
+  });
+
+  /* ---------- library ---------- */
+  async function load() {
+    port = port || await findPerch();
+    if (!port) { grid.innerHTML = '<div class="empty">Oddments не отвечает: откройте приложение Oddments и нажмите здесь ещё раз.</div>'; grid.onclick = () => { grid.onclick = null; load(); }; return; }
+    if (!tok.value.trim()) { grid.innerHTML = '<div class="empty">Вставьте токен ниже: Oddments › Настройки › Интеграции › «Скопировать токен».</div>'; $('tokBox').open = true; return; }
+    try {
+      const [ri, rl] = await Promise.all([fetch(api('/items')), fetch(api('/library'))]);
+      if (ri.status === 401) { grid.innerHTML = '<div class="empty">Oddments не принял токен: скопируйте его заново.</div>'; $('tokBox').open = true; return; }
+      if (ri.status === 404) { grid.innerHTML = '<div class="empty">Эта версия Oddments ещё не умеет отдавать библиотеку: обновите Oddments.</div>'; return; }
+      items = (await ri.json()).filter((it) => it.thumb);
+      folders = (await rl.json()).folders || [];
+      folder.length = 1;
+      const walk = (p, d) => folders.filter((f) => (f.parent || null) === p).forEach((f) => { folder.add(new Option(' '.repeat(d) + f.name, f.id)); walk(f.id, d + 1); });
+      walk(null, 0);
+      status(`В библиотеке: ${items.length}`);
+      render();
+      renderIcons();
+    } catch (e) { grid.innerHTML = '<div class="empty">Не получилось загрузить библиотеку: ' + e.message + '</div>'; }
+  }
+
+  const shown = () => {
+    const words = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean), f = folder.value;
+    return items.filter((it) => (!f || it.folders.includes(f)) &&
+      words.every((w) => (it.name + ' ' + it.tags.join(' ') + ' ' + it.ai.join(' ')).toLowerCase().includes(w)))
+      .sort((a, b) => b.added - a.added);
+  };
+  const thumbs = new Map();
+  async function thumbUrl(it) {
+    if (!thumbs.has(it.id)) thumbs.set(it.id, fetch(api('/file', { path: it.thumb })).then((r) => r.blob()).then((b) => URL.createObjectURL(b)).catch(() => ''));
+    return thumbs.get(it.id);
+  }
+  function render() {
+    const list = shown().slice(0, 300);
+    board.disabled = !folder.value || !list.length;
+    // a flow collection (a screen recording cut into screens in Oddments): its button lays out the steps as a prototype
+    const fo = folders.find((f) => f.id === folder.value);
+    board.textContent = fo && fo.flow ? 'Сценарий' : 'Мудборд';
+    board.title = fo && fo.flow ? 'Шаги по порядку, стрелки и кликабельный прототип' : 'Все картинки подборки — во фрейм на холсте';
+    grid.innerHTML = list.length ? '' : '<div class="empty">Ничего не нашлось</div>';
+    // thumbnails load as tiles come into view
+    const io = new IntersectionObserver((es) => es.forEach(async (e) => {
+      if (!e.isIntersecting) return;
+      io.unobserve(e.target);
+      const u = await thumbUrl(e.target._it);
+      if (u) e.target.querySelector('img').src = u;
+    }), { root: grid, rootMargin: '200px' });
+    for (const it of list) {
+      const t = document.createElement('button');
+      t.className = 'tile';
+      t.title = it.name + (it.tags.length ? ' · #' + it.tags.join(' #') : '') + '\nКлик — на холст';
+      t.innerHTML = '<img alt=""><span></span>';
+      t.querySelector('span').textContent = it.name;
+      t._it = it;
+      t.onclick = () => ($('click').value === 'styles' ? styles(it) : place(it));
+      grid.appendChild(t);
+      io.observe(t);
+    }
+  }
+
+  // bytes Figma can take (PNG / JPEG / GIF): the original when it is one of those, otherwise the picture redrawn as PNG
+  async function figmaBytes(it) {
+    const direct = it.kind === 'image' && /^(png|jpe?g)$/i.test(it.ext) || it.kind === 'gif';
+    const r = await fetch(api('/file', { path: direct ? it.file : it.thumb }));
+    if (!r.ok) throw new Error('Oddments ответил ' + r.status);
+    const b = await r.blob();
+    if (direct) return new Uint8Array(await b.arrayBuffer());
+    const bm = await createImageBitmap(b);
+    const c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height;
+    c.getContext('2d').drawImage(bm, 0, 0);
+    return new Uint8Array(await (await new Promise((res) => c.toBlob(res, 'image/png'))).arrayBuffer());
+  }
+  async function place(it) {
+    status('Ставлю «' + it.name + '»…');
+    try {
+      const bytes = await figmaBytes(it);
+      parent.postMessage({ pluginMessage: { type: 'place', bytes, name: it.name, w: it.w, h: it.h, id: it.id } }, '*');
+      status('На холсте: ' + it.name, 'ok');
+    } catch (e) { status('Не получилось: ' + e.message, 'err'); }
+  }
+  // the picture's palette (Oddments keeps up to 5 colours) as Figma colour styles
+  function styles(it) {
+    if (!it.colors || !it.colors.length) { status('У этой картинки нет палитры', 'err'); return; }
+    parent.postMessage({ pluginMessage: { type: 'styles', name: it.name, colors: it.colors } }, '*');
+    status(`Стили: ${it.colors.length} цвета «${it.name}»`, 'ok');
+  }
+
+  /* ---------- icons from the constructor ---------- */
+  const ICON = /^(.*) — Size=(\d+), Style=(\w+)$/;
+  function iconGroups() {
+    const g = new Map();
+    for (const it of items) {
+      if (it.ext !== 'svg') continue;
+      const m = ICON.exec(it.name);
+      if (!m) continue;
+      const k = m[1];
+      if (!g.has(k)) g.set(k, { name: k, variants: [], tags: it.tags || [], added: it.added });
+      g.get(k).variants.push({ it, size: +m[2], style: m[3] });
+    }
+    return [...g.values()].sort((a, b) => b.added - a.added);
+  }
+  function renderIcons() {
+    const words = $('iq').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const list = iconGroups().filter((g) => words.every((w) => (g.name + ' ' + g.tags.join(' ')).toLowerCase().includes(w)));
+    const box = $('icList');
+    if (!list.length) { box.innerHTML = '<div class="empty">Иконок из конструктора пока нет: Oddments › «Конструктор иконок» › «Сохранить в библиотеку».</div>'; return; }
+    box.innerHTML = '';
+    for (const g of list) {
+      const row = document.createElement('div');
+      row.className = 'ic-row';
+      row.innerHTML = '<img alt=""><b></b><small></small><button class="ghost">В Figma</button>';
+      row.querySelector('b').textContent = g.name;
+      row.querySelector('small').textContent = g.variants.length + ' вар.';
+      const v24 = g.variants.find((v) => v.size === 24 && v.style === 'Outline') || g.variants[0];
+      fetch(api('/file', { path: v24.it.file })).then((r) => r.blob()).then((b) => { row.querySelector('img').src = URL.createObjectURL(b); }).catch(() => {});
+      row.querySelector('button').onclick = () => sendIcon(g);
+      box.appendChild(row);
+    }
+  }
+  async function sendIcon(g) {
+    status(`Собираю «${g.name}»…`);
+    try {
+      const variants = [];
+      for (const v of g.variants) variants.push({ size: v.size, style: v.style, svg: await (await fetch(api('/file', { path: v.it.file }))).text() });
+      const keys = g.tags.filter((t) => t !== 'иконка' && t !== g.name).join(', ');
+      parent.postMessage({ pluginMessage: { type: 'icon', name: g.name, keys, variants } }, '*');
+      status(`«${g.name}» — набор компонентов на холсте`, 'ok');
+    } catch (e) { status('Не получилось: ' + e.message, 'err'); }
+  }
+  $('iq').oninput = renderIcons;
+
+  board.onclick = async () => {
+    const fo = folders.find((f) => f.id === folder.value);
+    if (fo && fo.flow) { flowToFigma(fo); return; }
+    const list = shown().slice(0, 60);
+    board.disabled = true;
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      status(`Мудборд: ${i + 1} из ${list.length}…`);
+      try { out.push({ bytes: await figmaBytes(list[i]), name: list[i].name, w: list[i].w, h: list[i].h, id: list[i].id }); } catch (e) { /* skip */ }
+    }
+    parent.postMessage({ pluginMessage: { type: 'board', title: folder.options[folder.selectedIndex].text.trim(), items: out } }, '*');
+    status(`Мудборд готов: ${out.length}`, 'ok');
+    board.disabled = false;
+  };
+  // «Сценарий»: the steps in their order, each with the second of the recording it was taken at
+  async function flowToFigma(fo) {
+    const byId = new Map(items.map((it) => [it.id, it]));
+    const steps = (fo.order || []).map((id) => byId.get(id)).filter(Boolean).slice(0, 60);
+    if (!steps.length) { status('В этом сценарии нет экранов', 'err'); return; }
+    board.disabled = true;
+    const out = [];
+    for (let i = 0; i < steps.length; i++) {
+      status(`Сценарий: ${i + 1} из ${steps.length}…`);
+      try { out.push({ bytes: await figmaBytes(steps[i]), name: steps[i].name, w: steps[i].w, h: steps[i].h, id: steps[i].id, t: steps[i].flowT }); } catch (e) { /* skip */ }
+    }
+    parent.postMessage({ pluginMessage: { type: 'flow', title: fo.name, items: out } }, '*');
+    status(`Сценарий «${fo.name}» на холсте: экранов ${out.length}`, 'ok');
+    board.disabled = false;
+  }
+  let qt = 0;
+  q.oninput = () => { clearTimeout(qt); qt = setTimeout(render, 120); };
+  folder.onchange = render;
+
+  /* ---------- send ---------- */
+  tok.oninput = () => { save(); refresh(); };
+  tok.onchange = () => { thumbs.clear(); load(); };
+  fmt.onchange = save;
+  go.onclick = async () => {
+    port = port || await findPerch();
+    if (!port) { status('Oddments не отвечает: откройте приложение Oddments', 'err'); return; }
+    sent = 0; go.disabled = true; status('Экспортирую…');
+    parent.postMessage({ pluginMessage: { type: 'send', format: fmt.value } }, '*');
+  };
+
+  onmessage = async (ev) => {
+    const m = ev.data.pluginMessage;
+    if (!m) return;
+    if (m.type === 'init') { tok.value = m.token; fmt.value = m.format; count = m.count; refresh(); load(); }
+    else if (m.type === 'count') { count = m.count; refresh(); }
+    else if (m.type === 'error') status(m.text, 'err');
+    else if (m.type === 'file') {
+      try {
+        const q = new URLSearchParams({ name: m.name, token: tok.value.trim(), source: 'figma' });
+        const r = await fetch(`http://localhost:${port}/import?${q}`, { method: 'POST', body: m.bytes });
+        if (r.status === 401) { status('Oddments не принял токен: скопируйте его заново', 'err'); refresh(); return; }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        sent++;
+        status(sent === m.total ? `Готово: отправлено ${sent}` : `Отправлено ${sent} из ${m.total}…`, sent === m.total ? 'ok' : '');
+      } catch (e) { status('Не получилось отправить: ' + e.message, 'err'); }
+      if (m.index === m.total - 1) refresh();
+    }
+  };
+</script>
