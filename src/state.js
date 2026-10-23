@@ -57,6 +57,7 @@ export const KINDS = {
   psd: { label: 'PSD', ext: ['psd', 'psb'] },
   model: { label: '3D', ext: ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'dae', '3mf', '3ds', 'usdz', 'blend', 'abc'] }, // .blend/.abc: no viewer
   material: { label: 'Материалы', ext: ['perchmat'] }, // PBR set packed by Oddments: material.json + maps (lib/material.js)
+  block: { label: 'Блоки', ext: ['oddblock'] }, // a block of a page's layout from the browser extension: shot + live markup (lib/block.js)
   figma: { label: 'Figma', ext: ['fig'] },
   link: { label: 'Ссылки', ext: ['url'] },
   other: { label: 'Другое', ext: [] },
@@ -74,7 +75,7 @@ export const MIME = {
   mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac', flac: 'audio/flac', m4a: 'audio/mp4', ogg: 'audio/ogg', opus: 'audio/ogg',
   ttf: 'font/ttf', otf: 'font/otf', woff: 'font/woff', woff2: 'font/woff2',
   pdf: 'application/pdf', psd: 'image/vnd.adobe.photoshop', psb: 'image/vnd.adobe.photoshop',
-  glb: 'model/gltf-binary', gltf: 'model/gltf+json', obj: 'model/obj', fbx: 'model/x-fbx', stl: 'model/stl', blend: 'application/x-blender', ply: 'model/x-ply', dae: 'model/vnd.collada+xml', '3mf': 'model/3mf', '3ds': 'application/x-3ds', usdz: 'model/vnd.usdz+zip', abc: 'application/x-alembic', fig: 'application/x-figma', url: 'application/x-url', perchmat: 'application/x-perch-material',
+  glb: 'model/gltf-binary', gltf: 'model/gltf+json', obj: 'model/obj', fbx: 'model/x-fbx', stl: 'model/stl', blend: 'application/x-blender', ply: 'model/x-ply', dae: 'model/vnd.collada+xml', '3mf': 'model/3mf', '3ds': 'application/x-3ds', usdz: 'model/vnd.usdz+zip', abc: 'application/x-alembic', fig: 'application/x-figma', url: 'application/x-url', perchmat: 'application/x-perch-material', oddblock: 'application/x-oddments-block',
 };
 
 export function extFromMime(mime) {

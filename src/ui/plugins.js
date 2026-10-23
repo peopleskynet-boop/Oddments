@@ -97,13 +97,13 @@ const CARDS = [
     steps: ['Сохраните плагин в папку.', 'Figma › Plugins › Development › Import plugin from manifest — выберите manifest.json в этой папке.', 'Откройте плагин и вставьте токен.'],
   },
   {
-    id: 'browser', seen: 'browser', title: 'Chrome и Edge', icon: 'external', ver: 'Расширение 1.2',
-    what: 'Картинки, видео, ссылки и снимки экрана — в Oddments: правый клик, Alt+клик, все картинки страницы, статьи — читать здесь.',
+    id: 'browser', seen: 'browser', title: 'Chrome и Edge', icon: 'external', ver: 'Расширение 1.4',
+    what: 'Картинки, видео, ссылки и снимки экрана — в Oddments: правый клик, Alt+клик, все картинки страницы, блоки интерфейса со снимком и кодом, статьи — читать здесь.',
     acts: [{ a: 'ext', label: 'Сохранить расширение…', pri: true }],
     steps: ['Сохраните расширение в папку.', 'Откройте chrome://extensions (или edge://extensions) и включите «Режим разработчика».', '«Загрузить распакованное» — папка «Oddments for Browser».', 'В окне расширения вставьте токен.'],
   },
   {
-    id: 'safari', seen: 'browser', title: 'Safari', icon: 'link', ver: 'Расширение 1.2 · Mac',
+    id: 'safari', seen: 'browser', title: 'Safari', icon: 'link', ver: 'Расширение 1.4 · Mac',
     what: 'То же расширение для Safari на Mac: правый клик, Alt+клик, все картинки страницы.',
     acts: [{ a: 'safari', label: isMac ? 'Установить в Safari' : 'Только на Mac', pri: true, off: !isMac }],
     steps: ['Нажмите «Установить в Safari» — откроется маленькое приложение «Oddments for Safari».', 'Safari › Настройки › Дополнения: включите «Показывать меню разработки», затем в меню «Разработка» — «Разрешить неподписанные расширения» (Safari спрашивает это после каждого перезапуска).', 'Safari › Настройки › Расширения — включите Oddments и разрешите его на всех сайтах.', 'В окне расширения вставьте токен.'],

@@ -1,0 +1,40 @@
+/* the preview of a block of a page (blockview.js) */
+.pv-hold.bv-host { padding: 0 72px 16px; }
+.bv { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+.bv-tabs { justify-self: center; display: inline-flex; gap: 2px; padding: 4px; border-radius: 99px; }
+.bv-tabs button { height: 32px; padding: 0 16px; border-radius: 99px; font-size: 13px; font-weight: 600; color: var(--fg-2, #c9c9cf); transition: background .2s, color .2s; }
+.bv-tabs button:hover { background: var(--hover); }
+.bv-tabs button.on { background: var(--fg); color: var(--bg); }
+.bv-body { min-height: 0; min-width: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; overflow: hidden; position: relative; }
+.bv-body.zoomable { cursor: grab; touch-action: none; }
+.bv-body.grab { cursor: grabbing; }
+.bv-body .zi { max-width: 100%; max-height: 100%; display: block; user-select: none; will-change: transform; border-radius: 6px; }
+.bv-none { color: #98989f; }
+/* live: the block's markup at its own width, fitted to the window; the outline and the card follow the pointer */
+.bv-live { position: relative; width: 100%; height: 100%; overflow: auto; display: grid; justify-items: center; align-items: start; padding: 4px 16px 16px; }
+.bv-wrap { position: relative; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 18px 50px rgba(0, 0, 0, .35); }
+.bv-frame { border: 0; display: block; transform-origin: 0 0; background: #fff; }
+.bv-hl { position: absolute; pointer-events: none; opacity: 0; border-radius: 3px; box-shadow: 0 0 0 1.5px var(--acc), 0 0 0 9999px rgba(0, 0, 0, .12);
+  background: color-mix(in srgb, var(--acc) 10%, transparent); transition: left .1s, top .1s, width .1s, height .1s, opacity .15s; }
+.bv-tip { position: sticky; bottom: 8px; justify-self: center; margin-top: 12px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; max-width: 100%;
+  padding: 9px 16px; border-radius: 22px; background: rgba(12, 13, 17, .9); color: #e9e9ee; font-size: 12px; backdrop-filter: blur(16px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); opacity: 0; transform: translateY(6px); transition: opacity .15s, transform .2s; pointer-events: none; }
+.bv-tip.on { opacity: 1; transform: none; }
+.bv-tip b { color: var(--acc); font-family: var(--mono, ui-monospace, monospace); font-weight: 600; }
+.bv-tip span { display: inline-flex; align-items: center; gap: 6px; }
+.bv-tip i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+.bv-tip small { color: #8d8d95; }
+/* code */
+.bv-code { width: 100%; height: 100%; margin: 0; overflow: auto; padding: 18px 22px; border-radius: 18px; background: rgba(255, 255, 255, .04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); color: #c8c8d0; font: 12px/1.6 var(--mono, ui-monospace, monospace); white-space: pre-wrap; word-break: break-all; user-select: text; }
+/* the line under it: site, kind and size, fonts, colours, copy */
+.bv-info { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; font-size: 12.5px; color: #b8b8c0; }
+.bv-site { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px 0 12px; border-radius: 99px; background: rgba(255, 255, 255, .08); color: #eee; font-weight: 600; }
+.bv-site:hover { background: rgba(255, 255, 255, .14); }
+.bv-site svg.i { width: 15px; height: 15px; }
+.bv-chip { height: 30px; padding: 0 12px; border-radius: 99px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); color: #e6e6ea; }
+.bv-chip em { font-style: normal; color: #8d8d95; }
+.bv-sws { display: inline-flex; gap: 4px; }
+.bv-sw { width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); transition: transform .15s; }
+.bv-sw:hover { transform: scale(1.15); }
+.bv-copy { height: 32px; font-size: 12.5px; }

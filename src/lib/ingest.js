@@ -244,7 +244,20 @@ async function videoCard(v) {
   return { canvas: c, colorSrc, w: W, h: H };
 }
 
-const GEN = { image: genImage, gif: genImage, video: genVideo, audio: genAudio, font: genFont, pdf: genPdf, psd: genPsd, model: genModel, material: genModel, figma: genFig, link: genLink };
+// a block of a page: its shot (blockCover: the top of a long one, a thin strip on its own background). The size is
+// the block's own, in CSS pixels, not the shot's
+async function genBlock(src) {
+  const { readBlock, blockCover } = await import('./block.js');
+  const b = readBlock(new Uint8Array(await (await src.getBlob()).arrayBuffer()));
+  if (!b.shot) return {};
+  const bm = await createImageBitmap(b.shot);
+  const canvas = blockCover(bm, b.meta.background, MAX_THUMB);
+  const w = b.meta.w || bm.width, h = b.meta.h || bm.height;
+  bm.close();
+  return { canvas, w, h };
+}
+
+const GEN = { block: genBlock, image: genImage, gif: genImage, video: genVideo, audio: genAudio, font: genFont, pdf: genPdf, psd: genPsd, model: genModel, material: genModel, figma: genFig, link: genLink };
 
 // Returns { w, h, ar, duration, pages, colors, thumb: Blob|null, preview: Blob|null, verts?, tris? }
 export async function generate(it, src) {

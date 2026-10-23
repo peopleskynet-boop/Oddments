@@ -12,3 +12,4 @@ dist-perf
 __pycache__/
 .claude/
 .mcp.json
+tests/.ext/

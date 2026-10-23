@@ -17,7 +17,7 @@ const TOOLS = [
     description: 'Search the Oddments reference library (pictures, videos, 3D models, fonts, PDFs, icons) by words — names, tags, AI tags and descriptions — and, when the local AI is on, by what is in the picture («grey headphones», «a hand holding a phone»). Russian and English both work. Returns the closest files first.',
     inputSchema: { type: 'object', properties: {
       query: { type: 'string', description: 'What to look for. Empty — the newest files.' },
-      kind: { type: 'string', enum: ['image', 'gif', 'video', 'audio', 'font', 'pdf', 'psd', 'model', 'material', 'link', 'figma'], description: 'Only this type of file' },
+      kind: { type: 'string', enum: ['image', 'gif', 'video', 'audio', 'font', 'pdf', 'psd', 'model', 'material', 'link', 'figma', 'block'], description: 'Only this type of file' },
       collection: { type: 'string', description: 'Only inside this collection (name or id), sub-collections included' },
       limit: { type: 'number', description: 'How many to return, 1–50 (20 by default)' },
     } },

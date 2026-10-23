@@ -139,13 +139,25 @@
   // Sites like Behance open or zoom a picture on pointerdown / mousedown, before any click: so the save happens on
   // the first press with Alt, and the whole press (down, up, click) is kept from the page. The picture is looked up
   // under the pointer through every layer (overlays and links sit on top of the <img>), not only in the target's parents.
+  // Behance puts a link over the <img> and gives the <img> pointer-events: none, so it is not in elementsFromPoint:
+  // an <img> inside a hit element whose box holds the point counts too
+  const holds = (el, x, y) => { const r = el.getBoundingClientRect(); return r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; };
+  function imgInside(el, x, y) {
+    if (!el.querySelectorAll) return null;
+    for (const im of el.querySelectorAll('img')) if (holds(im, x, y)) { const u = bestOf(im); if (u) return { url: u, el: im }; }
+    return null;
+  }
   function pictureUnder(x, y, target) {
     const own = pictureAt(target);
     if (own) return { url: own, el: target };
-    for (const el of document.elementsFromPoint(x, y)) {
-      if (el === host) continue;
+    const stack = document.elementsFromPoint(x, y).filter((el) => el !== host);
+    for (const el of stack) {
       const u = pictureAt(el);
       if (u) return { url: u, el };
+    }
+    for (const el of stack.slice(0, 4)) {
+      const hit = imgInside(el, x, y);
+      if (hit) return hit;
     }
     return null;
   }
@@ -153,8 +165,9 @@
   const eat = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
   addEventListener('pointerdown', (e) => {
     if (!alive || !e.altKey || !prefs.altClick || e.button !== 0) return;
-    const hit = pictureUnder(e.clientX, e.clientY, e.target);
-    const vid = hit ? null : videoUnder(e.clientX, e.clientY);
+    // a video first: Instagram and Pinterest lay its poster picture over it, and the poster is not what was meant
+    const vid = videoUnder(e.clientX, e.clientY);
+    const hit = vid ? null : pictureUnder(e.clientX, e.clientY, e.target);
     if (!hit && !vid) return;
     eat(e);
     swallow = Date.now();
@@ -182,6 +195,86 @@
     }
     return null;
   }
+  // the pin of a video on Pinterest: the pin page itself, the link around the video, or the one pin link in the
+  // nearest block around it (a block with several pins — a grid row — is not a guess worth making)
+  function pinOf(v) {
+    const pin = (u) => { const m = String(u || '').match(/^https?:\/\/[^/]*pinterest\.[^/]+\/pin\/[\w-]+/i); return m ? m[0] + '/' : ''; };
+    if (pin(location.href)) return pin(location.href);
+    const a = v.closest('a[href*="/pin/"]');
+    if (a) return pin(a.href);
+    for (let el = v.parentElement, i = 0; el && i < 10; el = el.parentElement, i++) {
+      const all = new Set([...el.querySelectorAll('a[href*="/pin/"]')].map((l) => pin(l.href)).filter(Boolean));
+      if (all.size === 1) return [...all][0];
+      if (all.size > 1) return '';
+    }
+    return '';
+  }
+  // the stream of a Pinterest video: its poster (…/videos/thumbnails/originals/ab/cd/ef/<hash>.0000000.jpg) names the
+  // same <hash> as its playlist (…/videos/iht/hls/ab/cd/ef/<hash>.m3u8); the playlist the page really loaded wins
+  function pinStream(v) {
+    const m = String(v.poster || '').match(/\/videos\/thumbnails\/originals\/([0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{16,})\./i);
+    if (!m) return '';
+    const hash = m[1].split('/').pop();
+    const seen = performance.getEntriesByType('resource').map((e) => e.name).find((n) => n.includes(hash) && /\.m3u8(\?|$)/.test(n) && !/_\d+w\.m3u8|_audio\.m3u8/.test(n));
+    return seen || `https://v1.pinimg.com/videos/iht/hls/${m[1]}.m3u8`;
+  }
+  // a name for it: the pin's own picture description next to the video, else the page title
+  function pinName(v) {
+    for (let el = v.parentElement, i = 0; el && i < 8; el = el.parentElement, i++) {
+      const im = el.querySelector('img[alt]');
+      if (im && im.alt.trim().length > 2) return im.alt.trim().slice(0, 80);
+    }
+    return document.title.replace(/\s*[|–—-]\s*Pinterest\s*$/i, '') || 'Pinterest';
+  }
+  // Instagram: the shortcode of the post (/p/, /reel/) → its media id → the media info the site's own page asks for
+  // (same origin, the person's own session), the video file of the post — in a carousel, the one as long as this one
+  const IG = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  async function instagramVideo(v, link) {
+    const code = (String(link).match(/\/(?:p|reel|reels|tv)\/([\w-]+)/) || location.pathname.match(/\/(?:p|reel|reels|tv)\/([\w-]+)/) || [])[1];
+    if (!code) throw new Error('no post');
+    let id = 0n;
+    for (const ch of code.slice(0, 11)) id = id * 64n + BigInt(IG.indexOf(ch));
+    toast('Сохраняю видео…', 'busy');
+    const r = await fetch(`/api/v1/media/${id}/info/`, { credentials: 'include', headers: { 'X-IG-App-ID': '936619743392459', 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!r.ok) throw new Error('info ' + r.status);
+    const item = ((await r.json()).items || [])[0];
+    if (!item) throw new Error('no item');
+    const vids = (item.carousel_media || [item]).filter((m) => m.video_versions && m.video_versions.length);
+    if (!vids.length) throw new Error('no video');
+    const dur = v.duration || 0;
+    const m = vids.sort((a, b) => Math.abs((a.video_duration || 0) - dur) - Math.abs((b.video_duration || 0) - dur))[0];
+    const best = m.video_versions.slice().sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+    const who = item.user && item.user.username ? '@' + item.user.username : 'Instagram';
+    const cap = item.caption && item.caption.text ? ' — ' + item.caption.text.split(/\r?\n/)[0].slice(0, 60) : '';
+    send({ t: 'saveFile', url: best.url, page: 'https://www.instagram.com/p/' + code + '/', alt: document.title, name: who + cap });
+  }
+  // Instagram without its API (not signed in): the player's own DASH pieces. Each piece's `efg` names the clip
+  // (xpv_asset_id), its length and bitrate; without bytestart/byteend the CDN gives the whole track file. The clip
+  // as long as this video (the latest one loaded when several are), its best video track and its audio, if any.
+  function instagramStream(v, link) {
+    const clips = new Map();
+    performance.getEntriesByType('resource').forEach((e, i) => {
+      if (!/\.mp4(\?|$)/.test(e.name) || !/cdninstagram\.com|fbcdn\.net/.test(e.name)) return;
+      let u, info;
+      try { u = new URL(e.name); info = JSON.parse(atob(decodeURIComponent(u.searchParams.get('efg') || ''))); } catch (er) { return; }
+      if (!info || !info.xpv_asset_id) return;
+      u.searchParams.delete('bytestart'); u.searchParams.delete('byteend');
+      const c = clips.get(info.xpv_asset_id) || { dur: +info.duration_s || 0, at: 0, video: null, audio: null };
+      const kind = /audio/i.test(info.vencode_tag || '') ? 'audio' : 'video';
+      if (!c[kind] || (+info.bitrate || 0) > c[kind].br) c[kind] = { url: u.href, br: +info.bitrate || 0 };
+      c.at = i;
+      clips.set(info.xpv_asset_id, c);
+    });
+    const dur = v.duration || 0;
+    const best = [...clips.values()].filter((c) => c.video && (!dur || Math.abs(c.dur - dur) <= 1.5))
+      .sort((a, b) => Math.abs(a.dur - dur) - Math.abs(b.dur - dur) || b.at - a.at)[0];
+    if (!best) return false;
+    const og = document.querySelector('meta[property="og:title"]');
+    const name = ((og && og.content) || document.title || 'Instagram').replace(/\s*[•|]\s*Instagram.*$/i, '').slice(0, 80);
+    toast('Сохраняю видео…', 'busy');
+    send({ t: 'saveStream', video: best.video.url, audio: best.audio ? best.audio.url : '', page: link, title: name });
+    return true;
+  }
   // the post the video belongs to: a link to /p/ or /reel/ (Instagram), /status/ (X) near it, else the page
   function postOf(v) {
     let el = v;
@@ -201,6 +294,19 @@
     }
     const link = postOf(v), title = document.title;
     if (record) return recordVideo(v, link, title);
+    // Pinterest and Instagram play a stream (blob:), but the video itself can be had: Pinterest — the pin goes as a
+    // link and Oddments downloads its MP4; Instagram — the post's own video file, asked for as the page itself does
+    if (/(^|\.)pinterest\./i.test(location.hostname)) {
+      const pin = pinOf(v), hls = pinStream(v);
+      if (hls) { toast('Сохраняю видео…', 'busy'); return send({ t: 'savePinVideo', hls, pin, title: pinName(v) }); }
+      if (pin) { toast('Сохраняю видео…', 'busy'); return send({ t: 'saveLink', url: pin, title }); }
+    }
+    if (/(^|\.)instagram\.com$/i.test(location.hostname)) {
+      return instagramVideo(v, link).catch(() => { if (!instagramStream(v, link)) frameOf(v, link, title); });
+    }
+    frameOf(v, link, title);
+  }
+  function frameOf(v, link, title) {
     try {
       const c = document.createElement('canvas');
       c.width = v.videoWidth; c.height = v.videoHeight;
@@ -435,4 +541,6 @@
     items = [...vids, ...items]; // the page's videos first
     render();
   }
+  // the block grabber (block.js) draws in the same overlay and talks through the same channel
+  window.__odd = { root, host, mount, toast, send, alive: () => alive };
 })();

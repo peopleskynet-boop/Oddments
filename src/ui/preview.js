@@ -188,6 +188,7 @@ function draw() {
     case 'pdf': pdfView(holder, it, my); break;
     case 'model': case 'material': modelView(holder, it, my); break;
     case 'figma': case 'link': linkView(holder, it); break;
+    case 'block': blockView(holder, it, my); break;
     default: other(holder, it);
   }
 }
@@ -380,6 +381,15 @@ function videoView(holder, it) {
 }
 
 // No view inside Oddments (unknown type, or it failed): say why and offer the two ways out, not a dead end.
+// a block of a page (blockview.js, loaded on first use): the shot, the live block with an inspector, the code
+function blockView(holder, it, my) {
+  import('./blockview.js').then(async (m) => {
+    if (my !== token || !holder.isConnected) return;
+    const done = await m.mountBlock(holder, it, zoomImage);
+    if (my !== token) done(); else cleanup = done;
+  }).catch(() => other(holder, it, 'Просмотр блока не открылся.'));
+}
+
 function other(holder, it, msg) {
   holder.innerHTML = `<div class="pv-other"><b>${esc((it.ext || 'file').toUpperCase())}</b><p>${esc(msg || 'Для этого типа нет встроенного просмотра.')}</p>` +
     `<div class="pv-acts"><button type="button" class="pill" data-pva="app">${ic('external')}<span>Открыть в программе</span><kbd>Ctrl Enter</kbd></button>` +

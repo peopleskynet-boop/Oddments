@@ -39,6 +39,7 @@ function cardHTML(it) {
   else if (it.kind === 'psd') badge = '<span class="badge">PSD</span>';
   else if (it.kind === 'font') badge = '<span class="badge">Aa</span>';
   else if (it.kind === 'material') badge = '<span class="badge">Материал</span>';
+  else if (it.kind === 'block') badge = '<span class="badge">Блок</span>';
   else if (it.kind === 'model') badge = `<span class="badge">${it.ext === 'blend' ? 'BLEND' : '3D · ' + esc((it.ext || '').toUpperCase())}</span>`;
   // the type is said once: a card with a type badge does not repeat the extension in its caption
   const ex = badge ? '' : `<span class="ex">${esc(it.ext || '')}</span>`;

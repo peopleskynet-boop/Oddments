@@ -2,6 +2,7 @@
 // ?n=5000 in the address bar makes a big library for scroll-performance checks;
 // ?empty starts with an empty library.
 import { demoModels, demoMaterials } from './seed3d.js';
+import { demoBlocks } from './seedblock.js';
 
 const ROOT = '/Documents/Perch Library';
 
@@ -188,6 +189,17 @@ export async function seed(put) {
       id, name: m.name, ext: 'perchmat', kind: 'material', size: m.blob.size, added: now - k * 4200000,
       file, thumb, preview: null, w: m.w, h: m.h, ar: m.ar, duration: 0, pages: 0,
       tags: ['материал'], folders: ['f-3d'], note: '', url: '', colors: m.colors, trashed: false, fresh: false, fav: false,
+    });
+  });
+  // blocks of page layout, as the browser extension grabs them
+  (await demoBlocks()).forEach((m, k) => {
+    const id = 'demoblk' + k, file = `files/${id}/${m.name}.oddblock`, thumb = `files/${id}/thumb.webp`;
+    put(`${ROOT}/${file}`, m.blob);
+    put(`${ROOT}/${thumb}`, m.thumb);
+    items.push({
+      id, name: m.name, ext: 'oddblock', kind: 'block', size: m.blob.size, added: now - k * 2400000,
+      file, thumb, preview: null, w: m.w, h: m.h, ar: m.ar, duration: 0, pages: 0,
+      tags: m.tags, folders: [], note: '', url: m.url, colors: m.colors, trashed: false, fresh: k === 0, fav: false,
     });
   });
   // SVG icons: something to try «SVG в 3D» on (the picture is the SVG itself)

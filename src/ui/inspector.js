@@ -71,7 +71,7 @@ function mediaBlock(it) {
     case 'video': return `<div class="ip-prev"><video controls preload="metadata" ${it.thumb ? `poster="${assetUrl(it.thumb)}"` : ''} src="${assetUrl(it.file)}"></video></div>`;
     case 'audio': return `<div class="ip-prev nobg">${it.thumb ? `<img src="${assetUrl(it.thumb)}" alt="">` : ''}<audio controls preload="metadata" src="${assetUrl(it.file)}"></audio></div>`;
     case 'font': return `<div class="ip-prev font" data-act="pv"><div class="fsample" id="fsample" style="font-family:'${fontFamily(it)}'">Aa Бб Яя<br>0123456789</div></div>`;
-    case 'pdf': case 'psd': case 'model': case 'material': case 'link': case 'figma': return it.thumb ? `<div class="ip-prev" data-act="pv"><img src="${assetUrl(it.thumb)}" alt=""></div>` : `<div class="ip-prev file">${esc(it.ext)}</div>`;
+    case 'pdf': case 'psd': case 'model': case 'material': case 'link': case 'figma': case 'block': return it.thumb ? `<div class="ip-prev" data-act="pv"><img src="${assetUrl(it.thumb)}" alt=""></div>` : `<div class="ip-prev file">${esc(it.ext)}</div>`;
     default: return `<div class="ip-prev file">${esc(it.ext || 'file')}</div>`;
   }
 }

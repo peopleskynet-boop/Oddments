@@ -4,6 +4,8 @@
 //   GET  /library?token — folders and tags for the popup's picker.
 // Pictures are downloaded here (host permissions: no CORS), so the page's own scripts never see the token.
 
+import { muxAV, pinterestHls } from './fmp4.js';
+
 const PORTS = [47215, 47216, 47217, 47218, 47219];
 const VIDEO_URLS = [
   { site: 'YouTube', re: /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^#\s]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})[^\s]*/i },
@@ -39,17 +41,18 @@ async function endpoint(path, params = {}) {
   return { url: `http://127.0.0.1:${at}${path}?${q}`, p };
 }
 
-async function sendBlob(blob, name, source) {
-  const { url } = await endpoint('/import', await target({ name: cleanName(name), source: source || '' }));
+async function sendBlob(blob, name, source, tags) {
+  const { url } = await endpoint('/import', await target({ name: cleanName(name), source: source || '' }, tags));
   let r;
   try { r = await fetch(url, { method: 'POST', body: blob }); } catch (e) { port = null; throw new PerchError('Oddments не ответил'); }
   if (r.status === 401) throw new PerchError('Токен не подошёл: скопируйте его заново в Oddments › Настройки');
   if (!r.ok) throw new PerchError('Oddments ответил ' + r.status);
 }
-// the folder and tags from the popup
-async function target(params) {
+// the folder and tags from the popup (and the tags a saved thing brings itself — a grabbed block's kind, site, fonts)
+async function target(params, own) {
   const p = await prefs();
-  return { ...params, folder: p.folder || '', tags: (p.tags || []).join('\n') };
+  const tags = [...new Set([...(p.tags || []), ...(own || [])].map((t) => String(t).trim()).filter(Boolean))];
+  return { ...params, folder: p.folder || '', tags: tags.join('\n') };
 }
 
 export async function status() {
@@ -83,14 +86,17 @@ async function download(url) {
 }
 
 // a picture or a video file by URL; `hint` names it when the URL does not
-async function saveFile(url, page, hint) {
+async function saveFile(url, page, hint, named) {
   if (/^blob:/i.test(url)) throw new PerchError('Это поток из скрипта страницы, сохранить его нельзя');
   const { blob, type } = await download(url);
   if (type === 'text/html') throw new PerchError('По ссылке страница, а не файл');
-  let name = /^data:/i.test(url) ? '' : nameFromUrl(url);
-  if (!KNOWN.test(name)) {
-    const ext = EXT[type] || '';
-    name = (name.replace(/\.[a-z0-9]{1,5}$/i, '') || cleanName(hint) || 'image') + (ext ? '.' + ext : '');
+  // `named` — a name the page knows better than the URL (an Instagram video's file name is a hash)
+  let name = named ? cleanName(named) : /^data:/i.test(url) ? '' : nameFromUrl(url);
+  // the extension follows what the site sent: Behance serves WebP under «….jpg» from its /1400_webp/ folder
+  const real = EXT[type] || '';
+  const own = (name.match(/\.([a-z0-9]{1,5})$/i) || [])[1] || '';
+  if (!KNOWN.test(name) || (real && own.toLowerCase().replace('jpeg', 'jpg') !== real)) {
+    name = (name.replace(/\.[a-z0-9]{1,5}$/i, '') || cleanName(hint) || 'image') + (real ? '.' + real : '');
   }
   await sendBlob(blob, name, page || (/^https?:/i.test(url) ? url : ''));
   return name;
@@ -146,7 +152,7 @@ async function shotArea(tab) {
 async function ask(tab, msg) {
   try { return await chrome.tabs.sendMessage(tab.id, msg); } catch (e) {
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js', 'block.js'] });
       return await chrome.tabs.sendMessage(tab.id, msg);
     } catch (e2) { return undefined; }
   }
@@ -292,7 +298,59 @@ const MENUS = [
   { id: 'all', title: 'Все картинки страницы…', contexts: ['page', 'image', 'link'] },
   { id: 'area', title: 'Снимок области', contexts: ['page', 'image', 'link', 'video'] },
   { id: 'shot', title: 'Снимок видимой части', contexts: ['page', 'image', 'link', 'video'] },
+  { id: 'block', title: 'Забрать блок интерфейса…', contexts: ['page', 'image', 'link', 'video', 'selection'] },
 ];
+
+/* ---------- a block of a page's layout (block.js) ---------- */
+// the window's picture for the block's shot, one at a time and not faster than Chrome allows (two a second)
+let lastShot = 0;
+async function captureFor(tab) {
+  const gap = 560 - (Date.now() - lastShot);
+  if (gap > 0) await new Promise((r) => setTimeout(r, gap));
+  lastShot = Date.now();
+  return chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+}
+// the @font-face rules of the block's families, with the font files inside (Oddments shows only fonts it carries):
+// the rules the page could read itself plus the ones in other sites' sheets (Google Fonts…), read here without CORS
+const FACE = /@font-face\s*{[^}]*}/gi;
+async function blockFonts(faces, far, want) {
+  const wanted = new Set(want || []);
+  const all = [...(faces || [])];
+  for (const href of far || []) {
+    try {
+      const css = await (await fetch(href)).text();
+      for (const f of css.match(FACE) || []) {
+        const fam = ((f.match(/font-family\s*:\s*([^;]+)/i) || [])[1] || '').replace(/["']/g, '').trim().toLowerCase();
+        if (wanted.has(fam)) all.push(f.replace(/url\(\s*["']?([^"')]+)["']?\s*\)/g, (m, u) => `url("${new URL(u, href).href}")`));
+      }
+    } catch (e) { /* that sheet is not reachable */ }
+  }
+  let budget = 4e6;
+  const out = [];
+  for (const f of all.slice(0, 24)) {
+    const urls = [...f.matchAll(/url\("?([^")]+)"?\)\s*(?:format\(["']?([\w-]+)["']?\))?/g)].map((m) => ({ u: m[1], fmt: (m[2] || '').toLowerCase() }));
+    const pick = urls.find((x) => x.fmt === 'woff2' || /\.woff2(\?|$)/i.test(x.u)) || urls.find((x) => /^https?:/.test(x.u));
+    if (!pick || budget <= 0) continue;
+    try {
+      const b = await (await fetch(pick.u)).arrayBuffer();
+      if (b.byteLength > budget) continue;
+      budget -= b.byteLength;
+      let s = '';
+      const u8 = new Uint8Array(b);
+      for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      const type = pick.fmt === 'woff2' || /\.woff2/i.test(pick.u) ? 'font/woff2' : /\.woff(\?|$)/i.test(pick.u) ? 'font/woff' : 'font/ttf';
+      out.push(f.replace(/src\s*:[^;}]+/i, `src:url(data:${type};base64,${btoa(s)})`));
+    } catch (e) { /* that font file is not reachable */ }
+  }
+  return out.join('\n');
+}
+async function saveBlock(tab, msg) {
+  const bin = atob(msg.data), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const name = cleanName(msg.name || 'Блок') + '.oddblock';
+  await sendBlob(new Blob([u8], { type: 'application/x-oddments-block' }), name, msg.page || (tab && tab.url), msg.tags);
+  return cleanName(msg.name || 'Блок');
+}
 function makeMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: 'perch', title: 'Oddments', contexts: ['page', 'frame', 'image', 'link', 'video', 'selection'] });
@@ -326,6 +384,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     case 'all': return ask(tab, { t: 'gallery' });
     case 'area': return run(tab, () => shotArea(tab), (n) => 'В Oddments: ' + n);
     case 'shot': return run(tab, () => shotVisible(tab), (n) => 'В Oddments: ' + n);
+    case 'block': return ask(tab, { t: 'pickBlock' });
   }
 });
 
@@ -336,6 +395,7 @@ chrome.commands.onCommand.addListener(async (cmd, tab) => {
   if (cmd === 'shot-area') run(tab, () => shotArea(tab), (n) => 'В Oddments: ' + n);
   if (cmd === 'save-all') ask(tab, { t: 'gallery' });
   if (cmd === 'save-article') run(tab, () => saveArticle(tab), (n) => 'Статья в Oddments: ' + n);
+  if (cmd === 'grab-block') ask(tab, { t: 'pickBlock' });
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -344,8 +404,36 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     switch (msg.t) {
       case 'status': return status();
       case 'prefs': return prefs();
-      case 'saveFile': return run(tab, () => saveFile(msg.url, msg.page || (tab && tab.url), msg.alt), (n) => 'В Oddments: ' + n);
+      case 'saveFile': return run(tab, () => saveFile(msg.url, msg.page || (tab && tab.url), msg.alt, msg.name), (n) => 'В Oddments: ' + n);
       case 'saveLink': return run(tab, () => saveLink(msg.url, msg.title), (n) => 'В Oddments: ' + n);
+      // «Забрать блок» (block.js): the window's picture for its shot, its fonts, the finished file
+      case 'blockCapture': try { return { data: await captureFor(tab) }; } catch (e) { return { error: (e && e.message) || String(e) }; }
+      case 'blockFonts': return { css: await blockFonts(msg.faces, msg.far, msg.want).catch(() => '') };
+      case 'saveBlock': return run(tab, () => saveBlock(tab, msg), (n) => 'Блок в Oddments: ' + n);
+      // a video played as a stream (Instagram not signed in): its whole video track, joined with the audio track
+      case 'saveStream': return run(tab, async () => {
+        const vid = new Uint8Array(await (await download(msg.video)).blob.arrayBuffer());
+        let out = vid;
+        if (msg.audio) {
+          try { out = muxAV(vid, new Uint8Array(await (await download(msg.audio)).blob.arrayBuffer())); } catch (e) { out = vid; }
+        }
+        const name = cleanName(msg.title || 'Видео') + '.mp4';
+        await sendBlob(new Blob([out], { type: 'video/mp4' }), name, msg.page || (tab && tab.url));
+        return name;
+      }, (n) => 'В Oddments: ' + n);
+      // a Pinterest video: its stream's video and audio joined into one MP4 (fmp4.js); no stream — the pin as a link
+      case 'savePinVideo': return run(tab, async () => {
+        const page = msg.pin || (tab && tab.url) || '';
+        try {
+          const mp4 = await pinterestHls(msg.hls, (u) => fetch(u));
+          const name = cleanName(msg.title || 'Pinterest') + '.mp4';
+          await sendBlob(new Blob([mp4], { type: 'video/mp4' }), name, page);
+          return name;
+        } catch (e) {
+          if (e instanceof PerchError || !msg.pin) throw e;
+          return saveLink(msg.pin, msg.title);
+        }
+      }, (n) => 'В Oddments: ' + n);
       case 'saveMany': return saveMany(tab, msg.items);
       // a video without a file (Instagram reels and the like, Media Source): its current frame + a link card to the post
       case 'saveFrame': return run(tab, async () => {
@@ -373,6 +461,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (msg.do === 'page') return run(t, () => saveLink(t.url, t.title), (n) => 'В Oddments: ' + n);
         if (msg.do === 'all') return ask(t, { t: 'gallery' });
         if (msg.do === 'article') return run(t, () => saveArticle(t), (n) => 'Статья в Oddments: ' + n);
+        if (msg.do === 'block') return ask(t, { t: 'pickBlock' });
       }
     }
   })().then(reply, () => reply(undefined));

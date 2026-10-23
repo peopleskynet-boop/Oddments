@@ -2,22 +2,86 @@
   "manifest_version": 3,
   "name": "Oddments — сохранить в библиотеку",
   "short_name": "Oddments",
-  "version": "1.2.0",
-  "description": "Сохраняет картинки, видео, ссылки и снимки экрана в Oddments на этом компьютере: правый клик, Alt+клик, перетаскивание, все картинки страницы сразу, анимации Behance (Vimeo) — файлом.",
+  "version": "1.4.0",
+  "description": "Сохраняет картинки, видео, ссылки и снимки экрана в Oddments на этом компьютере: правый клик, Alt+клик, перетаскивание, все картинки страницы сразу, блоки интерфейса со снимком и кодом, анимации Behance (Vimeo) — файлом.",
   "minimum_chrome_version": "116",
-  "icons": { "32": "icon32.png", "128": "icon128.png" },
-  "action": { "default_popup": "popup.html", "default_title": "Oddments", "default_icon": { "32": "icon32.png", "128": "icon128.png" } },
-  "background": { "service_worker": "background.js", "type": "module" },
-  "permissions": ["contextMenus", "storage", "activeTab", "scripting", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "icons": {
+    "32": "icon32.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Oddments",
+    "default_icon": {
+      "32": "icon32.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_scripts": [
-    { "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle", "all_frames": false },
-    { "matches": ["https://player.vimeo.com/video/*"], "js": ["embed.js"], "run_at": "document_idle", "all_frames": true }
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js",
+        "block.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://player.vimeo.com/video/*"
+      ],
+      "js": [
+        "embed.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
   ],
   "commands": {
-    "shot-visible": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "Снимок видимой области в Oddments" },
-    "shot-area": { "suggested_key": { "default": "Alt+Shift+A" }, "description": "Снимок выбранной области в Oddments" },
-    "save-all": { "suggested_key": { "default": "Alt+Shift+D" }, "description": "Все картинки страницы…" },
-    "save-article": { "suggested_key": { "default": "Alt+Shift+R" }, "description": "Сохранить статью в Oddments — читать там" }
+    "shot-visible": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Снимок видимой области в Oddments"
+    },
+    "shot-area": {
+      "suggested_key": {
+        "default": "Alt+Shift+A"
+      },
+      "description": "Снимок выбранной области в Oddments"
+    },
+    "save-all": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Все картинки страницы…"
+    },
+    "save-article": {
+      "suggested_key": {
+        "default": "Alt+Shift+R"
+      },
+      "description": "Сохранить статью в Oddments — читать там"
+    },
+    "grab-block": {
+      "description": "Забрать блок интерфейса в Oddments"
+    }
   }
 }

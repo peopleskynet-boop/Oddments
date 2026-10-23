@@ -3,18 +3,20 @@
 // API refuses (it limits requests); an image pin's original picture. Other sites: the page's og:video when it is
 // a video file. YouTube and Vimeo are not here: they play in their own embedded players (preview.js).
 import { fetch as tfetch } from '@tauri-apps/plugin-http';
+import { pinterestHls } from './fmp4.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
 const get = (url, accept = '*/*') => tfetch(url, { method: 'GET', headers: { 'User-Agent': UA, Accept: accept } });
 
 // the best MP4 among a pin's video variants ({V_720P: {url, width}, V_HLSV4: …} or the camelCase GraphQL shape);
-// an HLS-only pin has its MP4 next to the playlist: …/hls/ab/cd/ef/x.m3u8 → …/720p/ab/cd/ef/x.mp4
+// an HLS-only pin: older ones have their MP4 next to the playlist (…/hls/ab/cd/ef/x.m3u8 → …/720p/ab/cd/ef/x.mp4),
+// newer ones (…/iht/hls/…) only separate video and audio files — `hls` says to join them (downloadMedia)
 function bestMp4(list) {
   const v = Object.values(list || {}).filter((x) => x && x.url);
   const mp4 = v.filter((x) => /\.mp4(\?|$)/i.test(x.url)).sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-  if (mp4) return { url: mp4.url, w: mp4.width || 0, h: mp4.height || 0 };
   const hls = v.find((x) => /\/hls\/.+\.m3u8/i.test(x.url));
-  return hls ? { url: hls.url.replace('/hls/', '/720p/').replace(/\.m3u8.*$/i, '.mp4'), w: 0, h: 0 } : null;
+  if (mp4) return { url: mp4.url, hls: hls ? hls.url : '', w: mp4.width || 0, h: mp4.height || 0 };
+  return hls ? { url: hls.url.replace('/hls/', '/720p/').replace(/\.m3u8.*$/i, '.mp4'), hls: hls.url, w: 0, h: 0 } : null;
 }
 
 // the clip of one pin object; only the pin's own fields are read, never related pins elsewhere on the page
@@ -120,6 +122,8 @@ export async function mediaFor(url) {
 // the file itself, for the player (blob: URL) or for the library
 export async function downloadMedia(m) {
   let r = await get(m.url, m.kind === 'video' ? 'video/*,*/*;q=0.8' : 'image/*,*/*;q=0.8');
+  // a newer Pinterest video has no MP4 at all (403): its stream's video and audio files joined into one
+  if (!r.ok && m.hls) return { blob: new Blob([await pinterestHls(m.hls, (u) => get(u))], { type: 'video/mp4' }), ext: 'mp4' };
   // a Pinterest original that is not there (rare): the largest resized copy
   if (!r.ok && /\/originals\//.test(m.url)) r = await get(m.url.replace('/originals/', '/736x/'), 'image/*,*/*;q=0.8');
   if (!r.ok) throw new Error('HTTP ' + r.status);
