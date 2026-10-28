@@ -71,6 +71,14 @@ npm run tauri dev
   (`%LOCALAPPDATA%\app.perch.desktop` на Windows, `~/Library/Application Support/app.perch.desktop` на Mac).
 - В сеть уходят только запросы, которые вы включили сами: ленты новостей, скачивание моделей ИИ, API по вашему ключу.
 
+## Связаться
+
+Вопросы, ошибки, идеи — пишите:
+- Почта: [peopleskynet@gmail.com](mailto:peopleskynet@gmail.com)
+- Telegram: [@PeopleSkyNet](https://t.me/PeopleSkyNet)
+- LinkedIn: [linkedin.com/in/alexander-park-725461267](https://www.linkedin.com/in/alexander-park-725461267/)
+- Ошибки можно завести и здесь, в [Issues](../../issues).
+
 ## Лицензия
 
 [MIT](LICENSE). Сторонние библиотеки и ресурсы — в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
