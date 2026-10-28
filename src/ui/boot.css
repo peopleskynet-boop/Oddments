@@ -1,0 +1,40 @@
+/* the start screen (boot.js): the prism in liquid glass over a slow field of the brand's colours */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.boot2 { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; overflow: hidden; background: #0b0c10; pointer-events: none; transition: opacity .7s cubic-bezier(.4, 0, .2, 1); }
+:root:is([data-theme="light"], [data-theme="calm"]) .boot2 { background: var(--bg); }
+.boot2.out { opacity: 0; }
+/* the colour field: big soft blobs drifting, like a mesh gradient in motion */
+.b2-field { position: absolute; inset: -20%; filter: blur(90px) saturate(1.15); opacity: 0; animation: b2-field 1.2s .05s cubic-bezier(.2, .7, .2, 1) forwards; }
+.b2-blob { position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; mix-blend-mode: screen; }
+:root:is([data-theme="light"], [data-theme="calm"]) .b2-blob { mix-blend-mode: multiply; opacity: .55; }
+.b2-blob.sky { left: 8%; top: 38%; background: radial-gradient(closest-side, #a7c7ff, transparent); animation: b2-a 6s ease-in-out infinite alternate; }
+.b2-blob.lav { left: 44%; top: 20%; background: radial-gradient(closest-side, #d6b4ff, transparent); animation: b2-b 7s ease-in-out infinite alternate; }
+.b2-blob.pink { left: 30%; top: 52%; background: radial-gradient(closest-side, #ffc7eb, transparent); opacity: .7; animation: b2-c 5.5s ease-in-out infinite alternate; }
+.b2-blob.lime { left: 62%; top: 60%; width: 18vmax; height: 18vmax; background: radial-gradient(closest-side, #d7ff63, transparent); opacity: .45; animation: b2-a 4.5s ease-in-out infinite alternate-reverse; }
+@keyframes b2-field { to { opacity: .42; } }
+@keyframes b2-a { to { transform: translate(14vmax, -8vmax) scale(1.15); } }
+@keyframes b2-b { to { transform: translate(-12vmax, 10vmax) scale(.9); } }
+@keyframes b2-c { to { transform: translate(8vmax, -12vmax) scale(1.2); } }
+/* the prism condenses out of a blur, the colours inside it keep flowing, a light runs across the glass */
+.b2-stage { position: relative; display: grid; justify-items: center; gap: 18px; }
+.b2-prism { width: min(34vmin, 240px); height: auto; overflow: visible; filter: drop-shadow(0 18px 50px rgba(167, 140, 255, .35)); opacity: 0; transform: scale(.86); animation: b2-prism .9s .1s cubic-bezier(.2, .8, .2, 1) forwards; }
+@keyframes b2-prism { 0% { opacity: 0; transform: scale(.86); filter: blur(14px) drop-shadow(0 18px 50px rgba(167, 140, 255, 0)); } 100% { opacity: 1; transform: none; filter: blur(0) drop-shadow(0 18px 50px rgba(167, 140, 255, .35)); } }
+.b2-c { transform-box: fill-box; transform-origin: center; }
+.b2-c.c1 { animation: b2-in1 3.2s ease-in-out infinite alternate; }
+.b2-c.c2 { animation: b2-in2 2.8s ease-in-out infinite alternate; }
+.b2-c.c3 { animation: b2-in3 3.6s ease-in-out infinite alternate; }
+.b2-c.c4 { animation: b2-in1 2.4s ease-in-out infinite alternate-reverse; }
+@keyframes b2-in1 { to { transform: translate(40px, -30px) scale(1.2); } }
+@keyframes b2-in2 { to { transform: translate(-46px, 18px) scale(.85); } }
+@keyframes b2-in3 { to { transform: translate(20px, 50px) scale(1.15); } }
+.b2-sweep { animation: b2-sweep 1.4s .55s cubic-bezier(.5, 0, .3, 1) forwards; opacity: .9; }
+@keyframes b2-sweep { to { transform: rotate(24deg) translateX(460px); } }
+/* the name: the letters close in from wide spacing, the line under it follows */
+.b2-word { font: 500 clamp(30px, 5.4vmin, 52px)/1 var(--font-ui); letter-spacing: .32em; color: #f4f2fa; opacity: 0; animation: b2-word 1s .35s cubic-bezier(.2, .8, .2, 1) forwards; }
+:root:is([data-theme="light"], [data-theme="calm"]) .b2-word { color: var(--fg); }
+@keyframes b2-word { to { letter-spacing: -.02em; opacity: 1; } }
+.b2-tag { font: 500 11px/1 var(--mono); letter-spacing: .32em; text-transform: uppercase; color: #a7a3b8; opacity: 0; animation: b2-tag .7s .8s ease forwards; }
+@keyframes b2-tag { to { opacity: 1; } }
+@media (prefers-reduced-transparency: reduce) { .b2-field { display: none; } }
+}

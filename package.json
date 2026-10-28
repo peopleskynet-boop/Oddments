@@ -16,7 +16,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:unit": "node --test \"tests/unit/*.test.mjs\""
   },
   "dependencies": {
     "@crabnebula/tauri-plugin-drag": "2.1.0",
@@ -35,12 +36,14 @@
     "@tauri-apps/plugin-opener": "^2",
     "ag-psd": "^22.0.0",
     "clipper-lib": "6.4.2",
+    "comlink": "^4.4.2",
     "dompurify": "^3.4.17",
     "figma-squircle": "^1.1.0",
     "onnxruntime-web": "^1.30.0",
     "paper": "^0.14.0",
     "pdfjs-dist": "^4.10.38",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "xatlasjs": "^0.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

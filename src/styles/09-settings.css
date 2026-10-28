@@ -1,0 +1,99 @@
+/* ——— settings (floating glass) ——— */
+.settings {
+  position: fixed; top: var(--gap); right: var(--gap); bottom: var(--gap); width: min(392px, calc(100% - 24px)); z-index: 90;
+  border-radius: var(--rp); transform: translateX(calc(100% + 30px)); transition: transform .4s var(--ease), visibility 0s; visibility: hidden; display: flex; flex-direction: column; overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 82%, transparent); backdrop-filter: blur(30px) saturate(1.5);
+  box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 1px var(--line), var(--shadow);
+}
+.settings.on { transform: none; visibility: visible; }
+/* the drawer starts under the top bar, like the properties panel: «Добавить», «i» and the window buttons stay
+   where they are and nothing sits under the glass; the drawer's glass is denser too */
+.settings { top: calc(var(--gap) + var(--barh) + 12px); background: color-mix(in srgb, var(--panel) 93%, transparent); }
+
+/* our own window frame (main.js, tauri only): a thin strip along the top edge drags the window; the window
+   buttons are the last capsule of the top bar */
+.dragtop { position: fixed; z-index: 16; top: 0; left: 0; right: 0; height: max(10px, var(--gap)); }
+/* in the app the bar row itself is a drag handle (data-tauri-drag-region): it catches the pointer between its
+   capsules; in the clean screen only while it is shown */
+body.tauri .bar { pointer-events: auto; }
+body.tauri.clean:not(.peek-top) .bar { pointer-events: none; }
+.dragtop[hidden], .wctl[hidden] { display: none; }
+.wctl .ib { width: 34px; height: 34px; }
+.wctl .ib svg.i { width: 15px; height: 15px; }
+.wctl #wClose:hover, body.motion .wctl #wClose:hover { background: var(--red-ui) !important; color: #fff; } /* over the shared hover */
+/* the drag strip along the top is taller: the window is easy to catch even in the clean screen */
+body.tauri .dragtop { height: 16px; }
+/* over a full-screen section: the window's own title strip (main.js) — drag anywhere on it, double click maximises,
+   the buttons on the right; the sections themselves start under it */
+.winbar { position: fixed; z-index: 150; top: 0; left: 0; right: 0; height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.winbar[hidden] { display: none; }
+.winbar-t { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.winbar-b { display: flex; gap: 2px; }
+.winbar .ib { width: 34px; height: 28px; border-radius: 99px; }
+.winbar .ib svg.i { width: 14px; height: 14px; }
+.winbar .wb-close:hover { background: var(--red-ui) !important; color: #fff; }
+body.tauri.layer-up { --wtop: 36px; }
+body.tauri.layer-up :is(.pv, .feed, .news, .flw, .ik, .plg, .sb-layer, .s3d) { top: var(--wtop); }
+.sp-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 14px 8px 20px; }
+.sp-head h2 { margin: 0; font-size: 24px; font-weight: 650; letter-spacing: -.04em; }
+.sp-head .ibtn { box-shadow: none; padding: 0; width: 36px; }
+.sp-body { overflow: auto; padding: 0 20px 24px; }
+/* the drawer's pages (settings.js paginate): a search and pill tabs on top, one page under them */
+.sp-find { width: 100%; height: 38px; margin: 2px 0 10px; padding: 0 16px; border: 0; border-radius: 99px; background: var(--field); color: var(--fg); font: inherit; outline: 0; }
+.sp-find:focus-visible { box-shadow: 0 0 0 2px var(--acc); }
+.sp-find::placeholder { color: var(--mut); }
+.sp-tabs { position: sticky; top: -1px; z-index: 2; display: flex; gap: 4px; flex-wrap: wrap; margin: 0 -20px; padding: 6px 20px 10px; background: color-mix(in srgb, var(--panel) 97%, transparent); }
+.sp-tabs button { height: 32px; padding: 0 14px; border: 0; border-radius: 99px; background: var(--hover); color: var(--mut); font: inherit; font-weight: 600; cursor: pointer; }
+.sp-tabs button:hover { color: var(--fg); }
+.sp-tabs button[aria-selected="true"] { background: var(--acc); color: var(--acc-fg); }
+.sp-body.finding .sp-tabs button[aria-selected="true"] { background: var(--hover); color: var(--mut); }
+.spage[hidden], .spage > [hidden] { display: none !important; }
+.sp-body.nothing::after { content: "Такой настройки нет — попробуйте другое слово"; display: block; padding: 20px 4px; color: var(--mut); }
+.sgrp { font-size: 12px; font-weight: 500; color: var(--mut); padding: 20px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.srow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; }
+.srow.col { flex-direction: column; align-items: stretch; }
+.srow > span { flex: 1; }
+.srow b { font-weight: 500; color: var(--mut); }
+.srow select, .srow input[type=range] { width: 200px; background: var(--field); border: 0; border-radius: 10px; padding: 7px 9px; box-shadow: inset 0 0 0 1px var(--line); }
+.srow select option { background: var(--panel); }
+.srow input[type=range] { padding: 0; accent-color: var(--fg); box-shadow: none; background: none; }
+.srow input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--fg); }
+.accs { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; max-width: 210px; }
+.accs button { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .3); transition: transform .18s var(--ease); }
+.accs button:hover { transform: scale(1.12); }
+.accs button.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--fg); }
+.accs .own { position: relative; width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(#ff453a, #ff9f0a, #ffd60a, #30d158, #64d2ff, #5e5ce6, #bf5af2, #ff453a); cursor: pointer; }
+.accs .own input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.accs .own.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--fg); }
+.accs button[data-rim="prism"] { background: linear-gradient(135deg, #D6B4FF, #A7C7FF 50%, #FFC7E8) !important; }
+.int-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.int-help { margin: 10px 0 0; color: var(--mut); font-size: 12px; line-height: 1.55; }
+.int-help b { color: var(--fg); font-weight: 600; }
+details.adv { margin-top: 18px; border-top: 1px solid var(--line); }
+details.adv summary { cursor: pointer; padding: 14px 0 8px; font-size: 12px; font-weight: 500; color: var(--mut); list-style: none; }
+details.adv summary::before { content: '›'; display: inline-block; margin-right: 8px; transition: transform .2s; }
+details.adv[open] summary::before { transform: rotate(90deg); }
+details.adv p { margin: 0 0 8px; color: var(--mut); font-size: 12px; line-height: 1.5; }
+.path { font: 12px var(--mono); color: var(--mut); overflow-wrap: anywhere; background: var(--field); padding: 8px 10px; border-radius: 10px; }
+#sCss { width: 100%; background: var(--field); border: 0; border-radius: 12px; padding: 10px; font: 12px var(--mono); resize: vertical; box-shadow: inset 0 0 0 1px var(--line); }
+
+/* Settings › «Правила бренда» (brand.js) */
+.br-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; }
+.br-row > span:first-child { width: 120px; color: var(--mut); }
+.br-row input[type="number"] { width: 84px; height: 30px; padding: 0 10px; border: 0; border-radius: 99px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line); }
+.br-row input[type="color"] { width: 34px; height: 30px; padding: 0; border: 0; border-radius: 99px; background: none; cursor: pointer; }
+.br-cols { display: flex; flex-wrap: wrap; gap: 6px; }
+.br-c { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 6px; border-radius: 99px; background: var(--hover); font: 500 11px var(--mono); }
+.br-c i { width: 16px; height: 16px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .4); }
+.br-c button { width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: var(--mut); cursor: pointer; }
+.br-add { position: relative; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); color: var(--mut); cursor: pointer; overflow: hidden; }
+.br-add input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* Settings › «Словарь тегов» (glossary.js) */
+.gl-list, .gl-merge { display: grid; gap: 6px; }
+.gl-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.gl-row b { min-width: 110px; }
+.gl-row input { flex: 1; min-width: 0; height: 30px; padding: 0 12px; border: 0; border-radius: 99px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line); }
+.gl-row span { flex: 1; min-width: 0; }
+.gl-add { display: flex; flex-wrap: wrap; gap: 6px; }
+.gl-add input { flex: 1 1 140px; height: 32px; padding: 0 12px; border: 0; border-radius: 99px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line); }

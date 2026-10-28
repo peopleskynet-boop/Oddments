@@ -1,0 +1,46 @@
+/* «Скрыть личные данные» (mask.js): the picture in the middle, what is hidden on the right */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.msk { position: fixed; inset: 0; z-index: 70; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px); animation: fade .25s; }
+.msk[hidden] { display: none; }
+.msk-bar { position: absolute; z-index: 2; top: 16px; left: 50%; translate: -50% 0; height: 50px; max-width: calc(100% - 32px); border-radius: 99px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; white-space: nowrap; }
+.msk-bar .ib { width: 38px; height: 38px; }
+.msk-bar .ibtn { height: 38px; }
+.msk-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--mut); }
+.msk-n { color: var(--mut); font-family: var(--mono); }
+.msk-seg { display: inline-flex; padding: 3px; border-radius: 99px; background: var(--hover); }
+.msk-seg button { height: 32px; padding: 0 14px; border: 0; border-radius: 99px; background: none; color: var(--mut); font: inherit; font-size: 13px; cursor: pointer; }
+.msk-seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.msk-stage { position: absolute; inset: 82px 340px 24px 24px; display: grid; place-items: center; min-width: 0; min-height: 0; }
+.msk-pic { position: relative; max-width: 100%; max-height: 100%; height: 100%; border-radius: 18px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); cursor: crosshair; touch-action: none; }
+.msk-pic[hidden] { display: none; }
+.msk-pic canvas { display: block; width: 100%; height: 100%; }
+.msk-boxes { position: absolute; inset: 0; }
+.msk-r { position: absolute; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--acc) 85%, transparent); }
+.msk-r:not(.on) { box-shadow: 0 0 0 1.5px var(--mut); outline: 1.5px dashed color-mix(in srgb, var(--fg) 70%, transparent); outline-offset: -1.5px; background: color-mix(in srgb, var(--bg) 18%, transparent); }
+.msk-r.own { box-shadow: 0 0 0 1.5px var(--hud, var(--acc)); }
+.msk-r:hover { box-shadow: 0 0 0 2.5px var(--acc); }
+.msk-r:focus-visible { box-shadow: 0 0 0 3px var(--acc); outline: none; }
+.msk-draft { position: absolute; border-radius: 6px; box-shadow: 0 0 0 1.5px var(--acc); background: color-mix(in srgb, var(--acc) 16%, transparent); pointer-events: none; }
+.msk-wait { display: grid; place-items: center; }
+.msk-wait[hidden] { display: none; }
+.msk-side { position: absolute; top: 82px; right: 24px; bottom: 24px; width: 300px; border-radius: 26px; padding: 20px 18px; overflow: auto; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
+.msk-h { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.msk-k { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px 0 10px; border: 0; border-radius: 99px; background: var(--hover); color: var(--fg); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.msk-k[aria-pressed="false"] { background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--mut); }
+.msk-chk { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--acc); color: var(--accfg, #000); }
+.msk-k[aria-pressed="false"] .msk-chk { background: none; box-shadow: inset 0 0 0 1.5px var(--mut); }
+.msk-chk svg.i { width: 14px; height: 14px; }
+.msk-c { color: var(--mut); font-family: var(--mono); font-size: 12px; }
+.msk-sw { display: flex; align-items: center; gap: 8px; margin: 6px 2px; font-size: 13px; cursor: pointer; }
+.msk-p { margin: 4px 2px; font-size: 12.5px; line-height: 1.45; color: var(--fg); }
+.msk-p.mut { color: var(--mut); }
+.msk-p.warn { color: var(--fg); padding: 10px 12px; border-radius: 16px; background: color-mix(in srgb, var(--mag, #ff3b8b) 14%, transparent); }
+:root[data-theme="marathon"] .msk-h { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+:root[data-theme="marathon"] .msk-h::before { content: '// '; color: var(--hud); }
+@media (max-width: 860px) {
+  .msk-stage { inset: 82px 16px 46vh; }
+  .msk-side { top: auto; left: 16px; right: 16px; width: auto; height: calc(46vh - 40px); }
+  .msk-name, .msk-seg { display: none; }
+}
+}

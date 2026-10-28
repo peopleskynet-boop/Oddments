@@ -95,3 +95,53 @@ export async function similarIcons(fillPathData, { limit = 6, min = 0.6 } = {}) 
   }
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }
+
+// «Опишите иконку» → the library's icons that already are it (plan item 5): a base to start from instead of drawing
+// anew or asking the AI. Words are matched against the icon's name, tags (the constructor saves its search words as
+// tags) and AI tags, with crude stems («замка» finds «замок») and a small Russian → English list for the usual icon
+// names («Lock», «Home»); when the local AI is ready, its search by meaning ranks pictures the words miss.
+const RU_EN = {
+  замок: 'lock', ключ: 'key', дом: 'home', домик: 'home', поиск: 'search', лупа: 'search', настройк: 'settings', шестер: 'gear',
+  пользоват: 'user', человек: 'user', профил: 'profile', сердц: 'heart', избран: 'favorite', звезд: 'star', колокол: 'bell',
+  уведомл: 'notification', календар: 'calendar', часы: 'clock', время: 'time', карта: 'card', банк: 'bank', кошел: 'wallet',
+  деньг: 'money', рубл: 'ruble', монет: 'coin', телефон: 'phone', звонок: 'call', сообщ: 'message', чат: 'chat', почт: 'mail',
+  письм: 'mail', конверт: 'mail', камер: 'camera', фото: 'photo', картин: 'image', видео: 'video', музык: 'music', микрофон: 'mic',
+  корзин: 'cart', покупк: 'shopping', сумк: 'bag', подарок: 'gift', документ: 'document', файл: 'file', папк: 'folder',
+  удал: 'delete', мусор: 'trash', плюс: 'plus', добав: 'add', минус: 'minus', закры: 'close', крест: 'close', галочк: 'check',
+  стрелк: 'arrow', назад: 'back', вперёд: 'forward', вперед: 'forward', меню: 'menu', глаз: 'eye', скры: 'hide', показ: 'show',
+  щит: 'shield', безопас: 'security', лампа: 'lamp', лампочк: 'bulb', свет: 'light', солнц: 'sun', луна: 'moon', облак: 'cloud',
+  загруз: 'download', скача: 'download', выгруз: 'upload', поделит: 'share', ссылк: 'link', скреп: 'attach', карандаш: 'edit',
+  редакт: 'edit', копир: 'copy', печат: 'print', замет: 'note', книг: 'book', локац: 'location', место: 'location', геолок: 'location',
+  машин: 'car', авто: 'car', самол: 'plane', поезд: 'train', магазин: 'store', работ: 'work', график: 'chart', диаграм: 'chart',
+  интернет: 'internet', сеть: 'network', wifi: 'wifi', батаре: 'battery', заряд: 'charge', молни: 'lightning', флаг: 'flag',
+  информ: 'info', вопрос: 'question', помощ: 'help', предупр: 'warning', ошибк: 'error', фильтр: 'filter', сортир: 'sort',
+  список: 'list', сетк: 'grid', выход: 'logout', вход: 'login', обнов: 'refresh', синхр: 'sync', код: 'code', qr: 'qr',
+};
+const stem = (w) => (w.length <= 4 ? w : w.slice(0, Math.max(4, w.length - 2)));
+const words = (s) => String(s || '').toLowerCase().replace(/ё/g, 'е').split(/[^a-zа-я0-9-]+/i).filter((w) => w.length >= 2);
+function english(w) {
+  for (const [ru, en] of Object.entries(RU_EN)) if (w.startsWith(ru.replace(/ё/g, 'е')) || (w.length >= 4 && ru.startsWith(w))) return en;
+  return '';
+}
+// → [{ it, score, why }] best first; `meaning` = an optional Map id → score from the AI's search by meaning
+export function iconsByWords(text, { limit = 6, meaning = null, min = 0 } = {}) {
+  const ask = words(text).filter((w) => !['с', 'и', 'в', 'на', 'для', 'без', 'под', 'над', 'из', 'со', 'icon', 'иконка'].includes(w));
+  if (!ask.length) return [];
+  const want = ask.map((w) => ({ stem: stem(w), en: english(w) }));
+  const seen = new Set(), out = [];
+  for (const it of S.items) {
+    if (it.trashed || it.ext !== 'svg' || !it.thumb) continue;
+    const base = it.name.split(' — ')[0].trim();
+    const key = base.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const hay = words([base, ...(it.tags || []), ...(it.aiTags || [])].join(' '));
+    let hit = 0;
+    for (const w of want) if (hay.some((h) => h.startsWith(w.stem) || (w.en && h.startsWith(w.en)))) hit++;
+    let score = hit / want.length;
+    const sem = meaning && meaning.scores.get(it.id);
+    if (sem != null && sem >= meaning.min) score += 0.35 * Math.min(1, (sem - meaning.min) / 0.05 + 0.3);
+    if (score > min) out.push({ it, score, why: hit ? 'words' : 'meaning' });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, limit);
+}

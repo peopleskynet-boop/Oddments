@@ -1,0 +1,41 @@
+/* ——— «Марафон»: technical type and corner brackets ——— */
+:root[data-theme="marathon"] .grp, :root[data-theme="marathon"] .card .cap, :root[data-theme="marathon"] .card .ovl, :root[data-theme="marathon"] .nav .ct {
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; font-size: 11px;
+}
+:root[data-theme="marathon"] .grp { color: var(--mut); }
+:root[data-theme="marathon"] .grp { justify-content: flex-start; gap: 6px; }
+:root[data-theme="marathon"] .grp::before { content: '//'; color: var(--hud); } /* a section mark, not «add» ([+] read as a button) */
+/* the HUD language reaches the chrome, not only the corners (the shapes stay round, as everywhere): mono caps for
+   labels and section heads, keys in brackets, the same // marks in the inspector, the preview, the palette and
+   the settings */
+:root[data-theme="marathon"] :is(.tabs .chip, .tr-t, .sb, .sortcap .gsel, .dock .cap-sm, .fld > span, .sec, .sgrp, .pv-top .c, .pv-acts .pill) {
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; font-size: 11px; font-weight: 500;
+}
+:root[data-theme="marathon"] :is(.fld > span, .sec, .sgrp, .cmdk-gh)::before { content: '// '; color: var(--hud); white-space: pre; }
+:root[data-theme="marathon"] :is(.fld > span, .sec) { justify-content: flex-start; }
+:root[data-theme="marathon"] :is(.fld > span, .sec) > :last-child:not(:first-child) { margin-left: auto; }
+:root[data-theme="marathon"] .search kbd { font-family: var(--mono); color: var(--hud); background: none; box-shadow: none; }
+:root[data-theme="marathon"] .search kbd::before { content: '[ '; } :root[data-theme="marathon"] .search kbd::after { content: ' ]'; }
+:root[data-theme="marathon"] :is(.tabs .chip .n, .tr-t span)::before { content: '('; } :root[data-theme="marathon"] :is(.tabs .chip .n, .tr-t span)::after { content: ')'; }
+:root[data-theme="marathon"] .pv-top .t { font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; font-size: 13px; font-weight: 500; }
+:root[data-theme="marathon"] .pv-top .c { color: var(--hud); }
+:root[data-theme="marathon"] .cmdk kbd { color: var(--hud); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hud) 40%, transparent); }
+:root[data-theme="marathon"] .grp button { margin-left: auto; }
+:root[data-theme="marathon"] .nav .ct:not(:empty)::before { content: '('; }
+:root[data-theme="marathon"] .nav .ct:not(:empty)::after { content: ')'; }
+:root[data-theme="marathon"] .card::before, :root[data-theme="marathon"] .card::after {
+  /* the brackets follow the card's own corner: an arc concentric with it (radius + the 6px gap), same squircle */
+  content: ""; position: absolute; z-index: 3; --bo: clamp(2px, calc(var(--cg, 14px) / 2 - 3px), 8px); /* inside the half-gap: the grid line and its + stay clear */
+  width: calc(var(--r) + var(--bo) + 8px); height: calc(var(--r) + var(--bo) + 8px); opacity: 0; pointer-events: none;
+  corner-shape: squircle; transition: opacity .15s, translate .2s var(--ease);
+}
+:root[data-theme="marathon"] .card::before { left: calc(-1 * var(--bo)); top: calc(-1 * var(--bo)); border-left: 2px solid var(--hud); border-top: 2px solid var(--hud); border-top-left-radius: calc(var(--r) + var(--bo)); translate: -4px -4px; }
+:root[data-theme="marathon"] .card::after { right: calc(-1 * var(--bo)); bottom: calc(-1 * var(--bo)); border-right: 2px solid var(--hud); border-bottom: 2px solid var(--hud); border-bottom-right-radius: calc(var(--r) + var(--bo)); translate: 4px 4px; }
+/* selected: the ring itself is the accent, the brackets would only crowd it */
+:root[data-theme="marathon"] .card.sel::before, :root[data-theme="marathon"] .card.sel::after { opacity: 0 !important; }
+:root[data-theme="marathon"] .card:hover::before, :root[data-theme="marathon"] .card:hover::after { opacity: 1; translate: 0 0; }
+/* the picture lifts 3px on hover (body.motion .card:hover .ph): the brackets rise with it, or it rides into the top one */
+:root[data-theme="marathon"] body.motion .card:hover::before, :root[data-theme="marathon"] body.motion .card:hover::after { translate: 0 -3px; }
+/* the picture lifts but does not lean here: a tilt moves its corners into the brackets that frame it */
+:root[data-theme="marathon"] body.motion .card:hover .ph { transform: translateY(-3px); }
+:root[data-theme="marathon"] .head h1 { text-transform: uppercase; letter-spacing: -.03em; }

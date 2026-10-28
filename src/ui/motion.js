@@ -42,6 +42,25 @@ function glassLight() {
   document.addEventListener('pointerleave', () => { if (cur) cur.classList.remove('lit-g'); cur = null; });
 }
 
+// «Марафон»: the bloom of a glass panel (--glow, set by :hover in CSS) comes up in .35 s and fades in .6 s. Eased
+// here with WAAPI, not a CSS transition: that one would replace every panel's own transition (bug #118).
+function glassGlow() {
+  const chain = (el) => { const a = []; for (let g = el && el.closest && el.closest('.glass'); g; g = g.parentElement && g.parentElement.closest('.glass')) if (!g.classList.contains('pill')) a.push(g); return a; };
+  const ease = (g, to) => {
+    if (!motionOn() || document.documentElement.dataset.theme !== 'marathon') return;
+    const from = parseFloat(getComputedStyle(g).getPropertyValue('--glow')) || 0;
+    if (g._glow) g._glow.cancel();
+    g._glow = g.animate([{ '--glow': from }, { '--glow': to }], { duration: to ? 350 : 600, easing: 'ease' });
+  };
+  const move = (from, to) => {
+    const a = chain(from), b = chain(to);
+    for (const g of a) if (!b.includes(g)) ease(g, 0);
+    for (const g of b) if (!a.includes(g)) ease(g, 1);
+  };
+  document.addEventListener('pointerover', (e) => move(e.relatedTarget, e.target), { passive: true });
+  document.addEventListener('pointerout', (e) => { if (!e.relatedTarget) move(e.target, null); }, { passive: true });
+}
+
 // Cards lean slightly towards the pointer, like a picture in the hand.
 function cardTilt() {
   const grid = document.getElementById('grid');
@@ -188,6 +207,7 @@ export function viewTransition(update) {
 
 export function initMotion() {
   glassLight();
+  glassGlow();
   cardTilt();
   document.body.classList.toggle('motion', motionOn());
   reduced.addEventListener('change', () => document.body.classList.toggle('motion', motionOn()));

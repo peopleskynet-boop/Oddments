@@ -40,7 +40,7 @@
       "dangerousDisableAssetCspModification": ["style-src"],
       "assetProtocol": {
         "enable": true,
-        "scope": ["$DOCUMENT/Perch Library/**", "$APPLOCALDATA/**"]
+        "scope": ["$DOCUMENT/Oddments Library/**", "$DOCUMENT/Perch Library/**", "$APPLOCALDATA/**"]
       }
     }
   },

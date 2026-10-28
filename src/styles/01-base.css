@@ -1,0 +1,95 @@
+/* ——— Liquid Glass ——— */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(var(--gblur, 26px)) saturate(190%) brightness(1.05); -webkit-backdrop-filter: blur(var(--gblur, 26px)) saturate(190%);
+  box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo), inset 0 0 0 1px var(--line), var(--shadow);
+}
+body:not(.glass-on) .glass { background: var(--panel); backdrop-filter: none; }
+@media (prefers-reduced-transparency: reduce) { .glass, .settings { background: var(--panel) !important; backdrop-filter: none !important; } }
+/* dot-matrix numerals (Nothing), made from Geist Mono with a dot mask so Cyrillic sites can use it too */
+.dots {
+  font-family: var(--mono); font-weight: 800;
+  -webkit-mask: radial-gradient(circle, #000 52%, transparent 58%) 0 0 / 3px 3px; mask: radial-gradient(circle, #000 52%, transparent 58%) 0 0 / 3px 3px;
+}
+
+/* ——— buttons ——— */
+.ib { width: 38px; height: 38px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; color: var(--fg); transition: background .2s, transform .2s; }
+.ib:hover:not(:disabled) { background: var(--hover); }
+.ib:active:not(:disabled) { transform: scale(.92); }
+.ib.on { background: var(--fg); color: var(--bg); }
+.pill {
+  height: 44px; padding: 0 20px 0 16px; border-radius: 99px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-weight: 600; font-size: 14px; letter-spacing: -.01em; white-space: nowrap;
+  background: var(--acc); color: var(--acc-fg);
+  /* Butter: soft, inflated, tactile */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -2px 6px rgba(0, 0, 0, .18), 0 10px 26px rgba(0, 0, 0, .3);
+  transition: transform .2s var(--ease), filter .2s;
+}
+.pill:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.pill:active { transform: scale(.97); }
+.pill.ghost { background: none; color: var(--fg); box-shadow: inset 0 0 0 1px var(--line-2); }
+.pill.ghost:hover { background: var(--hover); }
+.pill.danger { color: var(--warn); }
+.pill.wide { width: 100%; height: 38px; font-size: 13px; }
+/* classic small buttons (settings, dialogs, inspector) */
+.ibtn {
+  height: 36px; min-width: 36px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border-radius: 99px; background: none; box-shadow: inset 0 0 0 1px var(--line-2); white-space: nowrap; font-weight: 500;
+  transition: background .15s, transform .15s;
+}
+.ibtn:hover { background: var(--hover); }
+.ibtn:active { transform: scale(.97); }
+.ibtn.pri { background: var(--acc); color: var(--acc-fg); box-shadow: none; font-weight: 600; }
+.ibtn.danger { color: var(--warn); }
+/* confirm morph (dialogs.js arm): armed fills red with a bar draining over --arm-ms */
+:is(.ibtn, .pill) .am { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+:is(.ibtn, .pill):is(.armed, .working) { position: relative; overflow: hidden; background: var(--red-ui); color: #fff; box-shadow: none; transition: background .2s, color .2s; }
+:is(.ibtn, .pill).armed:hover { background: color-mix(in srgb, var(--red-ui) 88%, #fff); }
+:is(.ibtn, .pill).armed::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: rgba(255, 255, 255, .7); transform-origin: 0 50%; animation: armdrain var(--arm-ms, 3s) linear forwards; }
+.pill.ghost:is(.armed, .working), .pill.ghost.armed:hover { background: var(--red-ui); color: #fff; }
+@keyframes armdrain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+:is(.ibtn, .pill).working .spin { width: 14px; height: 14px; border-color: rgba(255, 255, 255, .3); border-top-color: #fff; }
+:is(.ibtn, .pill).done { color: var(--fg); }
+:is(.ibtn, .pill).done svg.i { width: 15px; height: 15px; }
+.ibtn.flat { box-shadow: none; }
+
+/* ——— layout ——— */
+.app { position: fixed; inset: 0; }
+body.side-off { --pl: 28px; }
+body.insp-off { --pr: 28px; }
+.main { position: absolute; inset: 0; overflow: clip; isolation: isolate; }
+.main::before {
+  content: ""; position: absolute; inset: -20% -10% 0; z-index: 0; pointer-events: none; opacity: 0; filter: blur(60px);
+  background:
+    radial-gradient(34% 36% at 38% 16%, color-mix(in srgb, var(--amb1) 70%, transparent), transparent 70%),
+    radial-gradient(32% 36% at 72% 80%, color-mix(in srgb, var(--amb2) 55%, transparent), transparent 70%);
+  transition: opacity 1s var(--ease), --amb1 1s var(--ease), --amb2 1s var(--ease);
+}
+/* half as strong as before (the night's list, #8): a hint of the picture's colour, not a wash over the panels */
+body.ambient .main.lit::before { opacity: .25; }
+:root[data-theme="light"] body.ambient .main.lit::before, :root[data-theme="calm"] body.ambient .main.lit::before { opacity: .15; }
+.scroll {
+  position: absolute; inset: 0; z-index: 1; overflow: auto; scrollbar-width: none;
+  padding: calc(var(--barh) + var(--gap) * 2 + 8px) var(--pr) 110px var(--pl);
+}
+.scroll::-webkit-scrollbar { display: none; }
+/* Inspector over the grid (Liquid Glass): the grid runs on under the right panel, so showing or
+   hiding it never reflows the grid and the pictures show through the glass. The sidebar on the left
+   keeps its own column. The view header stays clear of the inspector so it is never covered. */
+@media (min-width: 861px) {
+  body.overlay .scroll { padding-right: 24px; }
+  /* a selected card was under the panel: the grid made room for it (main.js makeRoom) */
+  body.overlay.insp-room.has-sel:not(.insp-off) .scroll { padding-right: calc(var(--iw) + var(--gap) + 24px); }
+  body.overlay .head, body.overlay .covers, body.overlay .tabrow, body.overlay .newbar {
+    margin-right: calc(var(--pr) - 20px); transition: margin .35s var(--ease);
+  }
+  /* the panel only shows with a selection: until then nothing waits on the right. The top bar always reaches
+     the edge (the panel starts under it); the tabs and the header make room only while the panel is out */
+  body.overlay .bar { right: 20px; }
+  body.overlay .cpop { right: 88px; }
+  body.overlay .insp { top: calc(var(--gap) + var(--barh) + 12px); }
+  body.overlay:not(.has-sel) :is(.head, .covers, .tabrow, .newbar), body.overlay.insp-off :is(.head, .covers, .tabrow, .newbar) { margin-right: 4px; }
+}
+/* Apple scroll-edge effect: content dissolves under the toolbar */
+.edge { position: absolute; left: 0; right: 0; top: 0; height: 100px; z-index: 2; pointer-events: none; background: linear-gradient(var(--bg) 62%, transparent); }
+.edge-b { position: absolute; left: 0; right: 0; bottom: 0; height: 110px; z-index: 2; pointer-events: none; background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 85%, transparent) 70%); }

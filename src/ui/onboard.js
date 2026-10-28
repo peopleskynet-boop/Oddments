@@ -6,21 +6,24 @@ import { $ } from '../util.js';
 import { ic } from './icons.js';
 import { sfx } from './sound.js';
 import { toast } from './dialogs.js';
+import { readPref, writePref } from '../lib/prefs.js';
 
 const KEY = 'perch.onboard';
 const STEPS = [
   { id: 'add', title: 'Добавьте референс', how: 'Скопируйте картинку где угодно и нажмите Ctrl V прямо в Oddments. Или перетащите файлы в окно, или нажмите «Добавить».', target: '#addBtn' },
-  { id: 'edges', title: 'Позовите панели', how: 'В чистом экране на виду только референсы. Подведите мышь к левому краю — разделы и подборки, к верхнему — поиск и вкладки, к нижнему — размер. Кнопки внизу слева делают то же.', target: '.hud-bl' },
+  { id: 'edges', title: 'Включите чистый экран', how: 'Клавиша \ (или «Обычный вид» внизу слева) убирает все панели — на виду только референсы. Панели возвращаются, если подвести мышь к краю: слева — разделы, сверху — поиск, снизу — размер. Ещё раз \ — обычный вид.', target: '#sideTog' },
   { id: 'open', title: 'Откройте просмотр', how: 'Двойной клик по карточке или Пробел. Стрелки листают, Esc закрывает.', target: '#grid .card' },
   { id: 'color', title: 'Найдите по цвету', how: 'Кружок в строке поиска: выберите цвет, и в сетке останутся картинки с ним.', target: '#filtBtn' },
-  { id: '3d', title: 'Попробуйте 3D', how: 'Откройте модель из «3D › Модели» и покрутите её, или превратите SVG-иконку в модель для Blender: «3D › SVG в 3D».', target: '.nav[data-vt="tool-svg3d"]' },
+  { id: '3d', title: 'Попробуйте 3D', how: 'Откройте модель из «3D › 3D-модели» и покрутите её, или превратите SVG-иконку в модель для Blender: «3D › SVG в 3D».', target: '.nav[data-vt="tool-svg3d"]' },
 ];
 
 let state = { done: [], hidden: false, finished: false };
-try { Object.assign(state, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* first run */ }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* private mode: the card just comes back */ } };
+Object.assign(state, readPref(KEY, {}));
+const save = () => writePref(KEY, state); // private mode: the card just comes back
 
-let el = null, open = true, spot = null;
+// open on the first run; after the first step done it folds to one line (audit 24.10: the open card covered the
+// lower third of the sidebar), unless the person opened it themselves
+let el = null, open = state.open ?? !state.done.length, spot = null;
 
 export function initOnboard() {
   const side = $('#side');
@@ -33,7 +36,7 @@ export function initOnboard() {
     const b = e.target.closest('[data-ob]');
     if (!b) return;
     const a = b.dataset.ob;
-    if (a === 'toggle') { open = !open; draw(); }
+    if (a === 'toggle') { open = !open; state.open = open; save(); draw(); }
     else if (a === 'hide') { hideOnboard(); toast('Знакомство убрано — вернуть можно в Настройках', 5000, { label: 'Вернуть', fn: showOnboard }); }
     else if (a === 'show') point(STEPS.find((s) => s.id === b.dataset.step));
   });
@@ -48,6 +51,7 @@ export function markStep(id) {
   if (spot && spot.step === id) unpoint();
   if (!el || state.hidden) return;
   if (state.done.length === STEPS.length && !state.finished) { state.finished = true; save(); sfx('done'); open = true; }
+  else if (state.open == null) open = false; // the first step done: one line from now on
   draw();
 }
 

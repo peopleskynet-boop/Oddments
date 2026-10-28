@@ -4,7 +4,7 @@
 import { demoModels, demoMaterials } from './seed3d.js';
 import { demoBlocks } from './seedblock.js';
 
-const ROOT = '/Documents/Perch Library';
+const ROOT = '/Documents/Oddments Library';
 
 const PALETTES = [
   ['#e8e2d6', '#c4532f', '#1f2a2e', '#d9a441'],

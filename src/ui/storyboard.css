@@ -1,4 +1,6 @@
 /* a flow collection: «Раскадровка» and «Пройти» (storyboard.js) */
+@layer tokens, base, components, screens, themes;
+@layer screens {
 .sb-layer { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(24px); animation: fade .22s; }
 .sb-layer[hidden] { display: none; }
 .sb-top { display: flex; align-items: center; gap: 16px; padding: 22px 28px 10px; }
@@ -29,3 +31,4 @@
 .sb-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 6px 20px 26px; }
 .sb-dots button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 99px; background: var(--line-2); cursor: pointer; transition: width .2s var(--ease), background .2s; }
 .sb-dots button.on { width: 22px; background: var(--acc); }
+}

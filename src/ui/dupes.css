@@ -1,4 +1,6 @@
 /* «Дубликаты» (dupes.js) — loaded with the screen, not at start */
+@layer tokens, base, components, screens, themes;
+@layer screens {
 /* ——— duplicates ——— */
 body.dupes-on .scroll, body.dupes-on .dock { visibility: hidden; }
 .dupes { position: absolute; z-index: 2; top: calc(var(--barh) + var(--gap) * 2); bottom: 0; left: var(--pl); right: var(--pr); transition: left .35s var(--ease), right .35s var(--ease); animation: fade .25s; }
@@ -51,4 +53,4 @@ body.dupes-on .scroll, body.dupes-on .dock { visibility: hidden; }
 .dc-pv { position: absolute; right: 12px; top: 12px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, .55); color: #fff; backdrop-filter: blur(10px); opacity: 0; transition: opacity .15s; }
 .dc:hover .dc-pv, .dc-pv:focus-visible, .dc:has(input:focus-visible) .dc-pv { opacity: 1; }
 .dc-pv svg.i { width: 15px; height: 15px; }
-
+}

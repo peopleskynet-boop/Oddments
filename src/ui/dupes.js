@@ -1,6 +1,7 @@
 // "Duplicates" view: groups of exact copies and of similar pictures (lib/dupes.js). In each group you pick
 // the file to keep (the best one is suggested); the rest go to the trash — never deleted for good — and their
 // tags, collections, favourite mark, note and link move to the kept file. «Отменить» puts everything back.
+import { lang } from '../lib/i18n.js';
 import './dupes.css';
 import { S, ui } from '../state.js';
 import { esc, fmtSize, plural } from '../util.js';
@@ -12,7 +13,7 @@ import { openPreview, isPreviewOpen } from './preview.js';
 import { sfx } from './sound.js';
 
 let el = null, list = null, groups = [], undoStack = [], running = false, confirming = false;
-const dateFmt = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'short', year: 'numeric' });
+const dateFmt = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', year: 'numeric' });
 
 export const isDupesOpen = () => !!(el && !el.hidden);
 

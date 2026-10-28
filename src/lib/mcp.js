@@ -68,7 +68,7 @@ function summary(it, score) {
   const o = {
     id: it.id, name: it.name, kind: it.kind, ext: it.ext,
     size: it.w && it.h ? `${Math.round(it.w)}×${Math.round(it.h)}` : undefined,
-    tags: it.tags, ai_tags: it.aiTags && it.aiTags.length ? it.aiTags : undefined, description: it.aiDesc || undefined,
+    tags: it.tags, ai_tags: it.aiTags && it.aiTags.length ? it.aiTags : undefined, description: it.aiDesc || undefined, text_on_picture: it.ocr || undefined,
     collections: folderNames(it), favorite: it.fav || undefined, added: new Date(it.added).toISOString().slice(0, 10),
     source: it.url || undefined, path: absPath(it.file),
   };

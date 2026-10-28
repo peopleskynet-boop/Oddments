@@ -12,11 +12,18 @@ import { uid, baseName, splitName, safeFile } from '../util.js';
 import { generate } from './ingest.js';
 import { busy, busyDone } from '../ui/dialogs.js';
 import { sfx } from '../ui/sound.js';
+import { readText, writeText } from './prefs.js';
 
-const SEP = sep();
+export const SEP = sep();
 let root = '';
 export const getRoot = () => root;
-export const absPath = (rel) => root + SEP + rel.split('/').join(SEP);
+// a team library's file is «@<team id>/files/…»: it lives in that team's shared folder (team.js), not here
+const teamRoots = new Map();
+export const setTeamRoot = (id, dir) => { if (dir) teamRoots.set(id, dir); else teamRoots.delete(id); };
+export const absPath = (rel) => {
+  if (rel[0] === '@') { const k = rel.indexOf('/'), dir = teamRoots.get(rel.slice(1, k)); if (dir) return dir + SEP + rel.slice(k + 1).split('/').join(SEP); }
+  return root + SEP + rel.split('/').join(SEP);
+};
 
 const urlCache = new Map();
 export function assetUrl(rel) {
@@ -26,7 +33,7 @@ export function assetUrl(rel) {
 }
 
 export function reindex() {
-  S.byId = new Map(S.items.map((i) => [i.id, i]));
+  S.byId = new Map([...S.teamItems, ...S.items].map((i) => [i.id, i]));
 }
 
 function migrate(it) {
@@ -72,8 +79,17 @@ async function keepBackups(data) {
   } catch (e) { /* backups are a safety net, never a reason not to open */ }
 }
 
+// Documents/Oddments Library for a new library; a library made before the rename stays in «Perch Library» (nothing is
+// moved: the person's files, the add-on's materials and other apps' links keep their paths)
+async function defaultRoot() {
+  const docs = await documentDir();
+  const old = await join(docs, 'Perch Library');
+  try { if (await fs.exists(old)) return old; } catch (e) { /* not readable: the new name */ }
+  return join(docs, 'Oddments Library');
+}
+
 export async function initLibrary() {
-  root = localStorage.getItem('perch.root') || (await join(await documentDir(), 'Perch Library'));
+  root = readText('perch.root') || (await defaultRoot());
   await fs.mkdir(absPath('files'), { recursive: true });
   const idx = absPath('index.json');
   let data = null, restored = '';
@@ -103,12 +119,14 @@ export async function initLibrary() {
 export async function changeLibrary() {
   const dir = await openDialog({ directory: true, recursive: true, multiple: false, title: 'Папка библиотеки Oddments' });
   if (!dir) return;
-  localStorage.setItem('perch.root', dir);
+  writeText('perch.root', dir);
   location.reload();
 }
 
 /* ---------- saving ---------- */
 let saveTimer = null, dirty = false, chain = Promise.resolve();
+let teamHook = null;
+export const setTeamHook = (fn) => { teamHook = fn; };
 export function saveIndex() {
   dirty = true;
   clearTimeout(saveTimer);
@@ -119,6 +137,7 @@ export function flushIndex() {
   chain = chain.then(async () => {
     if (!dirty) return;
     dirty = false;
+    if (teamHook) teamHook(); // edits to team items go to the person's journal in the team folder (team.js)
     try {
       const json = JSON.stringify({ version: 1, folders: S.folders, items: S.items });
       const tmp = absPath('index.json.tmp');

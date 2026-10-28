@@ -4,7 +4,9 @@
 // picture into the library with the article's link), translate (Claude), open on the site, hide the source.
 // Clips play in Oddments' own player in the card (J/K/L/M as in the preview). Keys: ↓/↑, Space next/back, H like, S save,
 // T translate, O open, Esc close.
+import { lang } from '../lib/i18n.js';
 import './feed.css';
+import { pushLayer, popLayer } from './layers.js';
 import { esc } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
@@ -16,7 +18,7 @@ import * as P from '../lib/people.js';
 import { hydrate, viewUrl } from '../lib/remote.js';
 
 let el = null, list = null, items = [], cur = 0, io = null, loading = false;
-const rel = new Intl.RelativeTimeFormat('ru', { numeric: 'auto' });
+const rel = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
 function ago(t) {
   const m = Math.round((Date.now() - t) / 60000);
   if (m < 60) return rel.format(-Math.max(1, m), 'minute');
@@ -45,7 +47,7 @@ function build() {
   document.body.appendChild(el);
   list = el.querySelector('.fd-list');
   el.addEventListener('click', onClick);
-  el.addEventListener('keydown', onKey);
+  el.addEventListener('keydown', onKey); // keys that fell out onto the page body come through layers.js (bug #126)
   // a double click on the picture likes it, as in Instagram (not on the player: there it is the player's)
   el.addEventListener('dblclick', (e) => { const r = e.target.closest('.reel'); if (r && !e.target.closest('.reel-player, .reel-rail, button')) act('like', +r.dataset.i); });
   el.addEventListener('submit', (e) => { if (e.target.matches('[data-fd="add"]')) { e.preventDefault(); addPerson(e.target); } });
@@ -114,6 +116,7 @@ function card(x, i) {
       <button type="button" data-fd="tr" title="Перевести на русский (T)">${ic('sparkle')}<span>${x.ru ? 'Оригинал' : 'Перевести'}</span></button>
       <button type="button" data-fd="open" title="Открыть на сайте (O)">${ic('external')}<span>Открыть</span></button>
       <button type="button" data-fd="hide" title="Не показывать ${esc(x.sourceName)}">${ic('eyeOff')}<span>Скрыть</span></button>
+      <button type="button" data-fd="ad" title="Это реклама — скрыть; похожие посты ${esc(x.sourceName)} тоже скроются">${ic('megaphone')}<span>Реклама</span></button>
     </div>
   </article>`;
 }
@@ -146,6 +149,32 @@ function activate(i) {
   for (let k = Math.max(0, i - 1); k < Math.min(items.length, i + 4); k++) hydrate(list.querySelector(`.reel[data-i="${k}"]`));
   if (x && x.video) mountClip(i, x);
   for (let k = i; k < Math.min(items.length, i + 4); k++) if (!items[k].image) fill(k);
+  checkAds(i);
+}
+// the next three cards' pictures are read for an ad marking printed on them (F.adOnPicture, bug #106); a found one
+// hides its card before the person scrolls to it. One check at a time, each picture once (`adChk` in the cache).
+let adBusy = false, adToast = false;
+async function checkAds(i) {
+  if (adBusy) return;
+  adBusy = true;
+  try {
+    const O = await import('../lib/ocr.js');
+    if (!O.ocrOn()) return;
+    for (let k = i + 1; k < Math.min(items.length, i + 4); k++) {
+      const x = items[k];
+      if (!x || !x.image || x.adChk) continue;
+      x.adChk = 1;
+      try {
+        const text = await O.readUrl(await viewUrl(x.image));
+        if (!F.adOnPicture(text)) continue;
+        x.adPic = 1;
+        const r = list.querySelector(`.reel[data-i="${k}"]`);
+        if (r && k !== cur) r.classList.add('reel-ad');
+        if (!adToast) { adToast = true; toast('Скрыт рекламный пост: метка «Реклама» или erid на картинке'); }
+      } catch (e) { /* a picture that cannot be read is shown as it is */ }
+    }
+    F.persist();
+  } finally { adBusy = false; }
 }
 // Clips play in Oddments' own player (bug #53): Vimeo / YouTube through the site's player under our capsule, in the
 // clip's own shape (Shorts 9:16, Vimeo from oEmbed), Telegram files from the app; muted at first, the sound button
@@ -208,7 +237,7 @@ async function load(force) {
   if (loading) return;
   loading = true;
   const btn = el.querySelector('.fd-rf');
-  btn.classList.add('busy');
+  btn.classList.add('spinning'); // not «busy»: that is the global progress pill's class (it turned this button into a wide plate)
   if (!F.cached().length || force) {
     const live = pixLoader('Собираю ленту…');
     list.innerHTML = '';
@@ -221,16 +250,21 @@ async function load(force) {
     } finally { live.stop(); }
   } else F.refresh(() => {}).then(() => { if (isFeedOpen() && !list.querySelector('.reel')) render(); }); // fresh enough: show the cache, refresh quietly
   loading = false;
-  btn.classList.remove('busy');
+  btn.classList.remove('spinning');
   render();
 }
 
 // resume: back from the reader — the same card, no reload
+// a closed feed keeps its cards a while (the reader's «Назад» comes back to the same card, bug #52), then lets them
+// go: thousands of hidden nodes otherwise stay in the page for the whole session (bug #125)
+let dropT = 0;
 export async function openFeed(resume = false) {
   if (!el) build();
+  clearTimeout(dropT);
   el.hidden = false;
   el.classList.remove('leaving');
   document.body.classList.add('feed-on');
+  pushLayer({ el, title: 'Лента', close: () => closeFeed(), onKey });
   sfx('open');
   if (!resume || !list.querySelector('.reel')) load(false);
   else activate(cur);
@@ -241,9 +275,11 @@ export async function openFeed(resume = false) {
 export function closeFeed(quiet = false) {
   if (!isFeedOpen()) return;
   document.body.classList.remove('feed-on');
+  popLayer(el);
   stopClip();
   if (!quiet) sfx('close');
   leave(el);
+  dropT = setTimeout(() => { if (!isFeedOpen()) { io.disconnect(); list.replaceChildren(); } }, 5 * 60000);
 }
 export function leave(node) {
   if (!document.body.classList.contains('motion')) { node.hidden = true; return; }
@@ -313,6 +349,10 @@ async function act(a, i, btn, ev) {
     F.keepState();
     toast(`${x.sourceName} больше не показывается`, 0, { label: 'Вернуть', fn: () => { F.state.off = F.state.off.filter((s) => s !== x.source); F.keepState(); render(); } });
     render();
+  } else if (a === 'ad') {
+    F.markAd(x);
+    leave(reel);
+    toast('Скрыто как реклама · похожие тоже скроются', 0, { label: 'Вернуть', fn: () => { F.markAd(x, false); render(); } });
   } else if (a === 'more') reel.classList.toggle('open');
 }
 function swapText(reel, t, ru) {
@@ -333,6 +373,7 @@ function drawPeople(note = '') {
     <form class="pp-add" data-fd="add"><input type="text" name="url" placeholder="Профиль, канал, сайт или @telegram" aria-label="Ссылка на человека" autocomplete="off" required><button type="submit" class="pill pri">${ic('userPlus')}Добавить</button></form>
     <p class="pp-note" aria-live="polite">${esc(note)}</p>
     ${(() => { const n = Object.values(F.adsHidden).reduce((a, b) => a + b, 0); return n ? `<p class="pp-ads">Скрыто рекламных постов в каналах Telegram: ${n}</p>` : ''; })()}
+    ${F.adsMarked() ? `<p class="pp-ads">Вы отметили как рекламу: ${F.adsMarked()} · <button type="button" class="pp-adclear" data-pp="adclear">Забыть отметки</button></p>` : ''}
     <div class="pp-list">${list.map((p) => `<div class="pp-row"><span class="pp-av">${esc(initials(p.name))}</span><span class="pp-t"><b>${esc(p.name)}</b><small>${esc(p.role)} · ${esc(p.kind)}</small></span>
       <button type="button" class="ib" data-pp-open="${esc(p.url)}" aria-label="Открыть ${esc(p.name)}" title="Открыть">${ic('external')}</button>
       <button type="button" class="ib" data-pp-del="${esc(p.id)}" aria-label="Убрать ${esc(p.name)}" title="Убрать из «Людей»">${ic('x')}</button></div>`).join('')}</div>
@@ -363,6 +404,7 @@ function onClick(e) {
   // a link inside a post: in the exe a plain <a> opens nothing — the opener does (bug #105)
   const lk = e.target.closest('a[data-url]');
   if (lk) { e.preventDefault(); e.stopPropagation(); openLink(lk.dataset.url); return; }
+  if (e.target.closest('[data-pp="adclear"]')) { F.clearAds(); drawPeople(); render(); return; }
   const del = e.target.closest('[data-pp-del]');
   if (del) { P.removePerson(del.dataset.ppDel); F.dropSource('p-' + del.dataset.ppDel); drawPeople(); render(); return; }
   const op = e.target.closest('[data-pp-open]');

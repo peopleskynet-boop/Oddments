@@ -1,15 +1,19 @@
 // A flow collection (a screen recording cut into screens, flows.js) seen as what it is:
 // «Раскадровка» — the steps in a row with arrows, «Шаг 01 · 0:12» over each, the recording's length and the step count;
-// «Пройти» — one step at a time in a phone frame, click / → / Space for the next step, ← for the previous, Esc to leave.
+// «Пройти» — one step at a time in a phone frame, click / → / Space for the next step, ← for the previous, Esc to leave;
+// «CJM» — the steps as a Customer Journey Map (cjm.js).
 // Both are layers over everything, built on open (lazy) and gone on close.
 import './storyboard.css';
+import { pushLayer, popLayer } from './layers.js';
 import { S, folderById } from '../state.js';
 import { esc, plural } from '../util.js';
 import { ic } from './icons.js';
 import { assetUrl } from '../lib/library.js';
 import { sfx } from './sound.js';
+import { mountCjm, unmountCjm } from './cjm.js';
+import { mountStudy, unmountStudy } from './studyview.js';
 
-let el = null, steps = [], at = 0, mode = 'board', title = '';
+let el = null, steps = [], at = 0, mode = 'board', title = '', fid = null;
 const fmtT = (t) => (t == null ? '' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`);
 const pic = (it) => assetUrl(it.kind === 'image' ? it.file : it.thumb || it.file);
 export const isStoryOpen = () => !!(el && !el.hidden);
@@ -39,7 +43,20 @@ function drawWalk() {
 }
 function draw() {
   el.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
-  if (mode === 'board') drawBoard(); else drawWalk();
+  el.classList.toggle('sb-cjm', mode === 'cjm' || mode === 'study');
+  if (mode !== 'cjm') unmountCjm();
+  if (mode !== 'study') unmountStudy();
+  if (mode === 'board') drawBoard();
+  else if (mode === 'walk') drawWalk();
+  else if (mode === 'study') {
+    el.querySelector('.sb-sub').textContent = `Исследование · ${steps.length} ${plural(steps.length, ['шаг', 'шага', 'шагов'])}`;
+    mountStudy(el.querySelector('.sb-body'), fid);
+  }
+  else {
+    const last = steps[steps.length - 1];
+    el.querySelector('.sb-sub').textContent = `Customer Journey Map · ${steps.length} ${plural(steps.length, ['шаг', 'шага', 'шагов'])}${last && last.flowT != null ? ' · ' + fmtT(last.flowT) + ' записи' : ''}`;
+    mountCjm(el.querySelector('.sb-body'), fid, steps);
+  }
 }
 
 function build() {
@@ -48,7 +65,7 @@ function build() {
   el.hidden = true;
   el.setAttribute('role', 'dialog');
   el.innerHTML = `<header class="sb-top"><div><h2 class="sb-t"></h2><span class="sb-sub cap-sm"></span></div>
-      <div class="sb-seg" role="group" aria-label="Вид"><button type="button" data-mode="board">Раскадровка</button><button type="button" data-mode="walk">Пройти</button></div>
+      <div class="sb-seg" role="group" aria-label="Вид"><button type="button" data-mode="board">Раскадровка</button><button type="button" data-mode="walk">Пройти</button><button type="button" data-mode="cjm" title="Customer Journey Map: этапы, действия, эмоции, боли">CJM</button><button type="button" data-mode="study" title="Юзабилити-тест: респонденты, заметки по шагам, итоги, отчёт">Исследование</button></div>
       <button type="button" class="ib" data-sb="close" aria-label="Закрыть" title="Закрыть (Esc)">${ic('x')}</button></header>
     <div class="sb-body"></div>`;
   document.body.appendChild(el);
@@ -61,13 +78,17 @@ function build() {
     const n = e.target.closest('[data-nav]');
     if (n && !n.disabled) go(+n.dataset.nav);
   });
-  el.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); if (mode === 'walk') { mode = 'board'; draw(); } else closeStory(); }
-    else if (mode === 'walk' && (e.key === 'ArrowRight' || e.key === ' ')) { e.preventDefault(); go(1); }
-    else if (mode === 'walk' && e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
-    else if (mode === 'board' && e.key === 'Enter' && e.target.dataset.go) { at = +e.target.dataset.go; mode = 'walk'; draw(); }
-    e.stopPropagation(); // the grid's shortcuts stay off
-  });
+  el.addEventListener('keydown', onKey);
+}
+// keys inside the layer, and (through layers.js) those that fell out onto the page body
+function onKey(e) {
+  // typing in the map: its fields keep their keys (Esc leaves the field first)
+  if (mode === 'cjm' && e.target.matches('textarea, input')) { if (e.key === 'Escape') { e.preventDefault(); e.target.blur(); } e.stopPropagation(); return; }
+  if (e.key === 'Escape') { e.preventDefault(); if (mode === 'walk') { mode = 'board'; draw(); } else closeStory(); }
+  else if (mode === 'walk' && (e.key === 'ArrowRight' || e.key === ' ')) { e.preventDefault(); go(1); }
+  else if (mode === 'walk' && e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+  else if (mode === 'board' && e.key === 'Enter' && e.target.dataset.go) { at = +e.target.dataset.go; mode = 'walk'; draw(); }
+  e.stopPropagation(); // the grid's shortcuts stay off
 }
 function go(d) {
   const n = Math.max(0, Math.min(steps.length - 1, at + d));
@@ -75,7 +96,8 @@ function go(d) {
   at = n; sfx('tick'); draw();
 }
 
-export function openStory(fid, how = 'board') {
+export function openStory(id, how = 'board') {
+  fid = id;
   steps = stepsOf(fid);
   if (!steps.length) return false;
   if (!el) build();
@@ -85,6 +107,7 @@ export function openStory(fid, how = 'board') {
   mode = how; at = 0;
   el.hidden = false;
   document.body.classList.add('story-on');
+  pushLayer({ el, title: 'Сценарий', close: closeStory, onKey });
   sfx('open');
   draw();
   el.querySelector('[data-mode="' + mode + '"]').focus({ preventScroll: true });
@@ -92,7 +115,9 @@ export function openStory(fid, how = 'board') {
 }
 export function closeStory() {
   if (!el || el.hidden) return;
+  unmountCjm();
   el.hidden = true;
   document.body.classList.remove('story-on');
+  popLayer(el);
   sfx('close');
 }

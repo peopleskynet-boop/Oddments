@@ -1,4 +1,6 @@
 /* batch rename dialog (src/ui/rename.js); builds on .modal / .dlg from styles.css */
+@layer tokens, base, components, screens, themes;
+@layer screens {
 .rn-dlg { width: min(560px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
 .rn-l { font-size: 12px; color: var(--mut); margin-bottom: 6px; }
 .rn-dlg input { width: 100%; background: var(--field); border: 0; border-radius: 12px; padding: 10px 12px; outline: 0; box-shadow: inset 0 0 0 1px var(--field-line); }
@@ -22,3 +24,7 @@
 .rn-pv li.bad span:last-child { color: var(--warn); }
 .rn-pv li.more { display: block; color: var(--mut); font-size: 12px; }
 .rn-note { font-size: 12px; color: var(--mut); margin: 10px 2px 0; }
+/* {ai}: names from Claude */
+.rn-row .rn-ai { margin-left: auto; width: auto; }
+.rn-aist { margin: -6px 0 12px; font-size: 12.5px; color: var(--mut); }
+}

@@ -1,8 +1,13 @@
+import { lang } from './lib/i18n.js';
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
+// what a file is, in words a person reads: our own formats by their meaning (audit 24.10: «PERCHMAT», «ODDBLOCK»
+// leaked into the inspector and the screen reader), the rest by extension
+const OWN_TYPES = { perchmat: 'Материал', oddblock: 'Блок интерфейса' };
+export const typeLabel = (it) => OWN_TYPES[(it.ext || '').toLowerCase()] || (it.ext || it.kind || '').toUpperCase();
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -27,7 +32,7 @@ export function plural(n, forms) {
   return m === 1 && c !== 11 ? forms[0] : m >= 2 && m <= 4 && (c < 10 || c >= 20) ? forms[1] : forms[2];
 }
 
-export const dateFmt = new Intl.DateTimeFormat('ru', { dateStyle: 'medium', timeStyle: 'short' });
+export const dateFmt = new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' });
 
 export function hexRGB(h) {
   const n = parseInt(h.slice(1), 16);

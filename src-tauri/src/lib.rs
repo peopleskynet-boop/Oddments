@@ -67,6 +67,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             blender::find_blender,
             blender::blender_to_glb,
+            blender::blender_uv,
             bridge::integration_info,
             bridge::set_selection,
             bridge::set_catalog,

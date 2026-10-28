@@ -43,7 +43,7 @@ export async function mkdir(p) { await whenReady(); mkdirs(norm(p)); }
 export async function readFile(p) { await whenReady(); return new Uint8Array(await get(p).arrayBuffer()); }
 export async function readTextFile(p) { await whenReady(); return get(p).text(); }
 export async function writeFile(p, data) { await whenReady(); put(p, new Blob([data])); }
-export async function writeTextFile(p, text) { await whenReady(); put(p, new Blob([text], { type: 'text/plain' })); }
+export async function writeTextFile(p, text, opts) { await whenReady(); put(p, new Blob(opts && opts.append && files.has(norm(p)) ? [get(p), text] : [text], { type: 'text/plain' })); }
 export async function copyFile(a, b) { await whenReady(); put(b, get(a)); }
 export async function rename(a, b) { await whenReady(); put(b, get(a)); files.delete(norm(a)); }
 export async function remove(p) {

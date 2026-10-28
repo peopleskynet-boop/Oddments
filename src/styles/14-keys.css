@@ -1,0 +1,11 @@
+/* ——— shortcut sheet («?») ——— */
+.keys { position: fixed; z-index: 130; left: 50%; top: 50%; translate: -50% -50%; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow: auto;
+  border-radius: 26px; padding: 18px 22px 22px; animation: rise .25s var(--ease); outline: none; }
+.keys-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.keys-h h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
+.keys-g { columns: 2 300px; column-gap: 28px; }
+.keys section { break-inside: avoid; margin-bottom: 16px; }
+.keys h3 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--mut); }
+.keys dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 13px; align-items: baseline; }
+.keys dt { white-space: nowrap; color: var(--mut); }
+.keys dd { margin: 0; }

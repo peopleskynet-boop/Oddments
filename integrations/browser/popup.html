@@ -37,11 +37,13 @@
   #pair { display: none; }
   body.need #pair { display: block; }
   body.need #main { display: none; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .row select { width: auto; height: 30px; margin: 0; font-size: 12px; padding: 0 12px; }
   kbd { font: 11px "Geist Mono", Consolas, monospace; color: var(--mut); }
 </style>
 </head>
 <body>
-  <div class="top"><span class="logo"></span><b>PERCH</b><span id="st"><i></i><span>проверяю…</span></span></div>
+  <div class="top"><span class="logo"></span><b>ODDMENTS</b><span id="st"><i></i><span>проверяю…</span></span></div>
 
   <div id="pair">
     <p class="help" id="pairHelp">Откройте Oddments › Настройки › Интеграции, нажмите <b>«Скопировать токен»</b> и вставьте его сюда.</p>
@@ -68,9 +70,11 @@
       <label class="opt"><input type="checkbox" id="altClick"> Alt+клик по картинке — в Oddments</label>
       <label class="opt"><input type="checkbox" id="hoverBtn"> Кнопка «В Oddments» на картинках</label>
       <p class="help" style="margin:4px 0 0">Ещё: правый клик › Oddments, перетащить картинку на док справа. <kbd>Alt+Shift+A</kbd> — область, <kbd>Alt+Shift+S</kbd> — экран.</p>
-      <button id="unpair" style="height:30px;font-size:12px;justify-self:start">Сменить токен</button>
+      <div class="row"><button id="unpair" style="height:30px;font-size:12px">Сменить токен</button>
+        <select id="lang" aria-label="Язык · Language"><option value="">Авто</option><option value="ru">Русский</option><option value="en">English</option></select></div>
     </div>
   </div>
+<script src="i18n.js"></script>
 <script src="popup.js" type="module"></script>
 </body>
 </html>

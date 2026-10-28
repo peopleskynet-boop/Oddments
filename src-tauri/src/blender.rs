@@ -26,6 +26,10 @@ bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_apply=True,
 
 const TIMEOUT: Duration = Duration::from_secs(180);
 
+// «Развернуть UV»: the smart seams + minimum-stretch unwrap of the Oddments add-on, on any model Blender opens
+const SMART_UV: &str = include_str!("smart_uv.py");
+const UV_EXT: [&str; 11] = ["glb", "gltf", "fbx", "obj", "stl", "ply", "usd", "usdz", "usdc", "abc", "blend"];
+
 fn is_blender_exe(p: &Path) -> bool {
     let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("").to_ascii_lowercase();
     (name == "blender.exe" || name == "blender") && p.is_file()
@@ -120,4 +124,55 @@ pub async fn blender_to_glb(blender: String, input: String, output: String) -> R
     tauri::async_runtime::spawn_blocking(move || run_export(&blender, &input, &output))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn blender_uv(blender: String, input: String, output: String, angle: f64) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || run_uv(&blender, &input, &output, angle))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+// Returns the script's counts as JSON ({"meshes":…, "seams":…}).
+fn run_uv(blender: &str, input: &str, output: &str, angle: f64) -> Result<String, String> {
+    let exe = Path::new(blender);
+    let name = exe.file_name().and_then(|n| n.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !(name.starts_with("blender") && exe.is_file()) {
+        return Err("Это не программа Blender".into());
+    }
+    let src = Path::new(input);
+    if !src.is_file() { return Err("Файл не найден".into()); }
+    if !output.to_ascii_lowercase().ends_with(".glb") { return Err("Ожидался путь к .glb".into()); }
+    let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !UV_EXT.contains(&ext.as_str()) { return Err("Этот формат Blender не открывает".into()); }
+    let angle = if angle.is_finite() { angle.clamp(10.0, 120.0) } else { 66.0 };
+    let report = format!("{output}.json");
+    let _ = std::fs::remove_file(output);
+    let _ = std::fs::remove_file(&report);
+    let mut cmd = Command::new(exe);
+    cmd.args(["-b", "--factory-startup", "--python-expr", SMART_UV, "--", input, output, &angle.to_string()]);
+    cmd.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("Не удалось запустить Blender: {e}"))?;
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => {
+                if start.elapsed() > Duration::from_secs(600) {
+                    let _ = child.kill();
+                    return Err("Blender не справился за 10 минут".into());
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    let counts = std::fs::read_to_string(&report).unwrap_or_else(|_| "{}".into());
+    let _ = std::fs::remove_file(&report);
+    if Path::new(output).is_file() { Ok(counts) } else { Err("Blender не развернул модель: возможно, в ней нет мешей".into()) }
 }

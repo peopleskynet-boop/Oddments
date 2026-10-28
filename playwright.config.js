@@ -26,7 +26,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run web',
     url: `http://127.0.0.1:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true, // CI starts and warms it first (tests/perf/warmup.mjs): a cold one timed every test out
     timeout: 120_000,
   },
 });

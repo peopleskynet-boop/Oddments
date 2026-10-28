@@ -68,14 +68,14 @@ export function advice(shapes, style = 'outline') {
   const out = [];
   const m = measure(style === 'fill' ? r.fill : r.outline), ref = reference(style);
   const pct = (v) => Math.round(v * 100) + ' %';
-  if (m.share < ref.lo * 0.75) out.push({ ok: false, text: `Светлее библиотеки: краска ${pct(m.share)}, у образцов ${pct(ref.lo)}–${pct(ref.hi)}` });
-  else if (m.share > ref.hi * 1.25) out.push({ ok: false, text: `Тяжелее библиотеки: краска ${pct(m.share)}, у образцов ${pct(ref.lo)}–${pct(ref.hi)}` });
+  if (m.share < ref.lo * 0.75) out.push({ ok: false, text: `Светлее библиотеки: краска ${pct(m.share)}, у образцов ${pct(ref.lo)}–${pct(ref.hi)}`, how: 'Рядом с другими иконками эта будет казаться бледной. Сделайте силуэт крупнее или детали толще.' });
+  else if (m.share > ref.hi * 1.25) out.push({ ok: false, text: `Тяжелее библиотеки: краска ${pct(m.share)}, у образцов ${pct(ref.lo)}–${pct(ref.hi)}`, how: 'Рядом с другими иконками эта будет казаться жирной. Уменьшите силуэт или добавьте просветов.' });
   else out.push({ ok: true, text: 'Вес как у библиотеки' });
   const off = Math.hypot(m.cx - 12, m.cy - 12);
   out.push(off > 1.5
-    ? { ok: false, text: `Центр тяжести смещён на ${String(off.toFixed(1)).replace('.', ',')} px — проверьте оптический центр` }
+    ? { ok: false, text: `Центр тяжести смещён на ${String(off.toFixed(1)).replace('.', ',')} px — проверьте оптический центр`, how: 'Иконка «съезжает» в сторону, где больше краски. «Привести к правилам» сдвинет её к середине; несимметричным иконкам (стрелка, колокольчик) так и надо — смотрите глазами.' }
     : { ok: true, text: 'Оптически по центру' });
-  if (m.dense > Math.max(ref.dense, 0.85) + 0.05) out.push({ ok: false, text: 'Есть слишком плотное место — деталей больше, чем видно при 16 px' });
+  if (m.dense > Math.max(ref.dense, 0.85) + 0.05) out.push({ ok: false, text: 'Есть слишком плотное место — деталей больше, чем видно при 16 px', how: 'В одном месте сошлось много краски: на маленьком размере оно станет пятном. Уберите мелкую деталь или раздвиньте части.' });
   // straight edges off 45° steps
   let skew = 0;
   const fill = r.fillPath, paths = fill.className === 'CompoundPath' ? fill.children : [fill];
@@ -84,7 +84,7 @@ export function advice(shapes, style = 'outline') {
     const a = ((deg(c.point2.subtract(c.point1)) % 45) + 45) % 45;
     if (Math.min(a, 45 - a) > 1) skew++;
   }
-  out.push(skew ? { ok: false, text: `Прямые не под 45°/90°: ${skew}` } : { ok: true, text: 'Наклоны кратны 45°' });
+  out.push(skew ? { ok: false, text: `Прямые не под 45°/90°: ${skew}`, how: 'Косые прямые ложатся на пиксели лесенкой и выглядят размыто. Поверните их к горизонтали, вертикали или 45°, если это не часть смысла.' } : { ok: true, text: 'Наклоны кратны 45°' });
   // hand-edited contours: kinks at smooth points, too many points
   let kinks = 0, points = 0;
   for (const s of shapes) {
@@ -98,8 +98,8 @@ export function advice(shapes, style = 'outline') {
       if (diff > 1 && diff < 25) kinks++;
     }
   }
-  if (kinks) out.push({ ok: false, text: `Изломы у плавных точек: ${kinks} — выровняйте ручки` });
-  if (points > 40) out.push({ ok: false, text: `Много точек в контурах (${points}) — проще кривая, ровнее линия` });
+  if (kinks) out.push({ ok: false, text: `Изломы у плавных точек: ${kinks} — выровняйте ручки`, how: 'Кривая в этой точке чуть ломается — на глаз видна «зазубрина». В правке точек нажмите на точку дважды или выровняйте её ручки в одну линию.' });
+  if (points > 40) out.push({ ok: false, text: `Много точек в контурах (${points}) — проще кривая, ровнее линия`, how: 'Лишние точки дают неровный край. Уберите те, без которых форма не меняется.' });
   return out;
 }
 

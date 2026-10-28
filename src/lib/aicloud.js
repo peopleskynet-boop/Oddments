@@ -7,8 +7,9 @@
 //   does: search and «По смыслу» work the same way, with no model on the disk.
 // What leaves the computer: a small copy of each picture (512 px JPEG), never the original, and the search phrase
 // (Voyage only). Paid per picture, once; the cost is shown before a big pass starts (estimate()).
-import { aiPrefs as iconPrefs } from './iconai.js';
+import { aiPrefs as iconPrefs } from './anthropickey.js';
 import { assetUrl } from './library.js';
+import { readPref, writePref } from './prefs.js';
 
 export const TAG_MODELS = [
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 — дешевле всего, для тегов хватает' },
@@ -20,8 +21,8 @@ export const VOYAGE = { id: 'voyage-multimodal-3', dim: 1024, price: 0.12 };
 const SIDE = 512, PER_CALL = 6;
 
 const STORE = 'perch.aicloud';
-export const cloudPrefs = () => { try { return { voyageKey: '', tagModel: TAG_MODELS[0].id, ...JSON.parse(localStorage.getItem(STORE) || '{}') }; } catch (e) { return { voyageKey: '', tagModel: TAG_MODELS[0].id }; } };
-export const setCloudPrefs = (p) => { try { localStorage.setItem(STORE, JSON.stringify({ ...cloudPrefs(), ...p })); } catch (e) { /* private mode */ } };
+export const cloudPrefs = () => readPref(STORE, { voyageKey: '', tagModel: TAG_MODELS[0].id });
+export const setCloudPrefs = (p) => writePref(STORE, { ...cloudPrefs(), ...p });
 export const claudeKey = () => iconPrefs().key;
 export const hasVoyage = () => !!cloudPrefs().voyageKey;
 
@@ -81,7 +82,9 @@ const SYSTEM = `Ты подписываешь референсы дизайне�
   одежды, фона), материал, техника и стиль (3D-рендер, фото, иллюстрация, интерфейс, иконка, типографика, плакат…).
 - "tags": 3–6 коротких тегов по-русски в нижнем регистре: главные предметы и стиль («наушники», «3d-рендер»,
   «голубые волосы»). Без общих слов вроде «картинка», «изображение», «дизайн».
-Ответ — только JSON: {"items":[{"n":1,"desc":"…","tags":["…"]}]}`;
+- "name": короткое название файла по-английски, 2–5 слов, каждое с большой буквы, без знаков препинания и без слов
+  «Image», «Picture», «Photo of» — по главному предмету и стилю («Blue Haired Girl Render», «Brutalist Concrete Stairs»).
+Ответ — только JSON: {"items":[{"n":1,"desc":"…","tags":["…"],"name":"…"}]}`;
 
 // → [{ desc, tags }] in the order of the pictures, and the tokens used
 export async function describe(pics) {
@@ -105,8 +108,43 @@ export async function describe(pics) {
   return pics.map((_, i) => {
     const x = items.find((y) => +y.n === i + 1) || items[i] || {};
     const tags = (Array.isArray(x.tags) ? x.tags : []).map((t) => String(t).toLowerCase().replace(/^#/, '').trim()).filter((t) => t && t.length < 40).slice(0, 6);
-    return { desc: String(x.desc || '').slice(0, 400), tags };
+    return { desc: String(x.desc || '').slice(0, 400), tags, name: cleanName(x.name) };
   });
+}
+
+// an AI name as a file name: Latin words, Title Case, no punctuation, at most 60 characters
+export function cleanName(n) {
+  const s = String(n || '').replace(/[^A-Za-z0-9 '&-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return s.replace(/\b([a-z])/g, (m) => m.toUpperCase());
+}
+// a name nobody chose: what cameras, phones, screenshots and download buttons give a file
+export function junkName(n) {
+  const s = String(n || '').trim();
+  if (!s) return true;
+  return /^(img|image|dsc|dscn|dcim|pxl|photo|pic|screenshot|screen shot|снимок экрана|скриншот|изображение|фото|download|untitled|unnamed|file|frame|pexels|unsplash|pinterest|telegram|whatsapp|figma|export|without title|без названия)[\s_\-().\d]*(\d|$)/i.test(s)
+    || /^[\d\s_\-.:()]+$/.test(s) // only digits and dates
+    || /^[0-9a-f]{12,}$/i.test(s.replace(/[-_]/g, '')) // a hash or an id
+    || /^[A-Za-z0-9_-]{20,}$/.test(s) && !/\s/.test(s) && /\d/.test(s); // a long token like «8f3kQ2_xYz…»
+}
+
+const NAMES = `You name a designer's reference pictures so they are easy to find. For each picture give a short English
+file name: 2–5 words, Title Case, no punctuation, no words like Image, Picture, Photo Of — the main subject and the style
+(«Blue Haired Girl Render», «Brutalist Concrete Stairs», «Glass Icon Set»). Answer only JSON: {"names":["…", …]} in order.`;
+// names only (the rename dialog's {ai}): one short call for up to 6 pictures → [name] in their order
+export async function nameOnly(pics) {
+  const key = claudeKey();
+  if (!key) throw Object.assign(new Error('нет ключа Anthropic: Настройки › «Ключ Anthropic»'), { status: 401 });
+  const content = [];
+  pics.forEach((b64, i) => {
+    content.push({ type: 'text', text: `Picture ${i + 1}:` });
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } });
+  });
+  const headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+  const j = await post('https://api.anthropic.com/v1/messages', headers, { model: cloudPrefs().tagModel, max_tokens: 60 + pics.length * 30, system: NAMES, messages: [{ role: 'user', content }] });
+  const text = (j.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+  let names = [];
+  try { names = JSON.parse((text.match(/\{[\s\S]*\}/) || ['{}'])[0]).names || []; } catch (e) { /* nothing named */ }
+  return pics.map((_, i) => cleanName(names[i]));
 }
 
 async function voyage(inputs, type) {

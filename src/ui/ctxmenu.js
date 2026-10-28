@@ -135,7 +135,8 @@ function previewRows() {
     r.push({ id: 'pv-fcopy', icon: 'copy', label: 'Копировать кадр' });
   }
   if (r.length) r.push({ sep: true });
-  const card = cardRows().filter((x) => !['open', 'rename', 'trash', 'similar'].includes(x.id));
+  const card = cardRows().filter((x) => !['open', 'rename', 'trash', 'similar'].includes(x.id))
+    .filter((x, i, a) => !(x.sep && (i === 0 || a[i - 1].sep))); // no line at the top or two in a row
   while (card.length && card[card.length - 1].sep) card.pop();
   return r.concat(card);
 }
@@ -144,26 +145,37 @@ function cardRows() {
   const items = selItems(), one = items.length === 1 ? items[0] : null;
   const trash = items.every((i) => i.trashed);
   const allFav = items.every((i) => i.fav);
-  const r = [];
-  if (one) r.push({ id: 'open', icon: 'zoom', label: 'Просмотр', key: 'Пробел' });
-  if (one) r.push({ id: 'app', icon: 'external', label: appLabel(one), key: 'Ctrl Enter' });
-  if (one) r.push({ id: 'reveal', icon: 'folder', label: 'Показать в папке' });
-  if (!trash) {
-    r.push({ id: 'fav', icon: allFav ? 'heartOn' : 'heart', label: allFav ? 'Убрать из избранного' : 'В избранное', key: 'F' });
-    r.push({ id: 'folder', icon: 'folderplus', label: 'В подборку', sub: true });
-    const cols = one ? one.colors : [];
-    if (cols.length) r.push({ id: 'color', icon: 'palette', label: 'Копировать цвет', sub: true });
-    if (one) r.push({ id: 'similar', icon: 'scan', label: 'Похожие' });
-    if (one && one.ext === 'svg') r.push({ id: 's3d', icon: 'cube', label: 'Сделать 3D…' }, { id: 'ik', icon: 'grid', label: 'Открыть в конструкторе иконок' });
-    if (one && one.kind === 'model' && !['blend', 'abc'].includes(one.ext) && !isMac) r.push({ id: 's3d', icon: 'cube', label: 'Ремеш…' }); // AutoRemesher: Windows only
-    if (one && one.kind === 'video') r.push({ id: 'flow', icon: 'flow', label: 'Нарезать на экраны…' });
-    if (items.some((i) => i.kind === 'model' || i.kind === 'material')) r.push({ id: 'blender', icon: 'external', label: items.length > 1 ? `В Blender (${items.length})` : 'В Blender' });
-    r.push({ id: 'rename', icon: 'edit', label: items.length > 1 ? `Переименовать (${items.length})…` : 'Переименовать…', key: 'F2' });
-    r.push({ id: 'export', icon: 'download', label: items.length > 1 ? `Экспорт в папку (${items.length})…` : 'Экспорт в папку…' }, { id: 'exportzip', icon: 'download', label: 'Экспорт в zip…' });
-    r.push({ sep: true });
-    r.push({ id: 'trash', icon: 'trash', label: items.length > 1 ? `В корзину (${items.length})` : 'В корзину', key: 'Del', danger: true });
-  } else r.push({ id: 'restore', icon: 'restore', label: items.length > 1 ? `Вернуть (${items.length})` : 'Вернуть' });
-  return r;
+  // in groups with lines between them (audit 24.10: twelve rows in one list): open · organise · make · name and export · delete
+  const open = [], keep = [], make = [], out = [];
+  if (one) open.push({ id: 'open', icon: 'zoom', label: 'Просмотр', key: 'Пробел' });
+  if (one) open.push({ id: 'app', icon: 'external', label: appLabel(one), key: 'Ctrl Enter' });
+  if (one) open.push({ id: 'reveal', icon: 'folder', label: 'Показать в папке' });
+  if (trash) return [...open, ...(open.length ? [{ sep: true }] : []), { id: 'restore', icon: 'restore', label: items.length > 1 ? `Вернуть (${items.length})` : 'Вернуть' }];
+  keep.push({ id: 'fav', icon: allFav ? 'heartOn' : 'heart', label: allFav ? 'Убрать из избранного' : 'В избранное', key: 'F' });
+  keep.push({ id: 'folder', icon: 'folderplus', label: 'В подборку', sub: true });
+  const cols = one ? one.colors : [];
+  if (cols.length) keep.push({ id: 'color', icon: 'palette', label: 'Копировать цвет', sub: true });
+  if (one) keep.push({ id: 'similar', icon: 'scan', label: 'Похожие' });
+  if (one && (one.kind === 'image' || one.kind === 'psd' || one.kind === 'gif' || one.thumb)) keep.push({ id: 'notes', icon: 'chat', label: one.notes && one.notes.length ? `Комментарии (${one.notes.length})…` : 'Комментировать…' });
+  if (one && one.ocr) keep.push({ id: 'ocrcopy', icon: 'copy', label: 'Копировать текст с картинки' });
+  if (one && one.ext === 'svg') make.push({ id: 's3d', icon: 'cube', label: 'Сделать 3D…' }, { id: 'ik', icon: 'grid', label: 'Открыть в конструкторе иконок' });
+  if (one && one.kind === 'model' && !['blend', 'abc'].includes(one.ext) && !isMac) make.push({ id: 's3d', icon: 'cube', label: 'Ремеш…' }); // AutoRemesher: Windows only
+  if (one && one.kind === 'video') make.push({ id: 'flow', icon: 'flow', label: 'Нарезать на экраны…' });
+  if (one && !one.trashed && ((one.kind === 'image' && one.ext !== 'gif' && one.ext !== 'svg') || (one.kind === 'psd' && one.preview))) make.push({ id: 'upscale', icon: 'sparkle', label: 'Увеличить ×2 / ×4…' });
+  // the team library (team.js): one's files go to the team; a team file comes into one's own library
+  if (items.every((i) => i.team)) make.push({ id: 'teamtake', icon: 'download', label: 'В мою библиотеку' });
+  else if (items.every((i) => !i.team)) make.push({ id: 'toteam', icon: 'team', label: (S.teams || []).length ? 'В команду…' : 'В команду: подключить папку…' });
+  if (items.length > 1) make.push({ id: 'show', icon: 'present', label: `Показ: ${items.length}` });
+  const maskable = items.filter((i) => (i.kind === 'image' && i.ext !== 'gif') || (i.kind === 'psd' && i.preview));
+  if (maskable.length) make.push({ id: 'mask', icon: 'shield', label: maskable.length > 1 ? `Скрыть личные данные (${maskable.length})…` : 'Скрыть личные данные…' });
+  const svgs = items.filter((i) => i.ext === 'svg');
+  if (svgs.length) make.push({ id: 'svgfix', icon: 'bezier', label: svgs.length > 1 ? `Исправить SVG (${svgs.length})…` : 'Исправить SVG…' });
+  if (svgs.length > 1) make.push({ id: 's3dset', icon: 'cube', label: `Набор в 3D → Blender (${svgs.length})` });
+  if (items.some((i) => i.kind === 'model' || i.kind === 'material')) make.push({ id: 'blender', icon: 'external', label: items.length > 1 ? `В Blender (${items.length})` : 'В Blender' });
+  out.push({ id: 'rename', icon: 'edit', label: items.length > 1 ? `Переименовать (${items.length})…` : 'Переименовать…', key: 'F2' });
+  out.push({ id: 'export', icon: 'download', label: items.length > 1 ? `Экспорт в папку (${items.length})…` : 'Экспорт в папку…' }, { id: 'exportzip', icon: 'download', label: 'Экспорт в zip…' });
+  const del = [{ id: 'trash', icon: 'trash', label: items.length > 1 ? `В корзину (${items.length})` : 'В корзину', key: 'Del', danger: true }];
+  return [open, keep, make, out, del].filter((g) => g.length).flatMap((g, k) => (k ? [{ sep: true }, ...g] : g));
 }
 
 const rowHTML = (x) => x.sep ? '<div class="ctx-sep" role="separator"></div>'
@@ -298,7 +310,14 @@ export async function cardAction(a, items = selItems()) {
     toast(on ? 'В избранном: ' + items.length : 'Убрано из избранного: ' + items.length);
     if (S.view.type === 'fav') ui.refresh(); else { ui.renderSide(); ui.renderInsp(); }
   } else if (a === 'similar' && items[0]) setView('similar', items[0].id);
+  else if (a === 'ocrcopy' && items[0]) { try { await writeText(items[0].ocr); toast('Текст скопирован'); } catch (err) { toast('Не удалось скопировать текст.'); } }
   else if (a === 'rename') openRename(items);
+  else if (a === 'mask') import('./mask.js').then((m) => m.openMask(items));
+  else if (a === 'upscale' && items[0]) import('./upscale.js').then((m) => m.openUpscale(items[0]));
+  else if (a === 'notes' && items[0]) import('./notes.js').then((m) => m.openNotes(items[0]));
+  else if (a === 'show') import('./show.js').then((m) => m.openShow(S.vis.filter((i) => items.includes(i)).concat(items.filter((i) => !S.vis.includes(i))), 'Выбранное'));
+  else if (a === 'toteam') import('./teamui.js').then((m) => m.sendFlow(items));
+  else if (a === 'teamtake') import('./teamui.js').then((m) => m.takeFlow(items));
   else if (a === 'export' || a === 'exportzip') {
     const f = S.view.type === 'folder' && S.folders.find((x) => x.id === S.view.id);
     import('../lib/exporter.js').then((m) => m.runExport(items, f ? f.name : (items.length === 1 ? items[0].name : `Oddments · ${items.length} файлов`), a === 'exportzip'));
@@ -306,7 +325,11 @@ export async function cardAction(a, items = selItems()) {
   else if (a === 'blender') {
     const send = items.filter((i) => i.kind === 'model' || i.kind === 'material');
     import('./toblender.js').then((m) => m.toBlender(send.map((i) => absPath(i.file)), send.length === 1 ? send[0].name : 'Файлы: ' + send.length));
-  } else if (a === 's3d' && items[0]) import('./svg3d.js').then((m) => m.openFromItem(items[0]));
+  } else if (a === 's3dset') {
+    const f = S.view.type === 'folder' && S.folders.find((x) => x.id === S.view.id);
+    import('./toblender.js').then((m) => m.iconSetToBlender(items, f ? f.name : null));
+  } else if (a === 'svgfix') import('./svgfix.js').then((m) => m.openSvgFix(items));
+  else if (a === 's3d' && items[0]) import('./svg3d.js').then((m) => m.openFromItem(items[0]));
   else if (a === 'flow' && items[0]) {
     import('./preview.js').then((pv) => { if (pv.isPreviewOpen()) pv.closePreview(true); });
     import('./flows.js').then((m) => m.flowFromItem(items[0]));
@@ -320,7 +343,7 @@ function spaceAction(a) {
   if (a === 'sp-paste') click('pasteBtn');
   else if (a === 'sp-add') click('addBtn');
   else if (a === 'sp-dir') click('addDirBtn');
-  else if (a === 'sp-svg') click('svg3dBtn');
+  else if (a === 'sp-svg') import('./svg3d.js').then((m) => m.pickSvgFor3d());
   else if (a === 'sp-mat') click('matBtn');
   else if (a === 'sp-folder') import('./sidebar.js').then((m) => m.newFolder());
   else if (a === 'sp-grid') click('lyG');

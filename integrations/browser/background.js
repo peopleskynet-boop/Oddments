@@ -4,6 +4,7 @@
 //   GET  /library?token — folders and tags for the popup's picker.
 // Pictures are downloaded here (host permissions: no CORS), so the page's own scripts never see the token.
 
+import './i18n.js';
 import { muxAV, pinterestHls } from './fmp4.js';
 
 const PORTS = [47215, 47216, 47217, 47218, 47219];
@@ -31,12 +32,13 @@ async function findPerch() {
   return null;
 }
 
-class PerchError extends Error {}
+// fatal: Oddments is off or the token is wrong — no use trying the next file
+class PerchError extends Error { constructor(m, fatal) { super(m); this.fatal = !!fatal; } }
 async function endpoint(path, params = {}) {
   const p = await prefs();
   const at = await findPerch();
-  if (!at) throw new PerchError('Oddments не запущен: откройте приложение');
-  if (!p.token) throw new PerchError('Нет токена: вставьте его в окне расширения');
+  if (!at) throw new PerchError(T('Oddments не запущен: откройте приложение'), true);
+  if (!p.token) throw new PerchError(T('Нет токена: вставьте его в окне расширения'), true);
   const q = new URLSearchParams({ ...params, token: p.token });
   return { url: `http://127.0.0.1:${at}${path}?${q}`, p };
 }
@@ -44,9 +46,9 @@ async function endpoint(path, params = {}) {
 async function sendBlob(blob, name, source, tags) {
   const { url } = await endpoint('/import', await target({ name: cleanName(name), source: source || '' }, tags));
   let r;
-  try { r = await fetch(url, { method: 'POST', body: blob }); } catch (e) { port = null; throw new PerchError('Oddments не ответил'); }
-  if (r.status === 401) throw new PerchError('Токен не подошёл: скопируйте его заново в Oddments › Настройки');
-  if (!r.ok) throw new PerchError('Oddments ответил ' + r.status);
+  try { r = await fetch(url, { method: 'POST', body: blob }); } catch (e) { port = null; throw new PerchError(T('Oddments не ответил'), true); }
+  if (r.status === 401) throw new PerchError(T('Токен не подошёл: скопируйте его заново в Oddments › Настройки'), true);
+  if (!r.ok) throw new PerchError(T('Oddments ответил ') + r.status);
 }
 // the folder and tags from the popup (and the tags a saved thing brings itself — a grabbed block's kind, site, fonts)
 async function target(params, own) {
@@ -79,7 +81,7 @@ const stamp = () => { const d = new Date(), z = (n) => String(n).padStart(2, '0'
 async function download(url) {
   let r = await fetch(url, { credentials: 'include' });
   if (r.status === 401 || r.status === 403) r = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' });
-  if (!r.ok) throw new PerchError('Сайт не отдал файл (' + r.status + ')');
+  if (!r.ok) throw new PerchError(T('Сайт не отдал файл (') + r.status + ')');
   const blob = await r.blob();
   const type = (r.headers.get('content-type') || blob.type || '').split(';')[0].trim();
   return { blob, type };
@@ -87,9 +89,9 @@ async function download(url) {
 
 // a picture or a video file by URL; `hint` names it when the URL does not
 async function saveFile(url, page, hint, named) {
-  if (/^blob:/i.test(url)) throw new PerchError('Это поток из скрипта страницы, сохранить его нельзя');
+  if (/^blob:/i.test(url)) throw new PerchError(T('Это поток из скрипта страницы, сохранить его нельзя'));
   const { blob, type } = await download(url);
-  if (type === 'text/html') throw new PerchError('По ссылке страница, а не файл');
+  if (type === 'text/html') throw new PerchError(T('По ссылке страница, а не файл'));
   // `named` — a name the page knows better than the URL (an Instagram video's file name is a hash)
   let name = named ? cleanName(named) : /^data:/i.test(url) ? '' : nameFromUrl(url);
   // the extension follows what the site sent: Behance serves WebP under «….jpg» from its /1400_webp/ folder
@@ -114,20 +116,20 @@ async function videoTitle(v) {
 // a link card: YouTube / Vimeo / Pinterest get their cover in Oddments, any other page a link card
 async function saveLink(url, title) {
   // only web addresses: a javascript:, file: or search-ms: link would become a .url that Windows hands to its handler
-  if (!/^https?:\/\//i.test(url || '')) throw new PerchError('Сохраняются только веб-ссылки (http/https)');
+  if (!/^https?:\/\//i.test(url || '')) throw new PerchError(T('Сохраняются только веб-ссылки (http/https)'));
   const v = videoOf(url);
   if (v) title = (await videoTitle(v)) || title || `${v.site} ${v.id}`;
   title = cleanName((title || '').replace(/\s+[-–—|]\s+(YouTube|Vimeo|Pinterest)$/i, '') || hostOf(url));
   await sendBlob(shortcut(v ? v.url : url), title + '.url', url);
   return title;
 }
-const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return 'Ссылка'; } };
+const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return T('Ссылка'); } };
 
 /* ---------- screenshots ---------- */
 async function shotVisible(tab) {
   const data = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
   const blob = await (await fetch(data)).blob();
-  const name = `Снимок ${hostOf(tab.url)} ${stamp()}.png`;
+  const name = T('Снимок {site} {time}.png', { site: hostOf(tab.url), time: stamp() });
   await sendBlob(blob, name, tab.url);
   return name;
 }
@@ -142,7 +144,7 @@ async function shotArea(tab) {
   const c = new OffscreenCanvas(w, h);
   c.getContext('2d').drawImage(bmp, x, y, w, h, 0, 0, w, h);
   const blob = await c.convertToBlob({ type: 'image/png' });
-  const name = `Снимок ${hostOf(tab.url)} ${stamp()}.png`;
+  const name = T('Снимок {site} {time}.png', { site: hostOf(tab.url), time: stamp() });
   await sendBlob(blob, name, tab.url);
   return name;
 }
@@ -152,7 +154,7 @@ async function shotArea(tab) {
 async function ask(tab, msg) {
   try { return await chrome.tabs.sendMessage(tab.id, msg); } catch (e) {
     try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js', 'block.js'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['i18n.js', 'content.js', 'block.js'] });
       return await chrome.tabs.sendMessage(tab.id, msg);
     } catch (e2) { return undefined; }
   }
@@ -164,24 +166,24 @@ async function say(tab, text, kind = 'ok') {
   chrome.action.setBadgeText({ text: kind === 'err' ? '!' : '✓' });
   setTimeout(() => chrome.action.setBadgeText({ text: '' }), 2500);
 }
-const failed = (tab, e) => say(tab, e instanceof PerchError ? e.message : 'Не получилось: ' + ((e && e.message) || e), 'err');
+const failed = (tab, e) => say(tab, e instanceof PerchError ? e.message : T('Не получилось: ') + ((e && e.message) || e), 'err');
 async function run(tab, job, okText) {
   try { const r = await job(); if (r !== null) await say(tab, okText(r)); } catch (e) { await failed(tab, e); }
 }
 
 async function saveMany(tab, items) {
   let ok = 0, bad = 0;
-  await ask(tab, { t: 'toast', text: `В Oddments: 0 из ${items.length}…`, kind: 'busy' });
+  await ask(tab, { t: 'toast', text: T('В Oddments: {n} из {all}…', { n: 0, all: items.length }), kind: 'busy' });
   // three at a time: fast, but no flood on the site or on Oddments
   const queue = items.slice();
   const worker = async () => {
     for (let it; (it = queue.shift());) {
-      try { if (it.embed) await saveEmbed(tab, null, it.embed, tab.url); else await saveFile(it.url, tab.url, it.alt); ok++; } catch (e) { bad++; if (e instanceof PerchError && /Oddments|Токен|токен/.test(e.message)) { queue.length = 0; throw e; } }
-      await ask(tab, { t: 'toast', text: `В Oddments: ${ok} из ${items.length}…`, kind: 'busy' });
+      try { if (it.embed) await saveEmbed(tab, null, it.embed, tab.url); else await saveFile(it.url, tab.url, it.alt); ok++; } catch (e) { bad++; if (e instanceof PerchError && e.fatal) { queue.length = 0; throw e; } }
+      await ask(tab, { t: 'toast', text: T('В Oddments: {n} из {all}…', { n: ok, all: items.length }), kind: 'busy' });
     }
   };
   try { await Promise.all([worker(), worker(), worker()]); } catch (e) { return failed(tab, e); }
-  await say(tab, `В Oddments: ${ok}` + (bad ? ` · не скачалось: ${bad}` : ''), bad && !ok ? 'err' : 'ok');
+  await say(tab, T('В Oddments: ') + ok + (bad ? T(' · не скачалось: ') + bad : ''), bad && !ok ? 'err' : 'ok');
 }
 
 /* ---------- Vimeo embeds: Behance «GIFs» ---------- */
@@ -210,7 +212,7 @@ async function vimeoConfigs(tabId, frameId) {
   return res.map((r) => r.result).filter(Boolean);
 }
 
-const text = async (u) => { const r = await fetch(u); if (!r.ok) throw new PerchError('Vimeo не отдал видео (' + r.status + ')'); return r.text(); };
+const text = async (u) => { const r = await fetch(u); if (!r.ok) throw new PerchError(T('Vimeo не отдал видео (') + r.status + ')'); return r.text(); };
 
 async function saveVimeo(tab, cfg, page) {
   const name = cleanName(cfg.title || 'Vimeo ' + cfg.id) + '.mp4';
@@ -218,7 +220,7 @@ async function saveVimeo(tab, cfg, page) {
   // an ordinary file, when the owner allows it
   const prog = cfg.prog.filter((p) => p.h <= 1080).sort((a, b) => b.h - a.h)[0];
   if (prog) { await sendBlob((await download(prog.url)).blob, name, page); return name; }
-  if (!cfg.hls || !cfg.hls.url) throw new PerchError('У этого видео Vimeo нет потока для сохранения');
+  if (!cfg.hls || !cfg.hls.url) throw new PerchError(T('У этого видео Vimeo нет потока для сохранения'));
   const master = await text(cfg.hls.url);
   if (!background && /#EXT-X-MEDIA:[^\n]*TYPE=AUDIO/.test(master)) return saveLink(`https://vimeo.com/${cfg.id}`, cfg.title);
   // the biggest picture up to 1080p
@@ -230,20 +232,20 @@ async function saveVimeo(tab, cfg, page) {
     const h = +m[2];
     if (h <= 1080 && (!best || h > best.h)) best = { h, url: new URL(lines[i + 1].trim(), cfg.hls.url).href };
   });
-  if (!best) throw new PerchError('Не нашёл видеопоток Vimeo');
+  if (!best) throw new PerchError(T('Не нашёл видеопоток Vimeo'));
   const list = await text(best.url);
   const map = list.match(/#EXT-X-MAP:URI="([^"]+)"/);
-  if (!map) throw new PerchError('Этот формат потока Vimeo пока не поддерживается');
+  if (!map) throw new PerchError(T('Этот формат потока Vimeo пока не поддерживается'));
   const parts = [map[1], ...list.split(/\r?\n/).filter((l) => l && !l.startsWith('#'))].map((u) => new URL(u.trim(), best.url).href);
   const bufs = [];
   let size = 0;
   for (let i = 0; i < parts.length; i++) {
     const r = await fetch(parts[i]);
-    if (!r.ok) throw new PerchError('Vimeo оборвал загрузку (' + r.status + ')');
+    if (!r.ok) throw new PerchError(T('Vimeo оборвал загрузку (') + r.status + ')');
     const b = await r.arrayBuffer();
     bufs.push(b); size += b.byteLength;
-    if (size > MAX_VIDEO) throw new PerchError('Видео больше 500 МБ — сохраните ссылку');
-    if (i % 3 === 2) await ask(tab, { t: 'toast', text: `Собираю видео… ${Math.round((i + 1) / parts.length * 100)}%`, kind: 'busy' });
+    if (size > MAX_VIDEO) throw new PerchError(T('Видео больше 500 МБ — сохраните ссылку'));
+    if (i % 3 === 2) await ask(tab, { t: 'toast', text: T('Собираю видео…') + ` ${Math.round((i + 1) / parts.length * 100)}%`, kind: 'busy' });
   }
   await sendBlob(new Blob(bufs, { type: 'video/mp4' }), name, page);
   return name;
@@ -251,13 +253,13 @@ async function saveVimeo(tab, cfg, page) {
 
 // one embed: by the frame it was clicked in, or by its iframe address (hover button, the gallery)
 async function saveEmbed(tab, frameId, src, page) {
-  await ask(tab, { t: 'toast', text: 'Собираю видео…', kind: 'busy' });
+  await ask(tab, { t: 'toast', text: T('Собираю видео…'), kind: 'busy' });
   const id = ((src || '').match(VIMEO_FRAME) || [])[1];
   const cfgs = await vimeoConfigs(tab.id, frameId);
   const cfg = id ? cfgs.find((c) => c.id === id) : cfgs[0];
   if (!cfg) {
     if (id) return saveLink(`https://vimeo.com/${id}`, '');
-    throw new PerchError('Плеер Vimeo ещё не загрузился — попробуйте через секунду');
+    throw new PerchError(T('Плеер Vimeo ещё не загрузился — попробуйте через секунду'));
   }
   return saveVimeo(tab, cfg, page || tab.url);
 }
@@ -279,7 +281,7 @@ async function embedInfo(ids) {
 // library. Not a way around paywalls: a page that shows only the beginning gives Oddments only the beginning.
 async function saveArticle(tab) {
   const r = await ask(tab, { t: 'pageHtml' });
-  if (!r || !r.html) throw new PerchError('Страницу не прочитать');
+  if (!r || !r.html) throw new PerchError(T('Страницу не прочитать'));
   const title = cleanName(r.title || tab.title || hostOf(tab.url)).slice(0, 100);
   await sendBlob(new Blob([r.html], { type: 'text/html' }), title + '.perch-article.html', r.url || tab.url);
   return title;
@@ -347,16 +349,19 @@ async function blockFonts(faces, far, want) {
 async function saveBlock(tab, msg) {
   const bin = atob(msg.data), u8 = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  const name = cleanName(msg.name || 'Блок') + '.oddblock';
+  const name = cleanName(msg.name || T('Блок')) + '.oddblock';
   await sendBlob(new Blob([u8], { type: 'application/x-oddments-block' }), name, msg.page || (tab && tab.url), msg.tags);
-  return cleanName(msg.name || 'Блок');
+  return cleanName(msg.name || T('Блок'));
 }
-function makeMenus() {
+async function makeMenus() {
+  await globalThis.oddLangReady;
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: 'perch', title: 'Oddments', contexts: ['page', 'frame', 'image', 'link', 'video', 'selection'] });
-    for (const m of MENUS) chrome.contextMenus.create({ ...m, parentId: 'perch' });
+    for (const m of MENUS) chrome.contextMenus.create({ ...m, ...(m.title ? { title: T(m.title) } : {}), parentId: 'perch' });
   });
 }
+// the language chosen in the popup: the menus follow at once
+chrome.storage.onChanged.addListener((ch) => { if (ch.lang) setTimeout(makeMenus, 0); });
 chrome.runtime.onInstalled.addListener(makeMenus);
 chrome.runtime.onStartup.addListener(makeMenus);
 
@@ -364,26 +369,26 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   const page = info.pageUrl || (tab && tab.url) || '';
   // a right click inside an embedded Vimeo player saves its video, whatever item was chosen
   if (VIMEO_FRAME.test(info.frameUrl || '') && ['embed', 'page', 'video'].includes(info.menuItemId)) {
-    return run(tab, () => saveEmbed(tab, info.frameId, info.frameUrl, page), (n) => 'В Oddments: ' + n);
+    return run(tab, () => saveEmbed(tab, info.frameId, info.frameUrl, page), (n) => T('В Oddments: ') + n);
   }
   switch (info.menuItemId) {
     case 'img': return run(tab, async () => {
       // blob: pictures live only inside the page: the page script reads them
-      if (/^blob:/i.test(info.srcUrl)) { const r = await ask(tab, { t: 'readBlob', url: info.srcUrl }); if (!r || !r.data) throw new PerchError('Картинку не прочитать'); return saveFile(r.data, page, tab.title); }
+      if (/^blob:/i.test(info.srcUrl)) { const r = await ask(tab, { t: 'readBlob', url: info.srcUrl }); if (!r || !r.data) throw new PerchError(T('Картинку не прочитать')); return saveFile(r.data, page, tab.title); }
       const best = await ask(tab, { t: 'best', url: info.srcUrl });
       return saveFile((best && best.url) || info.srcUrl, page, tab.title);
-    }, (n) => 'В Oddments: ' + n);
+    }, (n) => T('В Oddments: ') + n);
     case 'video': return run(tab, async () => {
       const v = videoOf(page);
       if (v || !info.srcUrl || /^blob:/i.test(info.srcUrl)) return saveLink(v ? v.url : page, tab.title);
       return saveFile(info.srcUrl, page, tab.title);
-    }, (n) => 'В Oddments: ' + n);
-    case 'link': return run(tab, () => (KNOWN.test(nameFromUrl(info.linkUrl)) ? saveFile(info.linkUrl, page) : saveLink(info.linkUrl, info.selectionText || info.linkText || '')), (n) => 'В Oddments: ' + n);
-    case 'page': return run(tab, () => saveLink(page, tab.title), (n) => 'В Oddments: ' + n);
-    case 'article': return run(tab, () => saveArticle(tab), (n) => 'Статья в Oddments: ' + n);
+    }, (n) => T('В Oddments: ') + n);
+    case 'link': return run(tab, () => (KNOWN.test(nameFromUrl(info.linkUrl)) ? saveFile(info.linkUrl, page) : saveLink(info.linkUrl, info.selectionText || info.linkText || '')), (n) => T('В Oddments: ') + n);
+    case 'page': return run(tab, () => saveLink(page, tab.title), (n) => T('В Oddments: ') + n);
+    case 'article': return run(tab, () => saveArticle(tab), (n) => T('Статья в Oddments: ') + n);
     case 'all': return ask(tab, { t: 'gallery' });
-    case 'area': return run(tab, () => shotArea(tab), (n) => 'В Oddments: ' + n);
-    case 'shot': return run(tab, () => shotVisible(tab), (n) => 'В Oddments: ' + n);
+    case 'area': return run(tab, () => shotArea(tab), (n) => T('В Oddments: ') + n);
+    case 'shot': return run(tab, () => shotVisible(tab), (n) => T('В Oddments: ') + n);
     case 'block': return ask(tab, { t: 'pickBlock' });
   }
 });
@@ -391,10 +396,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 chrome.commands.onCommand.addListener(async (cmd, tab) => {
   tab = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
   if (!tab) return;
-  if (cmd === 'shot-visible') run(tab, () => shotVisible(tab), (n) => 'В Oddments: ' + n);
-  if (cmd === 'shot-area') run(tab, () => shotArea(tab), (n) => 'В Oddments: ' + n);
+  if (cmd === 'shot-visible') run(tab, () => shotVisible(tab), (n) => T('В Oddments: ') + n);
+  if (cmd === 'shot-area') run(tab, () => shotArea(tab), (n) => T('В Oddments: ') + n);
   if (cmd === 'save-all') ask(tab, { t: 'gallery' });
-  if (cmd === 'save-article') run(tab, () => saveArticle(tab), (n) => 'Статья в Oddments: ' + n);
+  if (cmd === 'save-article') run(tab, () => saveArticle(tab), (n) => T('Статья в Oddments: ') + n);
   if (cmd === 'grab-block') ask(tab, { t: 'pickBlock' });
 });
 
@@ -404,12 +409,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     switch (msg.t) {
       case 'status': return status();
       case 'prefs': return prefs();
-      case 'saveFile': return run(tab, () => saveFile(msg.url, msg.page || (tab && tab.url), msg.alt, msg.name), (n) => 'В Oddments: ' + n);
-      case 'saveLink': return run(tab, () => saveLink(msg.url, msg.title), (n) => 'В Oddments: ' + n);
+      case 'saveFile': return run(tab, () => saveFile(msg.url, msg.page || (tab && tab.url), msg.alt, msg.name), (n) => T('В Oddments: ') + n);
+      case 'saveLink': return run(tab, () => saveLink(msg.url, msg.title), (n) => T('В Oddments: ') + n);
       // «Забрать блок» (block.js): the window's picture for its shot, its fonts, the finished file
       case 'blockCapture': try { return { data: await captureFor(tab) }; } catch (e) { return { error: (e && e.message) || String(e) }; }
       case 'blockFonts': return { css: await blockFonts(msg.faces, msg.far, msg.want).catch(() => '') };
-      case 'saveBlock': return run(tab, () => saveBlock(tab, msg), (n) => 'Блок в Oddments: ' + n);
+      case 'saveBlock': return run(tab, () => saveBlock(tab, msg), (n) => T('Блок в Oddments: ') + n);
       // a video played as a stream (Instagram not signed in): its whole video track, joined with the audio track
       case 'saveStream': return run(tab, async () => {
         const vid = new Uint8Array(await (await download(msg.video)).blob.arrayBuffer());
@@ -417,10 +422,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (msg.audio) {
           try { out = muxAV(vid, new Uint8Array(await (await download(msg.audio)).blob.arrayBuffer())); } catch (e) { out = vid; }
         }
-        const name = cleanName(msg.title || 'Видео') + '.mp4';
+        const name = cleanName(msg.title || T('Видео')) + '.mp4';
         await sendBlob(new Blob([out], { type: 'video/mp4' }), name, msg.page || (tab && tab.url));
         return name;
-      }, (n) => 'В Oddments: ' + n);
+      }, (n) => T('В Oddments: ') + n);
       // a Pinterest video: its stream's video and audio joined into one MP4 (fmp4.js); no stream — the pin as a link
       case 'savePinVideo': return run(tab, async () => {
         const page = msg.pin || (tab && tab.url) || '';
@@ -433,34 +438,34 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
           if (e instanceof PerchError || !msg.pin) throw e;
           return saveLink(msg.pin, msg.title);
         }
-      }, (n) => 'В Oddments: ' + n);
+      }, (n) => T('В Oddments: ') + n);
       case 'saveMany': return saveMany(tab, msg.items);
       // a video without a file (Instagram reels and the like, Media Source): its current frame + a link card to the post
       case 'saveFrame': return run(tab, async () => {
         const blob = await (await fetch(msg.data)).blob();
-        await sendBlob(blob, cleanName(msg.title || 'Кадр') + ' — кадр.png', msg.link || (tab && tab.url));
+        await sendBlob(blob, cleanName(msg.title || T('Кадр')) + T(' — кадр.png'), msg.link || (tab && tab.url));
         if (/^https?:/i.test(msg.link || '')) await saveLink(msg.link, msg.title);
-        return cleanName(msg.title || 'кадр');
-      }, (n) => 'В Oddments: ' + n);
+        return cleanName(msg.title || T('кадр'));
+      }, (n) => T('В Oddments: ') + n);
       // the same video recorded while it played (Alt+Shift+click): a WebM file
       case 'saveRecording': return run(tab, async () => {
         const blob = await (await fetch(msg.data)).blob();
-        const name = cleanName(msg.title || 'Видео') + '.webm';
+        const name = cleanName(msg.title || T('Видео')) + '.webm';
         await sendBlob(blob, name, msg.link || (tab && tab.url));
         return name;
-      }, (n) => 'В Oddments: ' + n);
+      }, (n) => T('В Oddments: ') + n);
       // Alt+click inside a Vimeo frame (embed.js), or the hover button over its iframe (content.js)
-      case 'saveEmbed': return run(tab, () => saveEmbed(tab, msg.src ? null : sender.frameId, msg.src || (sender.url || ''), tab && tab.url), (n) => 'В Oddments: ' + n);
+      case 'saveEmbed': return run(tab, () => saveEmbed(tab, msg.src ? null : sender.frameId, msg.src || (sender.url || ''), tab && tab.url), (n) => T('В Oddments: ') + n);
       case 'embedInfo': return embedInfo(msg.ids || []);
       // from the popup: act on the active tab
       case 'popup': {
         const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!t) return;
-        if (msg.do === 'shot') return run(t, () => shotVisible(t), (n) => 'В Oddments: ' + n);
-        if (msg.do === 'area') return run(t, () => shotArea(t), (n) => 'В Oddments: ' + n);
-        if (msg.do === 'page') return run(t, () => saveLink(t.url, t.title), (n) => 'В Oddments: ' + n);
+        if (msg.do === 'shot') return run(t, () => shotVisible(t), (n) => T('В Oddments: ') + n);
+        if (msg.do === 'area') return run(t, () => shotArea(t), (n) => T('В Oddments: ') + n);
+        if (msg.do === 'page') return run(t, () => saveLink(t.url, t.title), (n) => T('В Oddments: ') + n);
         if (msg.do === 'all') return ask(t, { t: 'gallery' });
-        if (msg.do === 'article') return run(t, () => saveArticle(t), (n) => 'Статья в Oddments: ' + n);
+        if (msg.do === 'article') return run(t, () => saveArticle(t), (n) => T('Статья в Oddments: ') + n);
         if (msg.do === 'block') return ask(t, { t: 'pickBlock' });
       }
     }

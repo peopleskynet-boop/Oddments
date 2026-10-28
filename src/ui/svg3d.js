@@ -6,6 +6,7 @@
 // Every result is checked (closed, no zero-area or flipped faces) before it can be saved; the saved model is
 // a new OBJ in the library, next to the source.
 import './svg3d.css';
+import { pushLayer, popLayer } from './layers.js';
 import { S, ui } from '../state.js';
 import { $, esc, isMac } from '../util.js';
 import { ic } from './icons.js';
@@ -17,12 +18,13 @@ import { absPath, addFromBlobs, assetUrl } from '../lib/library.js';
 import { showQuickFile } from './quickfile.js';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import * as fs from '@tauri-apps/plugin-fs';
+import { readPref, writePref } from '../lib/prefs.js';
 
 const PREFS_KEY = 'perch.svg3d';
-const DEF = { round: 0, depth: 0.24, bevel: 0.04, bseg: 3, sseg: 1, dens: 18, corner: 32, inner: 12, loops: 3, cap: 'quad', engine: 'exact', quads: 1500, sharp: 60, adapt: 1, aniso: 1 };
+const DEF = { fix: true, round: 0, depth: 0.24, bevel: 0.04, bseg: 3, sseg: 1, dens: 18, corner: 32, inner: 12, loops: 3, cap: 'quad', engine: 'exact', quads: 1500, sharp: 60, adapt: 1, aniso: 1 };
 let P = { ...DEF };
-try { Object.assign(P, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}')); } catch (e) { /* defaults */ }
-const keep = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(P)); } catch (e) { /* ignore */ } };
+Object.assign(P, readPref(PREFS_KEY, {}));
+const keep = () => writePref(PREFS_KEY, P);
 
 let el = null, lib = null, src = null, shapes = null, result = null, cleanup = null, token = 0, busy = false;
 export const isSvg3dOpen = () => !!(el && !el.hidden);
@@ -63,6 +65,8 @@ function build() {
       <div class="seg s3d-cap" role="group" aria-label="Крышки" data-only="exact">
         <button type="button" data-cap="quad">Квады</button><button type="button" data-cap="ngon">N-гоны</button><button type="button" data-cap="tri">Треуг.</button>
       </div>
+      <button type="button" class="ibtn wide s3d-fix" data-s3="fix" data-only="svg" title="Шум и лишние точки, изломы, почти прямые линии, самопересечения, наложения фигур, обводки → контуры. Сам файл не меняется.">Исправить SVG</button>
+      <p class="s3d-note" id="s3dFix" data-only="svg"></p>
       <div class="s3d-stats" id="s3dStats"></div>
       <p class="s3d-q" id="s3dQ"></p>
       <div class="s3d-prog" id="s3dProg" hidden><i><b></b></i><span></span></div>
@@ -100,6 +104,7 @@ function build() {
     else if (b.dataset.s3 === 'obj') saveObj();
     else if (b.dataset.s3 === 'blender' && result) import('./toblender.js').then((m) => m.textToBlender(currentText(), outName() + '.obj', outName()));
     else if (b.dataset.s3 === 'run') runRemesh();
+    else if (b.dataset.s3 === 'fix') { P.fix = !P.fix; keep(); layout(); loadShapes().then((ok) => { if (ok && P.engine === 'exact') update(); else if (ok) { markStale(); autoRun(); } }); }
     else if (b.dataset.eng) { P.engine = b.dataset.eng; keep(); layout(); if (P.engine === 'exact') update(); else { markStale(); autoRun(); } }
     else if (b.dataset.cap) { P.cap = b.dataset.cap; keep(); layout(); update(); }
   });
@@ -123,6 +128,7 @@ function layout() {
   if (isMac && P.engine === 'ar') P.engine = 'exact';
   el.querySelectorAll('[data-eng]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.eng === P.engine));
   el.querySelectorAll('[data-cap]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cap === P.cap));
+  el.querySelector('[data-s3="fix"]').setAttribute('aria-pressed', String(P.fix !== false));
   $('#s3dEngNote').textContent = P.engine === 'ar'
     ? (inApp() ? 'Ровный поток квадов по всей поверхности. Форма может чуть скруглиться на острых углах.' : 'AutoRemesher работает в приложении для компьютера; в веб-версии — только «Точная».')
     : 'Сетка строится сразу чистой: квады на стенках и фаске, крышки — квадами, где получается.';
@@ -193,7 +199,7 @@ async function runRemesh() {
     const R = await import('../lib/remesh.js');
     // the source: from an SVG — a dense, plain triangle version of the exact mesh; a model — its own file as OBJ
     let objText;
-    if (src.kind === 'svg') objText = lib.toOBJ(await exactMesh({ ...P, cap: 'tri', dens: Math.max(P.dens, 30), loops: 0 }), src.name);
+    if (src.kind === 'svg') objText = lib.toOBJ({ ...(await exactMesh({ ...P, cap: 'tri', dens: Math.max(P.dens, 30), loops: 0 })), uv: null }, src.name); // geometry only for the remesher
     else objText = await modelToObj(src.item);
     const { text, stats } = await R.remesh(objText, { targetQuads: P.quads, sharpEdge: P.sharp, adaptivity: P.adapt, anisotropy: P.aniso, edgeScaling: 1 }, (pct, stage) => {
       bar.style.width = Math.max(2, pct) + '%';
@@ -297,6 +303,26 @@ async function saveObj() {
   } catch (e) { toast('Не удалось сохранить: ' + (e && e.message ? e.message : e)); }
 }
 
+// the SVG's shapes, mended first by «Исправить SVG» (lib/svgfix.js) unless it is switched off; what was fixed goes
+// under the button. The file itself is not changed.
+async function loadShapes() {
+  let text = src.text, note = '';
+  if (P.fix !== false) {
+    try {
+      const fx = await import('../lib/svgfix.js');
+      const r = fx.fixSvg(src.text);
+      const lines = fx.reportLines(r.report);
+      text = r.svg;
+      note = lines.length ? lines.slice(0, 3).join(' · ') : 'Ошибок в точках нет.';
+    } catch (e) { note = `Не исправился (${(e && e.message) || e}) — взят как есть.`; }
+  }
+  const r = lib.parseSvg(text);
+  if (!r.shapes.length) { toast(r.strokesOnly ? 'В этом SVG только обводки. Включите «Исправить SVG» — обводки станут контурами.' : 'В SVG не нашлось залитых фигур.'); return false; }
+  shapes = r.shapes;
+  if (el) $('#s3dFix').textContent = note;
+  return true;
+}
+
 /* ---------- open / close ---------- */
 // source: { kind: 'svg', text, name, item? } or { kind: 'model', item }
 export async function openSvg3d(source) {
@@ -310,16 +336,13 @@ export async function openSvg3d(source) {
   src = source.kind === 'model' ? { ...source, name: source.item.name } : source;
   result = null; staleAr = true;
   if ($('#s3dView')) $('#s3dView').__view = null; // a new source starts from the default angle
-  if (src.kind === 'svg') {
-    const r = lib.parseSvg(src.text);
-    if (!r.shapes.length) { toast(r.strokesOnly ? 'В этом SVG только обводки. В Figma: Outline stroke, затем экспорт SVG.' : 'В SVG не нашлось залитых фигур.'); return; }
-    shapes = r.shapes;
-  }
+  if (src.kind === 'svg' && !(await loadShapes())) return;
   $('#s3dT').textContent = src.kind === 'svg' ? 'SVG в 3D' : 'Ремеш модели';
   $('#s3dSrc').textContent = src.name;
   SLIDERS.forEach(([k]) => { el.querySelector(`[data-k="${k}"]`).value = P[k]; label(k); });
   el.hidden = false;
   document.body.classList.add('s3d-on');
+  pushLayer({ el, title: '3D-мастерская', close: closeSvg3d });
   sfx('orbit');
   layout();
   if (src.kind === 'svg' && P.engine === 'exact') await update();
@@ -341,6 +364,7 @@ export function closeSvg3d() {
   sfx('close');
   el.hidden = true;
   document.body.classList.remove('s3d-on');
+  popLayer(el);
   pendingView = null;
   if (cleanup) { cleanup(); cleanup = null; mountedExt = null; }
   $('#s3dView').innerHTML = '';
@@ -358,7 +382,7 @@ export async function pickSvgFor3d() {
 }
 
 let picker = null;
-const TRIGGERS = '.nav[data-vt="tool-svg3d"], #svg3dBtn, #addMore';
+const TRIGGERS = '.nav[data-vt="tool-svg3d"], #addMore';
 function showPicker() {
   if (!picker) {
     picker = document.createElement('div');

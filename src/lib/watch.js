@@ -7,6 +7,7 @@
 import * as fs from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { KINDS } from '../state.js';
+import { readPref, writePref } from './prefs.js';
 
 const KEY = 'perch.watch';
 const EVERY = 5000;
@@ -14,8 +15,8 @@ const SEP = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform) 
 let timer = null, importer = null;
 const pending = new Map(); // path → size at the last look (not taken until it is the same twice)
 
-const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{"dirs":[]}'); } catch (e) { return { dirs: [] }; } };
-const keep = (st) => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* private mode */ } };
+const load = () => readPref(KEY, { dirs: [] });
+const keep = (st) => writePref(KEY, st);
 export const watchedDirs = () => load().dirs.map((d) => d.path);
 
 const known = new Set(Object.values(KINDS).flatMap((k) => k.ext || []).map((e) => e.toLowerCase()));

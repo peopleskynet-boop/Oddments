@@ -1,0 +1,48 @@
+/* AI pill (aibar.js): the model downloading / the library being studied, bottom right, above the grid; a click
+   opens the steps (model, studying, tags, search) above the pill */
+.aibar { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: grid; max-width: min(520px, calc(100vw - 40px));
+  padding: 9px 10px 9px 14px; border-radius: 23px; font-size: 12px; color: var(--fg); overflow: hidden;
+  opacity: 0; translate: 0 12px; pointer-events: none; transition: opacity .25s, translate .35s var(--ease), right .35s var(--ease); }
+.aibar.on { opacity: 1; translate: 0 0; pointer-events: auto; }
+/* with the properties panel open the pill sits left of it, not over its bottom fields */
+body.has-sel:not(.insp-off) .aibar, body.tidy-on:not(.insp-off) .aibar { right: calc(var(--iw) + var(--gap) * 2 + 8px); }
+/* narrow window: the properties panel is a sheet at the bottom, so the pill goes under the top bar instead */
+@media (max-width: 860px) {
+  .aibar { right: 12px; max-width: calc(100vw - 24px); }
+  body.has-sel:not(.insp-off) .aibar, body.tidy-on:not(.insp-off) .aibar { right: auto; left: 50%; bottom: auto; top: 70px; transform: translateX(-50%); }
+}
+.ai-row { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 26px; cursor: pointer; outline: 0; border-radius: 99px; }
+body.kbd .ai-chev:focus-visible { box-shadow: 0 0 0 2px var(--acc); }
+.ai-txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-act:empty { display: none; }
+.ai-act { display: flex; gap: 4px; }
+.aibar button.pri { background: var(--acc); color: var(--acc-fg); }
+.aibar button.pri:hover { background: var(--acc); filter: brightness(1.1); }
+.aibar button { flex: none; height: 26px; padding: 0 12px; border-radius: 999px; background: color-mix(in srgb, var(--fg) 10%, transparent); font-size: 12px; }
+.aibar button:hover { background: color-mix(in srgb, var(--fg) 18%, transparent); }
+.ai-ic, .ai-si { flex: none; width: 15px; height: 15px; display: grid; place-items: center; color: var(--acc); }
+.ai-ic svg.i, .ai-si svg.i { width: 15px; height: 15px; }
+.aibar.err .ai-ic { color: var(--warn); }
+.aibar .ai-chev { flex: none; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; color: var(--mut); background: none; transition: rotate .3s var(--ease); }
+.ai-chev svg.i { width: 13px; height: 13px; }
+.aibar.open .ai-chev { rotate: 180deg; }
+.ai-wait { width: 5px; height: 5px; border-radius: 50%; background: var(--mut); opacity: .5; }
+/* the steps (Task Rows): status, what, how far */
+.ai-steps { display: grid; gap: 2px; padding: 2px 0 10px; margin-bottom: 8px; border-bottom: 1px solid var(--line); min-width: 300px; }
+.ai-steps[hidden] { display: none; }
+body.motion .aibar.open .ai-step { animation: aistep .32s var(--ease) both; }
+body.motion .aibar.open .ai-step:nth-child(2) { animation-delay: 40ms; }
+body.motion .aibar.open .ai-step:nth-child(3) { animation-delay: 80ms; }
+body.motion .aibar.open .ai-step:nth-child(4) { animation-delay: 120ms; }
+@keyframes aistep { from { opacity: 0; translate: 0 6px; } }
+.ai-step { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.ai-sl { white-space: nowrap; }
+.ai-sv { margin-left: auto; padding-left: 12px; color: var(--mut); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-step.wait .ai-sl { color: var(--mut); }
+.ai-step.err .ai-si, .ai-step.err .ai-sv { color: var(--warn); }
+.ai-step.pause .ai-si { color: var(--mut); }
+:root[data-theme="marathon"] .ai-sl { font-family: var(--mono); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+/* progress as a hairline along the bottom edge of the pill */
+.ai-track { position: absolute; left: 14px; right: 14px; bottom: 3px; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 10%, transparent); }
+.ai-track::after { content: ''; position: absolute; inset: 0; right: auto; width: calc(var(--p, 0) * 100%); border-radius: inherit; background: var(--acc); transition: width .4s ease; }
+.aibar.err .ai-track, .aibar.fin .ai-track { display: none; }

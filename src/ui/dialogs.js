@@ -199,6 +199,30 @@ export function ask(title, initial = '') {
 
 export const isAskOpen = () => $('#modal').classList.contains('on');
 
+// a question with a few answers (not a text field): resolves with the chosen option's value, null on Esc / «Отмена».
+// options: [{ label, value, pri }] — the pri one is the default (Enter) and gets focus. Its own modal, so it can open
+// while a layer is up; Esc and Tab stay inside it.
+export function choose(title, text, options) {
+  return new Promise((resolve) => {
+    const back = document.activeElement;
+    const m = document.createElement('div');
+    m.className = 'modal on';
+    m.innerHTML = `<div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="chT" aria-describedby="chP"><h2 id="chT"></h2><p id="chP" class="dlg-p"></p>` +
+      `<div class="row"><button type="button" class="ibtn" data-v="-1">Отмена</button>${options.map((o, i) => `<button type="button" class="ibtn${o.pri ? ' pri' : ''}" data-v="${i}"></button>`).join('')}</div></div>`;
+    m.querySelector('#chT').textContent = title;
+    m.querySelector('#chP').textContent = text;
+    options.forEach((o, i) => { m.querySelector(`[data-v="${i}"]`).textContent = o.label; });
+    document.body.appendChild(m);
+    const done = (i) => { m.remove(); if (back && back.isConnected && back !== document.body) back.focus({ preventScroll: true }); resolve(i >= 0 ? options[i].value : null); };
+    m.addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) done(+b.dataset.v); else if (e.target === m) done(-1); });
+    m.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); done(-1); } else if (e.key === 'Tab') trapTab(e, m);
+      e.stopPropagation();
+    });
+    (m.querySelector('.pri') || m.querySelector('[data-v]')).focus();
+  });
+}
+
 // Two-step destructive button that morphs in place, after Arc's confirm morph (uiarc.dev, MIT, © 2026 Elia
 // Kuratli): the first click turns it into a red «Точно? Ещё раз» with a bar draining for 3 s (then it settles
 // back), the second runs the action with a spinner and shows the result. The label crossfades with a short

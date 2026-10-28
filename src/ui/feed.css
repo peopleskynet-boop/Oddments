@@ -1,4 +1,6 @@
 /* ——— the design feed as reels (feed.js): one card per screen, snapped; actions on the right ——— */
+@layer tokens, base, components, screens, themes;
+@layer screens {
 .feed { position: fixed; inset: 0; z-index: 90; background: var(--bg); color: var(--fg); animation: fade .2s; }
 .feed[hidden] { display: none; }
 .fd-top { position: absolute; z-index: 3; top: 14px; left: 20px; right: 20px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
@@ -9,11 +11,12 @@
 .fd-tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
 .fd-count { margin-left: auto; font: 12px var(--mono); color: var(--mut); font-variant-numeric: tabular-nums; }
 .fd-top .ib { width: 42px; height: 42px; }
-.fd-rf.busy svg.i { animation: spin 1s linear infinite; }
+.fd-rf.spinning svg.i { animation: spin 1s linear infinite; }
 
 .fd-list { position: absolute; inset: 0; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; outline: 0; overscroll-behavior: contain; }
 .fd-list::-webkit-scrollbar { display: none; }
 .reel { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; align-items: center; justify-content: center; gap: 18px; padding: 72px 20px 20px; box-sizing: border-box; }
+.reel.reel-ad { display: none; } /* an ad found on the picture (checkAds) */
 .reel-card { position: relative; height: 100%; width: min(640px, calc(100vw - 150px)); border-radius: 28px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); isolation: isolate; }
 .reel-bg { position: absolute; inset: -40px; background: center / cover no-repeat; filter: blur(40px) saturate(1.3) brightness(.7); transform: scale(1.1); z-index: -1; }
 .reel-media { position: absolute; inset: 0 0 34% 0; display: grid; place-items: center; padding: 22px 22px 0; }
@@ -49,6 +52,17 @@
   .reel-card { width: 100%; }
   .reel-rail { position: absolute; right: 18px; bottom: 150px; }
   .reel-rail button span { display: none; }
+}
+/* a low window: seven round buttons with labels need ~560 px — at 620 and below the labels go (the title says it) and
+   the circles shrink, so the rail stays inside its card's height */
+@media (max-height: 620px) {
+  .reel-rail { gap: 8px; }
+  .reel-rail button span { display: none; }
+  .reel-rail button svg.i { width: 20px; height: 20px; padding: 11px; }
+}
+@media (max-height: 480px) {
+  .reel-rail { gap: 4px; }
+  .reel-rail button svg.i { width: 18px; height: 18px; padding: 8px; }
 }
 /* saving from the feed: the «куда положить» pill shows over it */
 body.feed-on .qf { z-index: 95; left: 50%; }
@@ -95,6 +109,7 @@ body.feed-on .qf { z-index: 95; left: 50%; }
 /* a picture that did not load: no broken icon, the card keeps its blurred background or the source name */
 .reel-media img[hidden] { display: none; }
 .pp-ads { margin: 0; font-size: 12px; color: var(--mut); }
+.pp-adclear { border: 0; background: none; padding: 0; color: var(--ink); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 /* closing (bug #65): the screen fades and settles instead of vanishing in one frame */
 @keyframes layerOut { to { opacity: 0; transform: scale(.985) translateY(8px); } }
 .feed.leaving, .news.leaving { animation: layerOut .22s var(--ease) forwards; pointer-events: none; }
@@ -112,3 +127,4 @@ body.kbd .reel-title:focus-visible { outline: 2px solid var(--acc); outline-offs
 .fd-taste[aria-pressed="true"] { color: var(--acc); }
 .reel-taste { font-style: normal; font-size: 11px; font-weight: 600; color: var(--acc); padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--acc) 14%, transparent); margin-left: 8px; white-space: nowrap; }
 .reel-wait { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, .8); font-size: 13px; }
+}

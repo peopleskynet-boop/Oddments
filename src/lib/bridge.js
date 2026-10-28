@@ -82,12 +82,12 @@ export function pushCatalog() {
     const count = new Map();
     for (const it of S.items) if (!it.trashed) for (const t of it.tags || []) count.set(t, (count.get(t) || 0) + 1);
     const tags = [...count].sort((a, b) => b[1] - a[1]).slice(0, 300).map(([t]) => t);
-    const folders = S.folders.map((f) => ({ id: f.id, name: f.name, parent: f.parent || null, ...(f.flow ? { flow: true, order: f.order || [] } : {}) }));
+    const folders = S.folders.map((f) => ({ id: f.id, name: f.name, parent: f.parent || null, ...(f.flow ? { flow: true, order: f.order || [], ...(f.cjm ? { cjm: f.cjm } : {}) } : {}) }));
     const json = JSON.stringify({ folders, tags });
     const items = JSON.stringify(S.items.filter((it) => !it.trashed).map((it) => ({
       id: it.id, name: it.name, kind: it.kind, ext: it.ext, w: Math.round(it.w || 0), h: Math.round(it.h || 0),
       tags: it.tags, ai: it.aiTags || [], folders: it.folders, fav: !!it.fav, added: it.added,
-      colors: (it.colors || []).slice(0, 5), thumb: it.thumb || '', file: it.file, url: it.url || '', ...(it.flowT != null ? { flowT: it.flowT } : {}),
+      colors: (it.colors || []).slice(0, 5), thumb: it.thumb || '', file: it.file, url: it.url || '', ...(it.flowT != null ? { flowT: it.flowT } : {}), ...(it.notes && it.notes.length ? { notes: it.notes } : {}),
     })));
     if (json === lastCatalog && items === lastItems) return;
     lastCatalog = json; lastItems = items;

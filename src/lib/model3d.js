@@ -242,14 +242,9 @@ export async function renderModelThumb(buf, ext, W = 640, H = 480) {
     const colorSrc = document.createElement('canvas');
     colorSrc.width = W; colorSrc.height = H;
     colorSrc.getContext('2d').drawImage(glc, 0, 0);
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const x = canvas.getContext('2d');
-    const g = x.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#3a3a3f'); g.addColorStop(1, '#232327');
-    x.fillStyle = g; x.fillRect(0, 0, W, H);
-    x.drawImage(colorSrc, 0, 0);
-    return { canvas, colorSrc, w: W, h: H, ...meshStats(obj) };
+    // the thumbnail keeps its transparent background: the card puts the theme's own backdrop under it (.m3d-bg), so a
+    // model is not a dark tile in a light theme (it was drawn on a fixed dark gradient)
+    return { canvas: colorSrc, colorSrc, w: W, h: H, ...meshStats(obj) };
   } finally {
     disposeObject(obj);
     if (env) env.dispose();

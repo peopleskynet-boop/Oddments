@@ -5,15 +5,36 @@ const bg = (msg) => chrome.runtime.sendMessage(msg);
 const store = chrome.storage.local;
 
 let prefs = await bg({ t: 'prefs' });
+
+// the popup's own texts: every text node and placeholder that has an English version
+await globalThis.oddLangReady;
+function translate() {
+  // folder and tag names are the person's own: left as they are
+  const own = (n) => (n.parentElement.closest('#folder option:not([value=""]), #tags, #tagList') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT);
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: own });
+  for (let n; (n = walk.nextNode());) {
+    const raw = n.__ru || (n.__ru = n.nodeValue), key = raw.trim();
+    if (key) n.nodeValue = raw.replace(key, T(key));
+  }
+  for (const el of document.querySelectorAll('[placeholder]')) {
+    el.__ru = el.__ru || el.placeholder;
+    el.placeholder = T(el.__ru);
+  }
+  document.documentElement.lang = oddLang();
+}
+translate();
+const langSel = $('#lang');
+langSel.value = (await store.get('lang')).lang || '';
+langSel.onchange = async () => { await store.set({ lang: langSel.value }); setTimeout(() => { translate(); refresh(); }, 0); };
 const setState = (cls, text) => { $('#st').className = cls; $('#st span').textContent = text; };
 
 async function refresh() {
   const s = await bg({ t: 'status' });
   document.body.classList.toggle('need', s.state === 'token' || s.state === 'bad');
-  if (s.state === 'off') { setState('err', 'Oddments не запущен'); disable(true); return; }
-  if (s.state === 'token') { setState('', 'нужен токен'); return; }
-  if (s.state === 'bad') { setState('err', 'токен не подошёл'); $('#pairHelp').innerHTML = 'Токен не подошёл. В Oddments › Настройки › Интеграции нажмите <b>«Скопировать токен»</b> ещё раз.'; return; }
-  setState('ok', 'подключено');
+  if (s.state === 'off') { setState('err', T('Oddments не запущен')); disable(true); return; }
+  if (s.state === 'token') { setState('', T('нужен токен')); return; }
+  if (s.state === 'bad') { setState('err', T('токен не подошёл')); $('#pairHelp').innerHTML = T('Токен не подошёл. В Oddments › Настройки › Интеграции нажмите <b>«Скопировать токен»</b> ещё раз.'); return; }
+  setState('ok', T('подключено'));
   disable(false);
   fill(s.catalog || { folders: [], tags: [] });
 }
@@ -39,7 +60,7 @@ function chips() {
   for (const t of prefs.tags) {
     const c = document.createElement('button');
     c.className = 'chip';
-    c.title = 'Убрать тег';
+    c.title = T('Убрать тег');
     c.append(t, Object.assign(document.createElement('span'), { textContent: '×' }));
     c.onclick = () => { prefs.tags = prefs.tags.filter((x) => x !== t); store.set({ tags: prefs.tags }); chips(); };
     box.appendChild(c);

@@ -9,6 +9,8 @@
   <body>
     <div class="app" id="app">
       <div class="dragtop" data-tauri-drag-region aria-hidden="true" hidden></div>
+      <!-- over a full-screen section (feed, constructor, preview…) the window keeps a title strip: drag, minimise, maximise, close -->
+      <div class="winbar" id="winbar" data-tauri-drag-region hidden><span class="winbar-t" id="winbarT" data-tauri-drag-region></span><div class="winbar-b"><button class="ib" data-w="min" aria-label="Свернуть окно" title="Свернуть окно"></button><button class="ib" data-w="max" aria-label="Развернуть" title="Развернуть"></button><button class="ib wb-close" data-w="close" aria-label="Закрыть" title="Закрыть"></button></div></div>
       <!-- functional layer (Liquid Glass) -->
       <aside class="side glass" id="side">
         <div class="brand">
@@ -26,20 +28,18 @@
           <button class="ib only-wide" id="sideTog" aria-label="Боковая панель" title="Боковая панель ( [ )"></button>
           <button class="ib" id="backBtn" aria-label="Назад ко всем файлам" title="Ко всем файлам"></button>
         </div>
-        <label class="search glass"><span id="icSearch"></span><input id="q" type="text" placeholder="Найти: название, #тег или что на картинке…" autocomplete="off" /><kbd>/</kbd><button type="button" class="ai-chip" id="aiChip" hidden></button><button type="button" class="ib" id="simBtn" aria-label="Похожие на выбранную" title="Похожие на выбранную картинку"></button><button type="button" class="ib" id="filtBtn" aria-label="Поиск по цвету" title="Поиск по цвету"></button></label>
+        <label class="search glass"><span id="icSearch"></span><input id="q" type="text" placeholder="Найти: название, #тег или что на картинке…" autocomplete="off" /><button type="button" class="ib q-x" id="qX" aria-label="Очистить поиск" title="Очистить поиск (Esc)" hidden></button><kbd>/</kbd><button type="button" class="ai-chip" id="aiChip" hidden></button><button type="button" class="ib" id="simBtn" aria-label="Похожие на выбранную" title="Похожие на выбранную картинку"></button><button type="button" class="ib" id="filtBtn" aria-label="Поиск по цвету" title="Поиск по цвету"></button></label>
         <div class="split">
           <button class="sb" id="addBtn"></button><span class="sep" aria-hidden="true"></span><button class="sb more" id="addMore" aria-label="Другие способы добавить" aria-haspopup="menu" title="Другие способы добавить"></button>
           <div class="menu glass" id="addMenu">
             <button class="mi" id="pasteBtn"></button>
             <button class="mi" id="addDirBtn"></button>
-            <button class="mi" id="svg3dBtn"></button>
-            <button class="mi" id="ikBtn"></button>
             <button class="mi" id="flowBtn"></button>
             <button class="mi" id="matBtn"></button>
           </div>
         </div>
         <div class="capg glass only-wide"><button class="ib" id="sndBtn" aria-pressed="true"></button><button class="ib" id="inspTog" aria-label="Панель свойств" title="Панель свойств ( ] )"></button></div>
-        <div class="capg glass wctl" id="wctl" hidden><button class="ib" id="wMin" aria-label="Свернуть" title="Свернуть"></button><button class="ib" id="wMax" aria-label="Развернуть" title="Развернуть"></button><button class="ib" id="wClose" aria-label="Закрыть" title="Закрыть"></button></div>
+        <div class="capg glass wctl" id="wctl" hidden><button class="ib" id="wMin" aria-label="Свернуть окно" title="Свернуть окно"></button><button class="ib" id="wMax" aria-label="Развернуть" title="Развернуть"></button><button class="ib" id="wClose" aria-label="Закрыть" title="Закрыть"></button></div>
       </div>
       <div class="cpop glass" id="pop" role="dialog" aria-label="Поиск по цвету" hidden></div>
       <div class="busy glass" id="busy" role="status" aria-live="polite" hidden><span class="busy-ic" id="busyI" aria-hidden="true"></span><span id="busyT"></span><span class="pxl-t" id="busyS"></span><i aria-hidden="true"><b id="busyP"></b></i></div>

@@ -1,0 +1,38 @@
+/* ——— «Знакомство»: a quiet first-run card at the bottom of the sidebar ——— */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ob { margin: 6px 8px 4px; border-radius: 18px; background: var(--hover); flex: none; animation: fade .3s; }
+.ob[hidden] { display: none; }
+.ob-top { display: flex; align-items: center; padding-right: 4px; }
+.ob-head { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 40px; padding: 0 8px 0 12px; border-radius: 18px; text-align: left; }
+.ob-x { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--mut); transition: background .15s, color .15s; }
+.ob-x:hover { background: var(--hover-2); color: var(--fg); }
+.ob-x svg.i { width: 14px; height: 14px; }
+.ob-head svg.i { width: 14px; height: 14px; color: var(--mut); transition: rotate .2s var(--ease); }
+.ob.open .ob-head svg.i { rotate: 90deg; }
+.ob-t { flex: 1; font-weight: 600; font-size: 13px; }
+.ob-dots { display: inline-flex; gap: 4px; }
+.ob-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); transition: background .3s; }
+.ob-dots i.on { background: var(--fg); }
+.ob.complete .ob-dots i.on { background: #34c759; }
+.ob-body { padding: 0 12px 12px; display: grid; gap: 8px; }
+.ob-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ob-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ob-c { flex: none; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-2); display: grid; place-items: center; color: var(--bg); }
+.ob-list li.done .ob-c { background: var(--fg); box-shadow: none; }
+.ob-c svg.i { width: 10px; height: 10px; }
+.ob-s { flex: 1; min-width: 0; }
+.ob-list li.done .ob-s { color: var(--mut); text-decoration: line-through; text-decoration-color: var(--line-2); }
+.ob-p { margin: 0; font-size: 12px; color: var(--mut); line-height: 1.45; }
+.ob-hide { justify-self: stretch; justify-content: center; height: 32px; font-size: 12px; }
+.ob-ring { position: fixed; z-index: 140; border-radius: 16px; box-shadow: 0 0 0 2px var(--acc), 0 0 0 6px color-mix(in srgb, var(--acc) 25%, transparent); pointer-events: none; animation: ob-pulse 1.6s ease-in-out infinite; }
+@keyframes ob-pulse { 50% { box-shadow: 0 0 0 2px var(--acc), 0 0 0 10px color-mix(in srgb, var(--acc) 10%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .ob-ring { animation: none; } }
+.ob-tip { position: fixed; z-index: 141; width: min(300px, calc(100vw - 24px)); padding: 14px; border-radius: 20px; display: grid; gap: 8px; animation: rise .22s var(--ease); }
+.ob-tip b { font-size: 14px; }
+.ob-tip p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--mut); }
+.ob-tip .ibtn { justify-self: start; height: 32px; }
+.m3d-target { margin: 0; text-align: center; font-size: 12px; color: #98989f; }
+.m3d-target b { color: #f5f5f7; font-weight: 600; }
+.m3d-target .lnk { margin-left: 6px; color: #f5f5f7; text-decoration: underline; text-underline-offset: 3px; font-size: 12px; }
+.s3d-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.s3d-row2 .ibtn { justify-content: center; }

@@ -12,6 +12,7 @@ import * as fs from '@tauri-apps/plugin-fs';
 import { sfx } from './sound.js';
 import { markStep } from './onboard.js';
 import { similarTo } from '../lib/similar.js';
+import { pushLayer, popLayer } from './layers.js';
 // the player (player.js + embedmedia.js) loads on first use or quietly after start (lazy.js preloadLazy): once it is
 // here it mounts at once, as before; the very first time it waits a few milliseconds, and a file switched meanwhile wins
 let P = null;
@@ -33,6 +34,10 @@ let fromRect = null, closeT = null, backFocus = null, flownFrom = null;
 
 // opts.wear: a material id the model should come up wearing (a material dropped onto its card)
 let openOpts = {};
+// the preview's keys live in main.js (they reach into the grid); layers.js hands it the keys that land outside it
+let previewKeys = null;
+export const setPreviewKeys = (fn) => { previewKeys = fn; };
+
 export function openPreview(id, opts = {}) {
   if (!S.byId.get(id)) return;
   openOpts = opts;
@@ -47,6 +52,7 @@ export function openPreview(id, opts = {}) {
   const pv = $('#pv');
   pv.classList.remove('out');
   pv.classList.add('on');
+  pushLayer({ el: pv, title: 'Просмотр', close: () => closePreview(), onKey: (e) => previewKeys && previewKeys(e) });
   // opened from a card on screen: the other cards fly apart and the room darkens after them
   if (first && fromRect) {
     const card = im.closest('.card');
@@ -80,6 +86,7 @@ export function closePreview(now = false) {
   S.previewId = null;
   token++;
   const pv = $('#pv');
+  popLayer(pv); // first: the wall stops being inert, so focus can go back to it
   if (pv.contains(document.activeElement)) {
     const b = backFocus && backFocus.isConnected && backFocus !== document.body ? backFocus : $('#grid');
     b.focus({ preventScroll: true });
@@ -102,6 +109,8 @@ export function closePreview(now = false) {
   const to = back && back.getBoundingClientRect();
   if (img && to && to.width && to.bottom > 0 && to.top < innerHeight) {
     const from = img.getBoundingClientRect(), s = Math.max(to.width / from.width, to.height / from.height);
+    // a picture not laid out yet (zero box) has no scale to fly back with (bug #122): just close
+    if (!isFinite(s) || !s) { scatterCards(null, false); restore(); return finish(); }
     const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
     scatterCards(null, false);
     pv.animate([{ backgroundColor: 'rgba(5, 5, 6, .9)', backdropFilter: 'blur(30px) saturate(1.2)' }, { backgroundColor: 'rgba(5, 5, 6, 0)', backdropFilter: 'blur(0px)' }], { duration: 420, easing: 'ease-in', fill: 'forwards' });
@@ -419,7 +428,7 @@ function zoomImage(holder, url) {
     img.decode().catch(() => {}).then(() => {
       const to = img.getBoundingClientRect();
       img.style.opacity = '';
-      if (!to.width) return;
+      if (!to.width || !to.height || !from.width || !from.height) return;
       const s = Math.max(from.width / to.width, from.height / to.height);
       const dx = from.left + from.width / 2 - (to.left + to.width / 2), dy = from.top + from.height / 2 - (to.top + to.height / 2);
       // the flight to the centre: a touch of motion blur on the way, settling sharp

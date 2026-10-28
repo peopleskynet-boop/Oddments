@@ -6,6 +6,7 @@
 import { fetch as tfetch } from '@tauri-apps/plugin-http';
 import { peopleSources } from './people.js';
 import { CHANNELS, parseTelegram, cutMore } from './telegram.js';
+import { readPref, writePref } from './prefs.js';
 
 export const SOURCES = [
   { id: 'behance', name: 'Behance', url: 'https://www.behance.net/feeds/projects', topic: 'design' },
@@ -25,6 +26,13 @@ export const SOURCES = [
   // from the user (checked 20.10.2026): branding & packaging, alternative web design
   { id: 'bpando', name: 'BP&O', url: 'https://bpando.org/feed/', topic: 'design' },
   { id: 'hoverstates', name: 'hoverstat.es', url: 'https://www.hoverstat.es/rss.xml', topic: 'ux' },
+  // fintech for the bank's product designers (checked 25.10.2026: open RSS, fresh posts): what banks and wallets ship
+  { id: 'finextra', name: 'Finextra', url: 'https://www.finextra.com/rss/headlines.aspx', topic: 'fintech' },
+  { id: 'bankingdive', name: 'Banking Dive', url: 'https://www.bankingdive.com/feeds/news/', topic: 'fintech' },
+  { id: 'fintechglobal', name: 'FinTech Global', url: 'https://fintech.global/feed/', topic: 'fintech' },
+  { id: 'pymnts', name: 'PYMNTS', url: 'https://www.pymnts.com/feed/', topic: 'fintech' },
+  { id: 'frank', name: 'Frank Media', url: 'https://frankmedia.ru/feed', topic: 'fintech' },
+  { id: 'tj', name: 'Т—Ж', url: 'https://t-j.ru/feed/', topic: 'fintech' },
   // FrameRate (framerate.tv, a video platform for creatives; bug #54): no RSS and no public API — its public video
   // sitemap for search engines (title, description, cover, direct MP4, date); 10 MB, unsorted, no ranges → read at
   // most twice a day, the 40 newest of the last month
@@ -32,17 +40,46 @@ export const SOURCES = [
   // the user's Telegram channels (telegram.js): read through their public web preview, ads left out
   ...CHANNELS,
 ];
-export const TOPICS = { all: 'Всё', people: 'Люди', ai: 'ИИ', design: 'Дизайн', '3d': '3D', motion: 'Моушн', ux: 'UX и веб', art: 'Искусство' };
+export const TOPICS = { all: 'Всё', people: 'Люди', ai: 'ИИ', design: 'Дизайн', fintech: 'Финтех', '3d': '3D', motion: 'Моушн', ux: 'UX и веб', art: 'Искусство' };
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Oddments';
 const CACHE = 'perch.feed.cache', STATE = 'perch.feed', FRESH_MS = 30 * 60000, KEEP = 900;
 // Telegram channels are read gently: at most every 2 hours (every 15 minutes when «Обновить» is pressed)
 const TG_MS = 2 * 3600000, TG_FORCE_MS = 15 * 60000;
-const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') }; } catch (e) { return d; } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* full or private: kept in memory */ } };
+const load = readPref;
+const save = writePref; // full or private: kept in memory
 
 // what the person did: liked items, hidden sources, the chosen topic, items seen
 export const state = load(STATE, { liked: [], off: [], topic: 'all', seen: [] });
+if (!Array.isArray(state.ads)) state.ads = [];
+
+// «Это реклама» on a card (bug #106, the person's own marking): the post is hidden, and its words are kept as a sample
+// of that source's ads — a later post of the same source that shares most of its words (promo texts repeat: the same
+// product, the same promo code, the same call to action) is hidden too. Samples: the last 200, words of 4+ letters.
+const adWords = (x) => new Set(String((x.title || '') + ' ' + (x.text || '')).toLowerCase().replace(/ё/g, 'е')
+  .split(/[^a-zа-я0-9]+/i).filter((w) => w.length >= 4).slice(0, 80));
+export function markAd(x, on = true) {
+  x.adMine = on ? 1 : 0;
+  if (on) state.ads = [...state.ads, { source: x.source, id: x.id, words: [...adWords(x)] }].slice(-200);
+  else state.ads = state.ads.filter((a) => a.id !== x.id);
+  keepState();
+  persist();
+}
+// does a post look like one the person marked as an ad (same source, ≥ 45 % of the smaller word set shared)?
+export function looksLikeAd(x) {
+  if (x.adMine) return true;
+  const mine = state.ads.filter((a) => a.source === x.source && a.id !== x.id);
+  if (!mine.length) return false;
+  const w = adWords(x);
+  if (w.size < 6) return false;
+  return mine.some((a) => {
+    let both = 0;
+    for (const t of a.words) if (w.has(t)) both++;
+    return both >= 5 && both / Math.min(w.size, a.words.length) >= 0.45;
+  });
+}
+export const adsMarked = () => state.ads.length;
+export function clearAds() { state.ads = []; for (const x of cache.items) delete x.adMine; keepState(); persist(); }
 export const keepState = () => { state.seen = state.seen.slice(-1500); save(STATE, state); };
 let cache = load(CACHE, { at: 0, items: [] });
 
@@ -68,9 +105,11 @@ function htmlPicture(html, base) {
 }
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 
-const SPONSORED = /\[sponsored\]|\bsponsored\b|\bpartner content\b|\bpaid (post|content|partnership)\b|\bpromoted\b|\badvertorial\b|\bbrand(ed)? content\b|спецпроект|на правах рекламы|партн[её]рский материал/i;
+export const SPONSORED = /\[sponsored\]|\bsponsored\b|\bpartner content\b|\bpaid (post|content|partnership)\b|\bpromoted\b|\badvertorial\b|\bbrand(ed)? content\b|спецпроект|на правах рекламы|партн[её]рский материал/i;
 export function parseFeed(xml, src) {
-  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  let doc = new DOMParser().parseFromString(xml, 'text/xml');
+  // a bare «&» in a picture address (Motionographer, bug #124) breaks strict XML: escape and read again
+  if (doc.getElementsByTagName('parsererror').length) doc = new DOMParser().parseFromString(xml.replace(/&(?!(?:[a-zA-Z][\w.-]*|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;'), 'text/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('лента не читается');
   const entries = [...doc.getElementsByTagName('item'), ...doc.getElementsByTagName('entry')];
   return entries.slice(0, 40).map((e) => {
@@ -196,7 +235,7 @@ export function ordered(items, topic = state.topic) {
   for (const x of items) x.tz = typeof x.taste === 'number' && tasted.length >= 8 ? (x.taste - tm) / ts : null;
   const tasteOn = state.taste !== false;
   const score = (x) => -(now - x.date) / 3600000 + Math.min(3, likedBy[x.source] || 0) * 24 + (tasteOn && x.tz != null ? Math.max(-1, Math.min(2.5, x.tz)) * 14 : 0);
-  const pool = items.filter((x) => !state.off.includes(x.source) && (topic === 'all' || x.topic === topic)).sort((a, b) => score(b) - score(a));
+  const pool = items.filter((x) => !x.adPic && !looksLikeAd(x) && !state.off.includes(x.source) && (topic === 'all' || x.topic === topic)).sort((a, b) => score(b) - score(a));
   const out = [];
   while (pool.length) {
     const i = pool.findIndex((x) => !(out.length >= 2 && out[out.length - 1].source === x.source && out[out.length - 2].source === x.source));
@@ -204,6 +243,12 @@ export function ordered(items, topic = state.topic) {
   }
   return out;
 }
+
+// Ads whose marking is printed on the picture itself (bug #106: «erid: 2VtzwqQVpb7» in the corner of a Telegram
+// post's picture, nothing in its text). The text on the picture is read on this computer (ocr.js) for the next cards
+// ahead of the one on screen; a found marking hides the card (`adPic`, kept in the cache), `adChk` — read once.
+const AD_PIC = /erid|erid\s*[:=]|(^|[\s.])реклама([.:\s]|$)|на правах рекламы|рекламодатель|sponsored|advertisement|партн[её]рский материал/im;
+export const adOnPicture = (text) => AD_PIC.test(text || '');
 
 // an article without a picture in its feed: the page's own preview picture (og:image), asked once
 const asked = new Set();

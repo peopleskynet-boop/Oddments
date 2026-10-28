@@ -6,19 +6,21 @@ import { loadThree, parseModel, frameObject, disposeObject, modelInfo, objEdges 
 import { ic } from './icons.js';
 import { esc } from '../util.js';
 import { toast } from './dialogs.js';
+import { readPref, writePref } from '../lib/prefs.js';
 
 const BG = { dark: 0x1c1c1f, light: 0xe6e6e8 };
-const prefs = (() => { try { return JSON.parse(localStorage.getItem('perch.viewer3d')) || {}; } catch (e) { return {}; } })();
-const savePrefs = () => { try { localStorage.setItem('perch.viewer3d', JSON.stringify(prefs)); } catch (e) { /* ignore */ } };
+const prefs = readPref('perch.viewer3d', {});
+const savePrefs = () => writePref('perch.viewer3d', prefs);
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 
 // Render modes. Matcaps are painted procedurally (a lit sphere), so no image files ship with the app.
+// `hint` — what the mode shows, for someone who has not met the word (newbie pass 25.10)
 const MODES = [
-  { id: 'final', label: 'Рендер', key: '1' },
-  { id: 'clay', label: 'Глина', key: '2' },
-  { id: 'matcap', label: 'Мэткап', key: '3' },
-  { id: 'normals', label: 'Нормали', key: '4' },
-  { id: 'uv', label: 'UV-шахматка', key: '5' },
+  { id: 'final', label: 'Рендер', key: '1', hint: 'модель со своими материалами и текстурами' },
+  { id: 'clay', label: 'Глина', key: '2', hint: 'одним серым цветом — видна только форма' },
+  { id: 'matcap', label: 'Мэткап', key: '3', hint: 'готовый «материал-шарик»: форма читается под любым углом' },
+  { id: 'normals', label: 'Нормали', key: '4', hint: 'цвет по направлению граней — видны вывернутые и кривые места' },
+  { id: 'uv', label: 'UV-шахматка', key: '5', hint: 'шахматная текстура — видно, как легла развёртка: растяжения и швы' },
 ];
 const MATCAPS = [
   { id: 'studio', label: 'Студия', type: 'lit', base: [0.82, 0.82, 0.85], shade: [0.16, 0.16, 0.19], spec: 0.55, shin: 40, rim: 0.25 },
@@ -51,13 +53,9 @@ async function hdrUrl(id) {
   try { ok = (await fs.stat(file)).size === HDR_SIZE[id]; } catch (e) { ok = false; }
   if (!ok) {
     toast('Скачиваю освещение — один раз…', 2500);
-    const { fetch: tfetch } = await import('@tauri-apps/plugin-http');
-    const r = await tfetch(hdrRemote(id));
-    if (!r.ok) throw new Error('Poly Haven ответил ' + r.status);
-    const bytes = new Uint8Array(await r.arrayBuffer());
-    if (HDR_SIZE[id] && bytes.length !== HDR_SIZE[id]) throw new Error('файл освещения пришёл не целиком');
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(file, bytes);
+    const { downloadFile } = await import('../lib/download.js');
+    await downloadFile(hdrRemote(id), file, { size: HDR_SIZE[id], what: 'файл освещения' });
   }
   return convertFileSrc(file);
 }
@@ -345,7 +343,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   const drawBar = () => {
     bar.innerHTML =
       `<div class="m3d-seg" role="radiogroup" aria-label="Режим отображения">${MODES.map((m) =>
-        `<button type="button" role="radio" aria-checked="${mode === m.id}" class="${mode === m.id ? 'on' : ''}" data-mode="${m.id}" title="${m.label} (${m.key})">${m.label}</button>`).join('')}</div>` +
+        `<button type="button" role="radio" aria-checked="${mode === m.id}" class="${mode === m.id ? 'on' : ''}" data-mode="${m.id}" title="${m.label} (${m.key}) — ${m.hint}">${m.label}</button>`).join('')}</div>` +
       (mode === 'matcap' ? `<div class="m3d-caps" role="radiogroup" aria-label="Мэткап">${MATCAPS.map((m) =>
         `<button type="button" role="radio" aria-checked="${matcap === m.id}" class="${matcap === m.id ? 'on' : ''}" data-cap="${m.id}" title="${m.label}" aria-label="${m.label}" style="background:${CAP_CSS[m.id]}"></button>`).join('')}</div>` : '') +
       '<span class="m3d-sep"></span>' +
@@ -360,6 +358,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   drawBar();
   holder.appendChild(bar);
 
+  let checks = null, uvDirty = false, uvBusy = ''; // the model check and «Развернуть UV» (below the material panel)
   const panel = document.createElement('aside');
   panel.className = 'm3d-info';
   panel.setAttribute('aria-label', 'Информация о модели');
@@ -373,7 +372,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     panel.innerHTML = `<b class="m3d-h">Модель</b>
     <dl>${row('Вершины', fmt(info.polys ? info.verts : info.verts))}${row('Треугольники', fmt(info.tris))}${topo}
     ${row('Меши', fmt(info.meshes))}${row('Материалы', fmt(info.materials))}${row('Текстуры', fmt(info.textures))}
-    ${row('Габариты', sz, 'X × Y × Z в единицах файла')}${info.uvless ? row('Без UV', fmt(info.uvless) + ' меш.') : ''}</dl>` +
+    ${row('Габариты', sz, 'X × Y × Z в единицах файла')}${info.uvless ? row('Без UV', fmt(info.uvless) + ' меш.') : ''}</dl>` + checkHtml() +
     (info.animations.length ? `<b class="m3d-h">Анимации</b><div class="m3d-anims">${info.animations.map((a, i) =>
       `<button type="button" data-anim="${i}" class="${i === 0 ? 'on' : ''}">${esc(a.name)}<span>${a.duration.toFixed(1).replace('.', ',')} с</span></button>`).join('')}
       <button type="button" data-anim="pause" class="pz">${ic('pause')}<span>Пауза</span></button></div>` : '');
@@ -381,6 +380,72 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   fillPanel();
   panel.hidden = prefs[infoKey] === false;
   holder.appendChild(panel);
+  if (!isMat) setTimeout(() => { if (alive) runCheck(); }, 60); // after the first frame: the walk over the mesh takes a moment
+
+  /* ---------- «Проверка» and «Развернуть UV» (../lib/modelcheck.js, ../lib/uvatlas.js, Blender) ---------- */
+  function checkHtml() {
+    if (!checks) return '<b class="m3d-h">Проверка</b><p class="m3d-note">Проверяю…</p>';
+    const bad = checks.filter((c) => c.level !== 'ok').length;
+    return `<b class="m3d-h">Проверка${bad ? ` · ${bad}` : ''}</b><ul class="m3d-chk">${checks.map((c) => `<li class="${c.level}"><span>${esc(c.text)}</span>${c.how ? `<small>${esc(c.how)}</small>` : ''}</li>`).join('')}</ul>
+      <div class="m3d-uvrow"><button type="button" class="m3d-save" data-uv="go"${uvBusy ? ' disabled' : ''} title="Швы по форме модели, развёртка с малым растяжением, острова упакованы. Через ваш Blender, если он есть; иначе прямо здесь (xatlas)">${uvBusy || 'Развернуть UV'}</button>
+      ${uvDirty ? '<button type="button" class="m3d-save" data-uv="save">Сохранить с новой UV</button>' : ''}</div>`;
+  }
+  const runCheck = async () => {
+    try { checks = (await import('../lib/modelcheck.js')).checkModel(THREE, obj, info); } catch (e) { console.warn('check', e); checks = []; }
+    // the team's own limits (brand.js): polygons, size, UV, materials, names by default
+    try {
+      const [{ checkModelRules }, { brandRules }] = await Promise.all([import('../lib/brand.js'), import('../lib/brandrules.js')]);
+      const objects = [], materialNames = new Set();
+      obj.traverse((o) => { if (o.isMesh) { objects.push(o.name || ''); (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m && m.name && materialNames.add(m.name)); } });
+      const team = checkModelRules({ ...info, objects: objects.filter(Boolean), materialNames: [...materialNames] }, brandRules().model).filter((c) => c.level !== 'ok');
+      checks = [...checks.filter((c) => c.level !== 'ok' || !team.length), ...team.map((c) => ({ ...c, text: 'Команда: ' + c.text }))];
+    } catch (e) { console.warn('brand', e); }
+    if (alive) fillPanel();
+  };
+  const unwrapUv = async () => {
+    if (uvBusy) return;
+    const { S } = await import('../state.js');
+    const it = opts.itemId ? S.byId.get(opts.itemId) : null;
+    const B = await import('../lib/blender.js');
+    const viaB = it && window.__TAURI_INTERNALS__ && opts.lib && (await B.blenderPath().catch(() => null));
+    uvBusy = viaB ? 'Blender разворачивает…' : 'Разворачиваю…'; fillPanel();
+    try {
+      if (viaB) {
+        const r = await B.unwrapInBlender(it);
+        const fs = await import('@tauri-apps/plugin-fs');
+        const { absPath } = await import('../lib/library.js');
+        const u8 = await fs.readFile(absPath(r.rel));
+        const name = (opts.name || it.name || 'Модель') + ' — UV';
+        const added = await opts.lib.saveFromViewer(new Blob([u8], { type: 'model/gltf-binary' }), name + '.glb', opts.itemId);
+        fs.remove(absPath(r.rel)).catch(() => {});
+        if (added && added.length) toast(`Готово: «${name}» в библиотеке${r.counts.seams ? ` · швов ${fmt(r.counts.seams)}` : ''}`, 5000);
+      } else {
+        const { mergeVertices } = await import('three/examples/jsm/utils/BufferGeometryUtils.js');
+        const r = await (await import('../lib/uvatlas.js')).unwrapObject(THREE, obj, { mergeVertices });
+        if (!r.done.length) throw new Error(r.tooBig.length ? 'меши больше 65 000 вершин — разверните через Blender' : 'нечего разворачивать');
+        uvDirty = true;
+        info = modelInfo(T, obj, ext, null);
+        buildWire();
+        mode = 'uv'; applyMode(); drawBar();
+        toast(`Развёрнуто мешей: ${r.done.length}${r.tooBig.length ? ` · пропущены большие: ${r.tooBig.length} (нужен Blender)` : ''} — включена UV-шахматка`, 5000);
+      }
+    } catch (e) { toast('Не удалось развернуть UV: ' + (e && e.message ? e.message : e), 5000); }
+    uvBusy = '';
+    checks = null; fillPanel(); runCheck();
+  };
+  const saveUv = async () => {
+    const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
+    const keepMode = mode, keepWire = prefs.wire;
+    prefs.wire = false; buildWire(); prefs.wire = keepWire;
+    mode = 'final'; applyMode();
+    try {
+      const glb = await new GLTFExporter().parseAsync(obj, { binary: true, animations: obj.animations || [] });
+      const name = (opts.name || 'Модель') + ' — UV';
+      const added = await opts.lib.saveFromViewer(new Blob([glb], { type: 'model/gltf-binary' }), name + '.glb', opts.itemId);
+      if (added && added.length) { toast('Сохранено в библиотеку: ' + name + '.glb'); uvDirty = false; }
+    } catch (e) { console.warn(e); toast('Не удалось сохранить модель с UV'); }
+    mode = keepMode; applyMode(); buildWire(); drawBar(); fillPanel();
+  };
 
   /* ---------- a material: shape, parameters, maps, «Сохранить как новый» ---------- */
   const setShape = (id) => {
@@ -674,6 +739,8 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     const sh = e.target.closest('[data-shape]');
     if (sh) { e.stopPropagation(); setShape(sh.dataset.shape); return; }
     if (e.target.closest('[data-mp="save"]')) { e.stopPropagation(); saveMat(); return; }
+    const uv = e.target.closest('[data-uv]');
+    if (uv) { e.stopPropagation(); if (uv.dataset.uv === 'go') unwrapUv(); else if (opts.lib) saveUv(); return; }
     const b = e.target.closest('[data-anim]');
     if (!b) return;
     e.stopPropagation();
@@ -746,7 +813,8 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     info = modelInfo(T, obj, ext, buf);
     // the camera and the floor stay exactly where they were: rebuilding the floor for the new size made the
     // whole view seem to move while a slider was dragged
-    applyMode(); buildWire(); fillPanel();
+    checks = null;
+    applyMode(); buildWire(); fillPanel(); runCheck();
   }).catch((e) => console.warn('viewer swap', e)));
 
   const stop = () => {

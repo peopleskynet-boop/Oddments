@@ -8,7 +8,10 @@ const web = (f) => fileURLToPath(new URL('./src/web/' + f, import.meta.url));
 // so the interface can be worked on in a normal browser with a demo library.
 export default defineConfig(({ mode }) => ({
   clearScreen: false,
-  server: { port: mode === 'web' ? 5173 : 1420, strictPort: true, host: mode === 'web' ? '127.0.0.1' : false },
+  // test rigs and the Rust build write lots of files Vite has no business watching (a locked Edge profile file in
+  // tests/.ext once crashed the dev server)
+  server: { port: mode === 'web' ? 5173 : 1420, strictPort: true, host: mode === 'web' ? '127.0.0.1' : false,
+    watch: { ignored: ['**/tests/.ext/**', '**/src-tauri/target/**', '**/dist*/**', '**/test-results/**'] } },
   build: { target: 'es2022', chunkSizeWarningLimit: 2000 },
   // onnxruntime-web finds its .wasm next to itself; pre-bundling would move it (ai.worker.js sets the path anyway)
   optimizeDeps: { exclude: ['onnxruntime-web', 'pdfjs-dist'] },

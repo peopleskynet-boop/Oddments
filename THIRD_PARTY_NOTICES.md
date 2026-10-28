@@ -14,6 +14,8 @@ Oddments распространяется под лицензией MIT. В нё
 | pdfjs-dist (Mozilla) | Apache-2.0 |
 | ag-psd | MIT |
 | onnxruntime-web (Microsoft) | MIT |
+| comlink (Google Chrome Labs) | Apache-2.0 |
+| xatlasjs (xatlas, Jonathan Young) | MIT |
 | @huggingface/tokenizers | Apache-2.0 |
 | @mozilla/readability | Apache-2.0 |
 | DOMPurify | Apache-2.0 или MPL-2.0 |
@@ -31,6 +33,8 @@ serde_json (MIT или Apache-2.0).
 
 - **AutoRemesher** 1.2.0 (Jeremy HU, MIT) — кладётся в установщик Windows при сборке, текст лицензии — рядом с ним.
 - **SigLIP 2** (Google, Apache-2.0) — модель ИИ-поиска, скачивается с Hugging Face, только когда человек включает ИИ.
+- **PaddleOCR PP-OCRv5** (PaddlePaddle, Apache-2.0) — распознавание текста на картинках, скачивается с Hugging Face.
+- **Real-ESRGAN x4plus** (Xintao Wang, BSD-3-Clause) — увеличение картинок, скачивается при первом использовании.
 - **HDRI Poly Haven** (CC0) — скачиваются при первом выборе освещения в 3D-просмотре.
 
 ## Перенесённое поведение компонентов

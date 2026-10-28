@@ -41,7 +41,9 @@ function vivid(cols) {
 function row(vt, id, label, icon, count, o = {}) {
   // while the duplicates or «Разобрать» cover the grid, that screen is the one marked in the list
   const on = !isOverlayOpen() && S.view.type === vt && (S.view.id || null) === (id == null ? null : id);
-  return `<div class="nav${on ? ' on' : ''}" role="button" tabindex="0"${on ? ' aria-current="page"' : ''}${o.expanded != null ? ` aria-expanded="${o.expanded}"` : ''} data-vt="${vt}"${id != null ? ` data-id="${esc(id)}"` : ''}${o.drop ? ` data-drop="${o.drop}"` : ''} style="padding-left:${8 + (o.depth || 0) * 14}px">${o.pre || ''}${icon === 'dot' ? '<span class="tagdot"></span>' : icon && icon[0] === '#' ? `<span class="sw" style="background:${icon}"></span>` : ic(icon)}<span class="lb">${esc(label)}</span>${o.badge ? `<span class="badge" title="Новые файлы">${o.badge}</span>` : `<span class="ct">${count}</span>`}${o.acts || ''}</div>`;
+  // the screen reader hears «Подборка, 12 файлов» — not the label glued to a bare number and a nested button
+  const say = esc(label) + (o.badge ? `, новых: ${o.badge}` : count !== '' && count != null ? `, ${count} ${plural(+count || 0, ['файл', 'файла', 'файлов'])}` : '');
+  return `<div class="nav${on ? ' on' : ''}" role="button" tabindex="0" aria-label="${say}"${on ? ' aria-current="page"' : ''}${o.expanded != null ? ` aria-expanded="${o.expanded}"` : ''} data-vt="${vt}"${id != null ? ` data-id="${esc(id)}"` : ''}${o.drop ? ` data-drop="${o.drop}"` : ''} style="padding-left:${8 + (o.depth || 0) * 14}px">${o.pre || ''}${icon === 'dot' ? '<span class="tagdot"></span>' : icon && icon[0] === '#' ? `<span class="sw" style="background:${icon}"></span>` : ic(icon)}<span class="lb">${esc(label)}</span>${o.badge ? `<span class="badge" title="Новые файлы">${o.badge}</span>` : `<span class="ct">${count}</span>`}${o.acts || ''}</div>`;
 }
 
 let groups = (() => { try { return JSON.parse(localStorage.getItem('perch.sideGroups') || '{}'); } catch (e) { return {}; } })();
@@ -53,18 +55,22 @@ export function renderSide() {
   h += row('all', null, 'Все файлы', 'all', c.all);
   h += row('recent', null, 'Недавние', 'clock', c.recent, { badge: c.fresh });
   h += row('fav', null, 'Избранное', 'heart', c.fav);
+  // app screens (screens.js): the product designer's daily «how do others do it» — by app, kind, pattern; flows side by side
+  h += row('tool-screens', null, 'Экраны', 'phone', S.items.filter((i) => i.scr && !i.trashed).length || '');
   // duplicates are found from the trash (that is where the extra copies go)
   h += row('trash', null, 'Корзина', 'trash', c.trash, { drop: 'trash' });
+  // connected team libraries (team.js): each its own place, next to one's own
+  for (const t of S.teams || []) h += row('team', t.id, t.name, 'team', S.teamItems.filter((i) => i.team === t.id && !i.trashed).length);
 
   // file types live in the tabs above the grid; the sidebar keeps places and collections
 
-  h += `<div class="grp">Подборки<button data-act="newroot" aria-label="Новая подборка" title="Новая подборка">${ic('plus')}</button></div>`;
+  h += `<div class="grp" role="heading" aria-level="2">Подборки<button data-act="newroot" aria-label="Новая подборка" title="Новая подборка">${ic('plus')}</button></div>`;
   (function walk(parent, depth) {
     S.folders.filter((f) => (f.parent || null) === parent).forEach((f) => {
       const kids = S.folders.some((x) => x.parent === f.id);
       const pre = `<span class="chev${kids ? (f.open ? ' open' : '') : ' none'}" data-act="tog">${ic('chev')}</span>`;
       // one quiet «⋯» instead of four buttons side by side (delete sat next to export — easy to misclick, bug #90)
-      const acts = `<span class="acts"><button data-act="more" aria-haspopup="menu" title="Действия с подборкой" aria-label="Действия с подборкой «${esc(f.name)}»">${ic('more')}</button></span>`;
+      const acts = `<span class="acts"><button data-act="more" aria-hidden="true" tabindex="-1" title="Действия с подборкой (Shift+F10)">${ic('more')}</button></span>`;
       h += row('folder', f.id, f.name, c.swatch[f.id] || 'folder', c.folder[f.id] || 0, { pre, acts, depth, drop: 'folder', expanded: kids ? !!f.open : null });
       if (kids && f.open) walk(f.id, depth + 1);
     });
@@ -73,7 +79,7 @@ export function renderSide() {
   // «what is not sorted yet» lives at the end of its own section, not in the top block
   if (S.folders.length && c.nofolder) h += row('nofolder', null, 'Без подборки', 'nofolder', c.nofolder);
   // «Разобрать» (#80): the same files with suggested collections
-  if (S.folders.length && c.nofolder) h += `<div class="nav${isTidyOpen() ? ' on' : ''}" role="button" tabindex="0" data-vt="tidy" style="padding-left:8px">${ic('sparkle')}<span class="lb">Разобрать</span><span class="ct"></span></div>`;
+  if (S.folders.length && c.nofolder) h += `<div class="nav${isTidyOpen() ? ' on' : ''}" role="button" tabindex="0" data-vt="tidy" title="Файлы без подборки — Oddments подскажет, в какие подборки их разложить по похожести" style="padding-left:8px">${ic('sparkle')}<span class="lb">Разобрать</span><span class="ct"></span></div>`;
 
   h += '<!--tags-->';
   // tags: one's own first, then the AI's (✦, local model words or Claude's tags — bug #91); the group folds like
@@ -101,30 +107,35 @@ export function renderSide() {
   news += newsRow('digest', 'sparkle', 'Сводка дня', 'Главное за сутки в ИИ и в дизайне');
   news += newsRow('saved', 'bookmark', 'Сохранённое', 'Статьи, которые читаются здесь');
 
-  // 3D: the models themselves and the tools that make or rework them
+  // «3D» — one section for everything 3D (audit 24.10: the same models were «Модели», the tab «3D» and a collection):
+  // the models, the materials, and what makes or reworks them; «Инструменты» — the rest of the studio
   const tool = (vt, icon, label, hint) => `<div class="nav" role="button" tabindex="0" data-vt="${vt}" title="${hint}" style="padding-left:8px">${ic(icon)}<span class="lb">${label}</span><span class="ct"></span></div>`;
+  let d3 = '';
+  d3 += c.kind.model ? row('kind', 'model', '3D-модели', 'cube', c.kind.model) : tool('tool-add3d', 'cube', '3D-модели', 'GLB, OBJ, FBX, STL, .blend… — перетащите в окно или «Добавить»; из Blender — аддоном Oddments');
+  if (c.kind.material) d3 += row('kind', 'material', 'Материалы', 'sphere', c.kind.material);
+  else d3 += tool('tool-material', 'sphere', 'Материалы', 'Материал из набора текстур (Poly Haven, ambientCG, Substance) или из Blender');
+  d3 += tool('tool-svg3d', 'plus', 'SVG в 3D', 'Иконка или логотип из SVG — в 3D-модель с чистой сеткой');
+  if (!isMac) d3 += tool('tool-remesh', 'wire', 'Ремеш', 'Квадовая сетка для выбранной модели (AutoRemesher)'); // AutoRemesher: Windows only
+  d3 += tool('tool-blender', 'cube', 'Связь с Blender', 'Аддон Oddments: браузер библиотеки в Blender, модели в Asset Browser, проверка модели, умная UV-развёртка');
   let tools = '';
-  if (c.kind.model) tools += row('kind', 'model', 'Модели', 'cube', c.kind.model);
-  if (c.kind.material) tools += row('kind', 'material', 'Материалы', 'sphere', c.kind.material);
-  else tools += tool('tool-material', 'sphere', 'Материалы', 'Материал из набора текстур (Poly Haven, ambientCG, Substance) или из Blender');
-  tools += tool('tool-svg3d', 'plus', 'SVG в 3D', 'Иконка или логотип из SVG — в 3D-модель с чистой сеткой');
-  if (!isMac) tools += tool('tool-remesh', 'wire', 'Ремеш', 'Квадовая сетка для выбранной модели (AutoRemesher)'); // AutoRemesher: Windows only
   // the icon constructor was only in «Добавить ▾» and the palette — the user could not find it (bug #58)
   tools += tool('tool-iconkit', 'grid', 'Конструктор иконок', 'Иконки по правилам: фигуры, проверка, все размеры, генерация по описанию');
+  tools += tool('tool-flow', 'flow', 'Сценарий из записи', 'Запись экрана → экраны по шагам → сценарий и CJM');
+  tools += tool('tool-team', 'team', (S.teams || []).length ? 'Подключить ещё команду' : 'Командная библиотека', 'Общая папка команды: сетевой диск, OneDrive, Яндекс Диск — общие референсы без сервера');
   tools += tool('tool-plugins', 'external', 'Плагины', 'Blender, Figma, Chrome и Edge, Safari, Claude (MCP): установка и статус');
-
 
   // «Новости» and «Инструменты» fold away at the end (closed by default, remembered): collections and tags — the library
   // itself — come first. A group holding the view that is open now stays open.
   const fold = (g, label, body, active, byDefault = false) => {
     const open = (groups[g] ?? byDefault) || active;
-    return `<button type="button" class="grp fold" data-act="fold" data-g="${g}" aria-expanded="${open}">${label}<span class="fold-ch">${ic('chev')}</span></button>` + (open ? body : '');
+    return `<div role="heading" aria-level="2" class="grp-h"><button type="button" class="grp fold" data-act="fold" data-g="${g}" aria-expanded="${open}">${label}<span class="fold-ch">${ic('chev')}</span></button></div>` + (open ? body : '');
   };
   const inTools = S.view.type === 'kind' && (S.view.id === 'model' || S.view.id === 'material');
   // tags sit right after the collections (as before), folding like the groups below
   h = h.replace('<!--tags-->', fold('tags', 'Теги', tg, S.view.type === 'tag' || S.view.type === 'notag', true));
   h += fold('news', 'Новости', news, false);
-  h += fold('tools', 'Инструменты', tools, inTools);
+  h += fold('d3', '3D', d3, inTools, true);
+  h += fold('tools', 'Инструменты', tools, false);
 
   const sc = $('#sideScroll'), top = sc.scrollTop;
   const f = document.activeElement && sc.contains(document.activeElement) && document.activeElement.closest('.nav');
@@ -138,7 +149,7 @@ export function renderSide() {
   const home = navs.find((x) => x.classList.contains('on')) || navs[0];
   navs.forEach((x) => { x.tabIndex = x === home ? 0 : -1; });
   sc.querySelectorAll('.nav .acts button').forEach((b) => { b.tabIndex = -1; });
-  sc.querySelectorAll('.nav[data-vt="folder"]').forEach((x) => x.setAttribute('aria-keyshortcuts', 'F2 Delete Insert'));
+  sc.querySelectorAll('.nav[data-vt="folder"]').forEach((x) => x.setAttribute('aria-keyshortcuts', 'F2 Delete Insert Shift+F10'));
   if (key) { const n = navs.find((x) => x.dataset.vt + '|' + (x.dataset.id || '') === key); if (n) { home.tabIndex = -1; n.tabIndex = 0; n.focus(); } }
 }
 
@@ -172,6 +183,11 @@ export function initSidebar() {
     if (rowEl && rowEl.dataset.vt === 'tool-plugins') { document.body.classList.remove('nav-open'); import('./plugins.js').then((m) => m.openPlugins()); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-iconkit') { document.body.classList.remove('nav-open'); import('./iconkit.js').then((m) => m.openIconKit()); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-remesh') { document.body.classList.remove('nav-open'); remeshSelected(); return; }
+    if (rowEl && rowEl.dataset.vt === 'tool-team') { document.body.classList.remove('nav-open'); import('./teamui.js').then((m) => m.connectFlow()); return; }
+    if (rowEl && rowEl.dataset.vt === 'tool-screens') { document.body.classList.remove('nav-open'); import('./screens.js').then((m) => m.openScreens()); return; }
+    if (rowEl && rowEl.dataset.vt === 'tool-flow') { document.body.classList.remove('nav-open'); import('./flows.js').then((m) => m.flowFromDisk()); return; }
+    if (rowEl && rowEl.dataset.vt === 'tool-blender') { document.body.classList.remove('nav-open'); import('./plugins.js').then((m) => m.openPlugins()); return; }
+    if (rowEl && rowEl.dataset.vt === 'tool-add3d') { document.body.classList.remove('nav-open'); document.getElementById('addBtn').click(); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-material') { document.body.classList.remove('nav-open'); import('./materials.js').then((m) => m.pickTextures()); return; }
     if (rowEl && !rowEl.classList.contains('idle')) { closeOverlays(); setView(rowEl.dataset.vt, rowEl.dataset.id); }
   });
@@ -186,6 +202,13 @@ export function initSidebar() {
       return;
     }
     // collection row: F2 rename, Delete remove, Insert add a sub-collection (the same as its «⋯» menu)
+    // its «⋯» menu from the keyboard: Shift+F10 or the menu key (the button itself is out of the Tab order)
+    if (nav && nav.dataset.vt === 'folder' && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
+      e.preventDefault(); e.stopPropagation();
+      const b = nav.querySelector('[data-act="more"]');
+      if (b) rowMenu(b, nav.dataset.id);
+      return;
+    }
     const rowAct = { F2: 'ren', Delete: 'del', Insert: 'sub' }[e.key];
     if (nav && rowAct && nav.dataset.vt === 'folder') { e.preventDefault(); e.stopPropagation(); folderAct(rowAct, nav.dataset.id, false); return; }
     if ((e.key === 'Enter' || e.key === ' ') && nav) { e.preventDefault(); e.stopPropagation(); nav.click(); }
@@ -242,6 +265,16 @@ async function folderAct(act, id, shift) {
   } else if (act === 'ren') {
     const n = await ask('Переименовать подборку', f.name);
     if (n) { f.name = n; saveIndex(); ui.refresh(); }
+  } else if (act === 'link') {
+    // a Jira task, a Confluence page, a Figma file: shown in the collection's header, a click opens it (worklinks.js)
+    const u = await ask('Ссылка на задачу Jira, страницу Confluence или файл Figma', 'https://');
+    if (u && /^https?:\/\/\S+\.\S+/.test(u.trim())) { f.links = [...(f.links || []).filter((l) => l.url !== u.trim()), { url: u.trim() }]; saveIndex(); ui.refresh(); }
+    else if (u) toast('Это не похоже на ссылку: нужен адрес вида https://…');
+  } else if (act === 'md') {
+    const [W, E] = await Promise.all([import('../lib/worklinks.js'), import('../lib/exporter.js')]);
+    const md = W.collectionMd(f, E.folderItems(f.id));
+    try { await navigator.clipboard.writeText(md); toast('Текст подборки скопирован — вставьте на страницу Confluence или в задачу Jira'); }
+    catch (e) { toast('Не удалось скопировать текст подборки'); }
   } else if (act === 'exp') {
     const f = S.folders.find((x) => x.id === id);
     if (f) import('../lib/exporter.js').then((m) => m.runExport(m.folderItems(f.id), f.name, shift));
@@ -269,7 +302,7 @@ function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
 function rowMenu(btn, id) {
   if (menuEl && menuEl.dataset.for === id) { closeRowMenu(); return; }
   closeRowMenu();
-  const items = [['sub', 'plus', 'Вложенная подборка'], ['ren', 'edit', 'Переименовать'], ['exp', 'download', 'Экспорт в папку…'], ['expzip', 'download', 'Экспорт в zip…'], ['del', 'trash', 'Удалить подборку']];
+  const items = [['sub', 'plus', 'Вложенная подборка'], ['ren', 'edit', 'Переименовать'], ['exp', 'download', 'Экспорт в папку…'], ['expzip', 'download', 'Экспорт в zip…'], ['link', 'link', 'Ссылка на задачу или страницу…'], ['md', 'copy', 'Текст для Confluence / Jira'], ['del', 'trash', 'Удалить подборку']];
   menuEl = document.createElement('div');
   menuEl.className = 'ctx glass side-menu';
   menuEl.setAttribute('role', 'menu');

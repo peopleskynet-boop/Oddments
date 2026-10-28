@@ -1,7 +1,7 @@
 // Virtualised masonry/grid: only cards near the viewport exist in the DOM,
 // so thousands of files scroll smoothly.
 import { S, ui, folderById } from '../state.js';
-import { esc, raf, fmtDur } from '../util.js';
+import { esc, raf, fmtDur, typeLabel } from '../util.js';
 import { assetUrl, saveIndex } from '../lib/library.js';
 import { ic } from './icons.js';
 import { computeLayout, visibleRange } from './layout.js';
@@ -28,7 +28,7 @@ function cardHTML(it) {
   if (it.thumb) {
     media = `<img src="${assetUrl(it.thumb)}" alt="" decoding="async" draggable="false">`;
   } else {
-    media = `<div class="nothumb"><b>${esc((it.ext || it.kind).toUpperCase())}</b></div>`;
+    media = `<div class="nothumb"><b>${esc(typeLabel(it))}</b></div>`;
   }
   if (liveVideo(it)) media += `<video class="hv live" src="${assetUrl(it.file)}" muted loop autoplay playsinline preload="metadata"></video>`;
   let badge = '';
@@ -52,21 +52,28 @@ function cardHTML(it) {
   const fl = S.view.type === 'folder' && folderById(S.view.id);
   const at = fl && fl.flow && fl.order ? fl.order.indexOf(it.id) : -1;
   const step = at >= 0 ? `<span class="step">${String(at + 1).padStart(2, '0')}</span>` : '';
-  return `<div class="ph">${media}${badge}${step}${dot}${fav}${ovl}</div>${cap}`;
+  const pii = piiMark(it) + (it.team ? `<span class="teamm" title="Из командной библиотеки${it.by ? ' · добавил(а) ' + esc(it.by) : ''}">${ic('team')}</span>` : '');
+  return `<div class="ph">${media}${badge}${step}${dot}${pii}${fav}${ovl}</div>${cap}`;
 }
 
 // what a screen reader hears for a card: name, type, and the states shown only visually
 function cardLabel(it) {
-  return [it.name, (it.ext || it.kind).toUpperCase(), it.fresh && 'новый', it.fav && 'в избранном'].filter(Boolean).join(', ');
+  return [it.name, typeLabel(it), it.team && 'командный', it.fresh && 'новый', it.fav && 'в избранном', it.pii && it.pii.length && !it.masked && 'личные данные'].filter(Boolean).join(', ');
 }
 
 // keep a card's heart and label in sync after favourites change elsewhere (F key, inspector)
+// personal data on the picture (pii.js): a quiet shield in the corner — check it before it goes to Figma or the team
+const piiMark = (it) => (it.pii && it.pii.length && !it.masked ? `<span class="piim" title="Личные данные на картинке — «Скрыть личные данные…» в меню">${ic('shield')}</span>` : '');
+
 export function syncCard(id) {
   const n = nodes.get(id), it = S.byId.get(id);
   if (!n || !it) return;
   const b = n.querySelector('[data-fav]');
   if (b) { b.classList.toggle('on', it.fav); b.innerHTML = ic(it.fav ? 'heartOn' : 'heart'); b.title = b.ariaLabel = it.fav ? 'Убрать из избранного' : 'В избранное'; }
   n.setAttribute('aria-label', cardLabel(it));
+  const ph = n.querySelector('.ph'), m = ph && ph.querySelector('.piim'), want = piiMark(it);
+  if (m && !want) m.remove();
+  else if (ph && want && !m) ph.querySelector('[data-fav]').insertAdjacentHTML('beforebegin', want);
 }
 
 function makeNode(it, b) {

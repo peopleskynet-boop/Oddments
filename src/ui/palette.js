@@ -3,6 +3,7 @@
 // active row on the morph spring (the pointer and the arrows move the same highlight); the frame follows the
 // height of the list; Enter runs, Esc closes. Actions reuse the app's own buttons and functions, so the
 // palette never behaves differently from the place the action lives in.
+import { t } from '../lib/i18n.js';
 import { S, KINDS } from '../state.js';
 import { $, esc, isMac } from '../util.js';
 import { ic, KIND_ICONS } from './icons.js';
@@ -27,10 +28,14 @@ function actions() {
     { icon: 'plus', label: 'Добавить файлы…', keys: 'импорт открыть загрузить', run: click('#addBtn') },
     { icon: 'paste', label: 'Вставить из буфера', hint: 'Ctrl+V', keys: 'скриншот картинка', run: click('#pasteBtn') },
     { icon: 'folderplus', label: 'Добавить папку…', keys: 'импорт каталог', run: click('#addDirBtn') },
-    { icon: 'cube', label: 'SVG в 3D…', keys: 'иконка модель конвертер blender', run: click('#svg3dBtn') },
+    { icon: 'cube', label: 'SVG в 3D…', keys: 'иконка модель конвертер blender', run: () => import('./svg3d.js').then((m) => m.pickSvgFor3d()) },
     { icon: 'external', label: 'Плагины: Blender, Figma, браузеры, Claude…', keys: 'plugins плагины интеграции аддон расширение safari chrome figma blender mcp claude токен', run: () => import('./plugins.js').then((m) => m.openPlugins()) },
+    { icon: 'team', label: 'Командная библиотека: подключить папку…', keys: 'команда team общая папка сетевой диск onedrive sharepoint яндекс диск', run: () => import('./teamui.js').then((m) => m.connectFlow()) },
+    { icon: 'present', label: 'Показ: картинки по одной, крупно', keys: 'презентация показ ревью слайды pdf защита концепта', run: () => import('./show.js').then((m) => m.showCurrent()) },
+    { icon: 'phone', label: 'Экраны приложений', keys: 'screens конкуренты экраны приложения банк сравнить сценарии как менялся паттерны мобайл', run: () => import('./screens.js').then((m) => m.openScreens()) },
+    { icon: 'compare', label: 'Сравнить два сценария', keys: 'сравнение flow cjm конкурент шаги', run: () => import('./screens.js').then((m) => m.openScreens({ tab: 'cmp' })) },
     { icon: 'flow', label: 'Сценарий из записи экрана…', keys: 'flow сценарий экраны запись видео нарезать скриншоты ux', run: click('#flowBtn') },
-    { icon: 'grid', label: 'Конструктор иконок…', keys: 'иконка icon мтс сетка контур заливка', run: click('#ikBtn') },
+    { icon: 'grid', label: 'Конструктор иконок…', keys: 'иконка icon сетка контур заливка', run: () => import('./iconkit.js').then((m) => m.openIconKit()) },
     { icon: 'sphere', label: 'Материал из текстур…', keys: 'pbr poly haven ambientcg', run: click('#matBtn') },
     { icon: 'palette', label: 'Поиск по цвету', keys: 'цвет палитра', run: click('#filtBtn') },
     { icon: 'scan', label: 'Найти дубликаты', keys: 'повторы копии', run: () => openDupes() },
@@ -59,8 +64,11 @@ function forSelection() {
     a.push({ icon: 'zoom', label: 'Просмотр: ' + it.name, hint: 'Пробел', keys: 'открыть смотреть', run: () => openFile(it.id) });
     if (it.kind === 'model') a.push({ icon: 'cube', label: 'В Blender', keys: 'blender отправить сцена аддон', run: () => { const b = document.querySelector('.insp [data-act="toblender"], .insp [data-act="open"]'); if (b) b.click(); } });
     if (it.ext === 'svg') a.push({ icon: 'cube', label: 'Сделать 3D из SVG…', keys: 'модель blender', run: () => import('./svg3d.js').then((m) => m.openFromItem(it)) });
+    if (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview))) a.push({ icon: 'sparkle', label: 'Увеличить ×2 / ×4…', keys: 'апскейл upscale разрешение качество esrgan крупнее', run: () => import('./upscale.js').then((m) => m.openUpscale(it)) });
     a.push({ icon: 'edit', label: 'Переименовать', hint: 'F2', keys: 'имя', run: () => import('./rename.js').then((m) => m.openRename([it])) });
   }
+  const pics = ids.map((id) => S.byId.get(id)).filter((i) => i && ((i.kind === 'image' && i.ext !== 'gif') || (i.kind === 'psd' && i.preview)));
+  if (pics.length) a.push({ icon: 'shield', label: 'Скрыть личные данные…', keys: 'маскировка карта телефон фио размыть пд безопасность', run: () => import('./mask.js').then((m) => m.openMask(pics)) });
   a.push({ icon: 'trash', label: ids.length > 1 ? `В корзину: ${ids.length}` : 'В корзину', hint: 'Delete', keys: 'удалить', run: () => { const b = document.querySelector('.insp [data-act="trash"]'); if (b) b.click(); } });
   return a;
 }
@@ -124,7 +132,8 @@ function score(text, q) {
 
 function build() {
   const q = input.value.trim().toLowerCase();
-  const pick = (arr) => (q ? arr.map((x) => [score(x.label + ' ' + (x.keys || '') + ' ' + (x.sub || ''), q), x]).filter((p) => p[0]).sort((a, b) => b[0] - a[0]).map((p) => p[1]) : arr);
+  // in English the label is matched as shown too (the labels are written in Russian, i18n.js translates them on screen)
+  const pick = (arr) => (q ? arr.map((x) => [score(x.label + ' ' + t(x.label) + ' ' + (x.keys || '') + ' ' + (x.sub || ''), q), x]).filter((p) => p[0]).sort((a, b) => b[0] - a[0]).map((p) => p[1]) : arr);
   const acts = actions();
   const recent = q ? [] : recentLabels().map((l) => acts.find((x) => x.label === l)).filter(Boolean);
   const groups = [

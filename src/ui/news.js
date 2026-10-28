@@ -1,7 +1,9 @@
 // «Новости»: the daily digest (lib/digest.js), saved articles and a reader (lib/news.js). One screen with two tabs
 // and the reader on top of them; the reels feed (feed.js) is its third door. The reader: the article's own text
 // in calm reading type, its pictures (hover — «В Oddments»), translate to Russian (Claude), open the original, delete.
+import { lang } from '../lib/i18n.js';
 import './news.css';
+import { pushLayer, popLayer } from './layers.js';
 import { esc, plural } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
@@ -15,7 +17,7 @@ import { hydrate } from '../lib/remote.js';
 const deferImgs = (html) => html.replace(/<img\b([^>]*?)\ssrc=/gi, '<img$1 data-src=');
 
 let el = null, body = null, tab = 'digest', reading = null, busy = false;
-const dateFmt = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'long' });
+const dateFmt = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'long' });
 const dayTitle = (key) => { const [y, m, d] = key.split('-').map(Number); const t = new Date(y, m - 1, d); return key === D.today() ? 'Сегодня, ' + dateFmt.format(t) : dateFmt.format(t); };
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
 
@@ -41,10 +43,12 @@ function build() {
   body = el.querySelector('.nw-body');
   el.addEventListener('click', onClick);
   el.addEventListener('submit', onSubmit);
-  el.addEventListener('keydown', (e) => {
+  const onKey = (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (reading) closeReader(); else closeNews(); }
     else e.stopPropagation(); // the grid's shortcuts stay off here
-  });
+  };
+  el.addEventListener('keydown', onKey); // keys that fell out onto the page body come through layers.js (bug #126)
+  newsKey = onKey;
   // pictures in the reader: a «В Oddments» button on hover
   body.addEventListener('mouseover', (e) => {
     const img = e.target.closest && e.target.closest('.nw-article img');
@@ -232,12 +236,13 @@ async function onSubmit(e) {
   if (art) { inp.value = ''; showSaved(); }
 }
 
-let fromFeed = false;
+let fromFeed = false, newsKey = null;
 export async function openNews(which = 'digest') {
   if (!el) build();
   el.hidden = false;
   el.classList.remove('leaving');
   document.body.classList.add('news-on');
+  pushLayer({ el, title: 'Новости', close: () => closeNews(), onKey: newsKey });
   sfx('open');
   setTab(which);
   requestAnimationFrame(() => body.focus({ preventScroll: true }));
@@ -246,6 +251,7 @@ export function closeNews(quiet = false) {
   if (!isNewsOpen()) return;
   reading = null;
   document.body.classList.remove('news-on');
+  popLayer(el);
   if (!quiet) sfx('close');
   import('./feed.js').then((m) => m.leave(el)); // fades out (bug #65)
 }

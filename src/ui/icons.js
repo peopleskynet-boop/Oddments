@@ -1,6 +1,16 @@
 // Phosphor icons (MIT, https://phosphoricons.com), bundled locally as raw SVG strings.
 // Only the icons listed here end up in the build.
 import all from '@phosphor-icons/core/assets/regular/squares-four.svg?raw';
+import shield from '@phosphor-icons/core/assets/regular/shield-check.svg?raw';
+import chat from '@phosphor-icons/core/assets/regular/chat-circle-dots.svg?raw';
+import present from '@phosphor-icons/core/assets/regular/presentation.svg?raw';
+import team from '@phosphor-icons/core/assets/regular/users-three.svg?raw';
+import seal from '@phosphor-icons/core/assets/regular/seal-check.svg?raw';
+import compare from '@phosphor-icons/core/assets/regular/arrows-left-right.svg?raw';
+import note from '@phosphor-icons/core/assets/regular/note-pencil.svg?raw';
+import mic from '@phosphor-icons/core/assets/regular/microphone.svg?raw';
+import book from '@phosphor-icons/core/assets/regular/book-open.svg?raw';
+import phone from '@phosphor-icons/core/assets/regular/device-mobile.svg?raw';
 import grip from '@phosphor-icons/core/assets/regular/dots-six-vertical.svg?raw';
 import folder from '@phosphor-icons/core/assets/regular/folder-simple.svg?raw';
 import nofolder from '@phosphor-icons/core/assets/regular/folder-simple-dashed.svg?raw';
@@ -17,6 +27,7 @@ import x from '@phosphor-icons/core/assets/regular/x.svg?raw';
 import edit from '@phosphor-icons/core/assets/regular/pencil-simple.svg?raw';
 import masonry from '@phosphor-icons/core/assets/regular/columns.svg?raw';
 import flow from '@phosphor-icons/core/assets/regular/flow-arrow.svg?raw';
+import journey from '@phosphor-icons/core/assets/regular/path.svg?raw';
 import grid from '@phosphor-icons/core/assets/regular/grid-four.svg?raw';
 import left from '@phosphor-icons/core/assets/regular/caret-left.svg?raw';
 import right from '@phosphor-icons/core/assets/regular/caret-right.svg?raw';
@@ -63,6 +74,7 @@ import tSlash from '@phosphor-icons/core/assets/regular/line-segment.svg?raw';
 import tDot from '@phosphor-icons/core/assets/regular/dot-outline.svg?raw';
 import eye from '@phosphor-icons/core/assets/regular/eye.svg?raw';
 import eyeOff from '@phosphor-icons/core/assets/regular/eye-slash.svg?raw';
+import megaphone from '@phosphor-icons/core/assets/regular/megaphone.svg?raw';
 import magnet from '@phosphor-icons/core/assets/regular/magnet.svg?raw';
 import fitView from '@phosphor-icons/core/assets/regular/frame-corners.svg?raw';
 import alL from '@phosphor-icons/core/assets/regular/align-left.svg?raw';
@@ -91,12 +103,13 @@ import article from '@phosphor-icons/core/assets/regular/article.svg?raw';
 import back from '@phosphor-icons/core/assets/regular/arrow-left.svg?raw';
 import users from '@phosphor-icons/core/assets/regular/users.svg?raw';
 import userPlus from '@phosphor-icons/core/assets/regular/user-plus.svg?raw';
+import bezier from '@phosphor-icons/core/assets/regular/bezier-curve.svg?raw';
 
 const P = {
-  flow,
+  flow, journey, bezier, phone, shield, chat, present, team, seal, compare, note, mic, book,
   all, grip, folder, nofolder, notag, tag, trash, clock, search, plus, chev, filter, menu, x, edit, masonry, grid,
   left, right, arrowd, arrowu, restore, zoom, gear, paste, folderplus, image, film, music, type, doc, file,
-  sideL, info, palette, play, heart, heartOn, scan, cube, sun, moon, gridfloor, planet, wire, pause, figma, link, check, external, download, undo, redo, alL, alC, alR, alT, alM, alB, tCursor, tRect, tCircle, tPill, tDiamond, tTriangle, tSlash, tDot, eye, eyeOff, magnet, fitView, soundOn, soundOff, copy, bulb, sphere, pin, minus, square, restoreWin, more, warnC, sparkle, caretD, bookmark, news, article, back, users, userPlus,
+  sideL, info, palette, play, heart, heartOn, scan, cube, sun, moon, gridfloor, planet, wire, pause, figma, link, check, external, download, undo, redo, alL, alC, alR, alT, alM, alB, tCursor, tRect, tCircle, tPill, tDiamond, tTriangle, tSlash, tDot, eye, eyeOff, megaphone, magnet, fitView, soundOn, soundOff, copy, bulb, sphere, pin, minus, square, restoreWin, more, warnC, sparkle, caretD, bookmark, news, article, back, users, userPlus,
 };
 export const ic = (n) => (P[n] || '').replace('<svg ', '<svg class="i" aria-hidden="true" ');
 export const KIND_ICONS = { image: 'image', gif: 'image', video: 'film', audio: 'music', font: 'type', pdf: 'doc', psd: 'doc', model: 'cube', material: 'sphere', other: 'file', figma: 'figma', link: 'link' };

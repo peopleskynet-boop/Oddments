@@ -1,0 +1,89 @@
+/* ——— cards: pictures without frames ——— */
+.card { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; user-select: none; cursor: default; }
+.card.enter { animation: cardin .45s var(--ease) both; }
+/* while panels slide or the layout switches, cards glide to their new places (see reflow() in main.js) */
+body.reflow .card { transition: transform .45s var(--ease), width .45s var(--ease), height .45s var(--ease); }
+@keyframes cardin { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+.ph { position: relative; flex: 1; min-height: 0; border-radius: var(--r); corner-shape: squircle; overflow: hidden; background: var(--card); transition: box-shadow .25s var(--ease); }
+.ph img, .ph video { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; transition: transform .7s var(--ease), filter .3s; }
+.ph video.hv { position: absolute; inset: 0; }
+.card:hover .ph img, .card:hover .ph video { transform: scale(1.04); }
+.card.sel .ph { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--acc); }
+/* keyboard cursor: an extra halo outside the selection ring, shown only after arrow keys */
+.kbd .card.cur { z-index: 1; }
+.kbd .card.cur .ph { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in srgb, var(--acc) 55%, transparent); }
+.kbd .card.cur.sel .ph { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--acc), 0 0 0 6px var(--bg), 0 0 0 8px color-mix(in srgb, var(--acc) 60%, transparent); }
+.ovl {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: baseline; gap: 8px; padding: 30px 12px 10px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .6)); color: #fff; font-weight: 500;
+  opacity: 0; translate: 0 6px; transition: opacity .25s, translate .3s var(--ease); pointer-events: none;
+}
+.card:hover .ovl { opacity: 1; translate: 0 0; }
+.ovl .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovl .ex { font-size: 12px; text-transform: uppercase; opacity: .7; }
+.nothumb { width: 100%; height: 100%; display: grid; place-items: center; font: 700 20px var(--font-ui); letter-spacing: -.02em; color: var(--mut); }
+.ph .badge {
+  position: absolute; left: calc(8px + var(--r) * .2); top: calc(8px + var(--r) * .2); padding: 5px 9px; border-radius: 99px;
+  color: #fff; font: 600 11px/1 var(--font-ui);
+  background: rgba(20, 20, 22, .38); backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+/* Yandex Market: favourite right on the card */
+.fav {
+  position: absolute; right: calc(8px + var(--r) * .2); top: calc(8px + var(--r) * .2); width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; opacity: 0; visibility: hidden; transition: opacity .2s, transform .2s var(--ease), visibility 0s;
+  background: rgba(20, 20, 22, .38); backdrop-filter: blur(14px) saturate(180%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+.fav svg.i { width: 17px; height: 17px; }
+/* the heart becomes clickable only after the pointer has rested on the card for a moment: a click that lands
+   on its spot while selecting (the most frequent action) selects, it does not mark a favourite */
+.card:hover .fav { opacity: 1; visibility: visible; transition: opacity .2s .28s, transform .2s var(--ease), visibility 0s .28s; }
+.fav:focus-visible { opacity: 1; visibility: visible; }
+.fav:hover { transform: scale(1.08); }
+.fav.on { opacity: 1; visibility: visible; color: #ff375f; transition: transform .2s var(--ease); }
+/* New files: a small glowing dot that fades by itself once the card has been seen */
+.newdot {
+  position: absolute; right: calc(12px + var(--r) * .2); top: calc(12px + var(--r) * .2); width: 8px; height: 8px; border-radius: 50%; background: var(--red); pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, .3), 0 0 12px 2px rgba(255, 59, 48, .7); transition: opacity .8s, transform .8s var(--ease);
+}
+.card.seen .newdot { opacity: 0; transform: scale(.2); }
+.card:hover .newdot { opacity: 0; }
+.ph:has(.fav.on) .newdot { right: calc(52px + var(--r) * .2); top: calc(21px + var(--r) * .2); }
+.cap { height: 26px; display: flex; gap: 6px; padding: 7px 4px 0; align-items: baseline; }
+.cap .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: color-mix(in srgb, var(--fg) 80%, var(--mut)); }
+.card.sel .cap .nm { color: var(--fg); font-weight: 600; }
+.cap .ex { font-size: 12px; color: var(--mut); text-transform: uppercase; }
+
+/* ——— empty states ——— */
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--mut); pointer-events: none; overflow: hidden; }
+.em-body { position: relative; max-width: 420px; padding: 0 16px; line-height: 1.55; pointer-events: auto; }
+.empty h2 { margin: 0 0 10px; color: var(--fg); font-size: 32px; font-weight: 650; letter-spacing: -.045em; line-height: 1.05; }
+.empty p { margin: 0 0 22px; font-size: 14px; }
+.empty kbd { color: var(--fg); }
+.scatter { position: absolute; inset: 120px var(--pr) 80px var(--pl); }
+.scatter i { position: absolute; width: 96px; aspect-ratio: 4 / 5; border-radius: 22px; corner-shape: squircle; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); animation: drift 9s ease-in-out infinite alternate; }
+.scatter i:nth-child(1) { left: 6%; top: 10%; rotate: -9deg; }
+.scatter i:nth-child(2) { left: 28%; top: 2%; rotate: 6deg; width: 70px; animation-delay: -2s; }
+.scatter i:nth-child(3) { right: 22%; top: 6%; rotate: -4deg; width: 112px; aspect-ratio: 1; animation-delay: -4s; }
+.scatter i:nth-child(4) { right: 4%; top: 26%; rotate: 11deg; animation-delay: -1s; }
+.scatter i:nth-child(5) { left: 2%; bottom: 20%; rotate: 7deg; width: 124px; aspect-ratio: 3 / 2; animation-delay: -5s; }
+.scatter i:nth-child(6) { left: 22%; bottom: 4%; rotate: -12deg; width: 64px; animation-delay: -3s; }
+.scatter i:nth-child(7) { right: 28%; bottom: 6%; rotate: 5deg; width: 86px; aspect-ratio: 1; animation-delay: -6s; }
+.scatter i:nth-child(8) { right: 3%; bottom: 16%; rotate: -7deg; width: 106px; animation-delay: -2.5s; }
+.scatter i:nth-child(9) { left: 48%; top: 0; rotate: -3deg; width: 56px; animation-delay: -7s; }
+.scatter i:nth-child(3n) { background: color-mix(in srgb, var(--card) 70%, var(--fg) 6%); }
+@keyframes drift { from { translate: 0 0; } to { translate: 0 -10px; } }
+body.view-empty .dock { opacity: 0; translate: -50% 14px; pointer-events: none; }
+body.view-empty .tabrow .sortcap { display: none; }
+.drop-ov {
+  position: absolute; inset: var(--gap); z-index: 40; border-radius: var(--rp); display: none; place-items: center;
+  background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1.5px var(--line-2);
+  font-size: 22px; font-weight: 650; letter-spacing: -.03em; pointer-events: none;
+}
+.drop-ov.on { display: grid; animation: fade .2s; }
+
+/* a model's thumbnail is transparent (model3d.js): the backdrop is the theme's — dark in the dark themes, light in the
+   light ones. Thumbnails made before 25.10.2026 carry their own dark backdrop. */
+.card:is([data-kind="model"], [data-kind="material"]) .ph, .m3d-bg { background: linear-gradient(#3a3a3f, #232327); }
+:root:is([data-theme="light"], [data-theme="calm"]) :is(.card:is([data-kind="model"], [data-kind="material"]) .ph, .m3d-bg) { background: linear-gradient(#f6f6f8, #dedee4); }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) :is(.card:is([data-kind="model"], [data-kind="material"]) .ph, .m3d-bg) { background: linear-gradient(#f6f6f8, #dedee4); } }

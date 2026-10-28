@@ -72,3 +72,16 @@ export async function autoPrepare(items) {
   }
   busyDone(list.length > 1 ? `Сцены Blender готовы: ${done}` : 'Сцена Blender готова');
 }
+
+// «Развернуть UV» through the user's Blender (src-tauri/src/blender.rs blender_uv + smart_uv.py): the smart seams of the
+// add-on, minimum stretch, packing. The result is a new GLB in the item's folder; → { path (relative), counts }
+export async function unwrapInBlender(it, angle = 66) {
+  if (!inApp()) throw new Error('веб-версия');
+  const exe = await blenderPath();
+  if (!exe) throw new Error('Blender не найден');
+  const rel = `files/${it.id}/uv-${Date.now().toString(36)}.glb`;
+  const counts = await invoke('blender_uv', { blender: exe, input: absPath(it.glb || it.file), output: absPath(rel), angle });
+  let c = {};
+  try { c = JSON.parse(counts); } catch (e) { /* the counts are a bonus */ }
+  return { rel, counts: c };
+}

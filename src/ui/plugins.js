@@ -3,6 +3,7 @@
 // integration_seen in bridge.rs), installs it in one click and folds out the steps. The files of the add-on, the Figma
 // plugin and the browser extension live inside the app and are written only when someone saves them.
 import './plugins.css';
+import { pushLayer, popLayer } from './layers.js';
 import { esc, isMac } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
@@ -14,6 +15,7 @@ const FIGMA = import.meta.glob('../../integrations/figma/*.{json,js,html}', { qu
 const figmaFiles = () => Promise.all(['manifest.json', 'code.js', 'ui.html'].map((f) => FIGMA['../../integrations/figma/' + f]().then((t) => [f, t])));
 const extText = import.meta.glob('../../integrations/browser/*.{json,js,html}', { query: '?raw', import: 'default' });
 const extIcons = import.meta.glob('../../integrations/browser/*.png', { query: '?inline', import: 'default' });
+const extLocales = import.meta.glob('../../integrations/browser/_locales/*/messages.json', { query: '?raw', import: 'default' });
 
 const errText = (e) => (e && e.message ? e.message : String(e));
 async function dialogs() { return import('@tauri-apps/plugin-dialog'); }
@@ -52,6 +54,12 @@ export const saveExtension = () => saveFolder('Куда положить рас�
     const bytes = Uint8Array.from(atob((await load()).split(',')[1]), (c) => c.charCodeAt(0)); // a data: URL
     await fs.writeFile(await join(base, name(p)), bytes);
   }
+  // the store name and the key descriptions in both languages: _locales/<lang>/messages.json
+  for (const [p, load] of Object.entries(extLocales)) {
+    const dir = await join(base, '_locales', p.split('/').slice(-2, -1)[0]);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeTextFile(await join(dir, 'messages.json'), await load());
+  }
   toast('Расширение сохранено в папку «Oddments for Browser»');
 });
 // Safari: the container app built in CI lies inside Oddments.app (Resources/safari); opening it registers the extension
@@ -85,7 +93,7 @@ const claudeCode = (i) => `claude mcp add --transport http oddments http://127.0
 
 const CARDS = [
   {
-    id: 'blender', seen: 'blender', title: 'Blender', icon: 'cube', ver: 'Аддон 1.10',
+    id: 'blender', seen: 'blender', title: 'Blender', icon: 'cube', ver: 'Аддон 1.12',
     what: 'Модели и материалы из Oddments — в сцену, выделенное — обратно; браузер Oddments поверх 3D-вида и своя библиотека материалов.',
     acts: [{ a: 'addon', label: 'Сохранить аддон…', pri: true }],
     steps: ['Сохраните аддон (файл perch_blender.py — имя прежнее, чтобы токен и настройки остались).', 'Blender › Edit › Preferences › Add-ons › Install from Disk — выберите файл.', 'В панели N › Oddments нажмите «Вставить токен…» — токен копируется кнопкой вверху этого окна.', 'Включите «Принимать из Oddments», чтобы кнопка «В Blender» работала одним нажатием.'],
@@ -153,7 +161,7 @@ function build() {
   el.hidden = true;
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Плагины');
-  el.innerHTML = `<div class="plg-sheet"><header class="plg-top"><h2>Плагины</h2><span class="plg-st cap-sm"></span>
+  el.innerHTML = `<div class="plg-sheet"><header class="plg-top"><h2>Плагины <span class="plg-n">(${CARDS.length})</span></h2><span class="plg-st cap-sm"></span>
       <button type="button" class="ibtn" data-pl="token">Скопировать токен</button>
       <button type="button" class="ib" data-pl="close" aria-label="Закрыть" title="Закрыть (Esc)">${ic('x')}</button></header>
     <p class="plg-lead">Связь с другими программами — только на этом компьютере. Каждому плагину нужен токен: он один на все и копируется кнопкой вверху.</p>
@@ -174,13 +182,14 @@ function build() {
     else if (a === 'mcp-desktop') copy(claudeDesktop(last), 'Настройка для Claude Desktop скопирована — вставьте её в claude_desktop_config.json');
     else if (a === 'mcp-code') copy(claudeCode(last), 'Команда для Claude Code скопирована — выполните её в терминале');
   });
-  el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePlugins(); } });
+  el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePlugins(); } else e.stopPropagation(); });
 }
 
 export async function openPlugins() {
   if (!el) build();
   el.hidden = false;
   document.body.classList.add('plg-on');
+  pushLayer({ el, title: 'Плагины', close: closePlugins });
   sfx('open');
   last = await info().catch(() => null);
   const refresh = async () => {
@@ -200,5 +209,6 @@ export function closePlugins() {
   clearInterval(timer);
   el.hidden = true;
   document.body.classList.remove('plg-on');
+  popLayer(el);
   sfx('close');
 }

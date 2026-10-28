@@ -9,13 +9,16 @@ import { getRoot, changeLibrary } from '../lib/library.js';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { redrawFrame } from './frame.js';
 import { MODEL_MB as AI_MB } from '../lib/ai.js';
+const OCR_MB = 13; // ocr.js OCR_MB, without loading the module at start
+import { LANGS, lang, setLang } from '../lib/i18n.js';
 
 // v2: redesign defaults (dark, monochrome accent, Onest). Older saved looks are reset once.
 const VERSION = 3;
 export const DEFAULTS = {
   theme: 'marathon', accent: 'mono', radius: 16, gap: 14, density: 'cozy', fontSize: 13, font: 'golos',
   captions: false, hover: true, vplay: 'hover', glass: true, anim: 'smooth', wall: 'ambient', css: '',
-  layout: 'masonry', zoom: 220, sideOff: false, inspOff: false, clean: true, facts: true, blenderPath: '', blenderAuto: true, overlay: true,
+  layout: 'masonry', zoom: 220, sideOff: false, inspOff: false, clean: false, facts: true, // clean: a first run starts in the normal view — the panels, «Добавить» and «Знакомство» in sight (newbie pass 25.10); the clean screen is one key away (\) blenderPath: '', blenderAuto: true, overlay: true,
+  aiAutoName: false, // AI through the API: files named like «IMG_2034» get Claude's English name
   sound: 40, // interface sounds, 0–100; 0 = off
   tray: true, // the window's close button hides Oddments to the tray (the receiver keeps working)
   rough: 45, // how frosted the glass panels are, 0–100 (the blur under them)
@@ -104,6 +107,69 @@ function row(label, control) {
   return `<label class="srow"><span>${label}</span>${control}</label>`;
 }
 
+// The drawer in pages (it used to be one long scroll): tabs under the title, a search over every setting. The groups
+// of the markup above are sorted into pages by their titles; a search shows matching rows from all pages at once.
+const PAGES = [
+  ['look', 'Вид', ['Цвета', 'Форма', 'Эффекты', 'Файлы']],
+  ['lib', 'Библиотека', ['Библиотека', 'Правила бренда', 'Словарь тегов']],
+  ['ai', 'ИИ', ['ИИ', 'Текст на картинках', 'Ключ Anthropic', 'ИИ для иконок']],
+  ['apps', 'Blender и плагины', ['Blender', 'Интеграции']],
+];
+const PAGE_KEY = 'perch.settingsPage';
+function paginate(el) {
+  const body = el.querySelector('.sp-body');
+  const pages = new Map(PAGES.map(([id]) => {
+    const sec = document.createElement('section');
+    sec.className = 'spage'; sec.dataset.page = id; sec.setAttribute('role', 'tabpanel');
+    return [id, sec];
+  }));
+  let cur = pages.get('look');
+  for (const k of Array.from(body.children)) {
+    if (k.classList.contains('sgrp')) { const t = k.textContent.trim(); const pg = PAGES.find((x) => x[2].includes(t)); cur = pages.get(pg ? pg[0] : 'look'); }
+    if (k.matches('details.adv, #sReset')) { pages.get('look').appendChild(k); continue; }
+    cur.appendChild(k);
+  }
+  const tabs = document.createElement('div');
+  tabs.className = 'sp-tabs';
+  tabs.setAttribute('role', 'tablist');
+  tabs.innerHTML = PAGES.map(([id, t]) => `<button type="button" role="tab" data-page="${id}">${t}</button>`).join('');
+  const find = document.createElement('input');
+  find.type = 'search'; find.className = 'sp-find'; find.placeholder = 'Найти настройку: тема, звук, ключ, Blender…'; find.setAttribute('aria-label', 'Найти настройку');
+  body.replaceChildren(find, tabs, ...pages.values());
+  const go = (id) => {
+    if (!pages.has(id)) id = 'look';
+    tabs.querySelectorAll('[data-page]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.page === id)));
+    pages.forEach((sec, k) => { sec.hidden = k !== id; });
+    try { localStorage.setItem(PAGE_KEY, id); } catch (e) { /* ignore */ }
+    body.scrollTop = 0;
+  };
+  tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-page]'); if (b) { find.value = ''; filter(''); go(b.dataset.page); } });
+  const filter = (q) => {
+    q = q.trim().toLowerCase();
+    body.classList.toggle('finding', !!q);
+    const rows = body.querySelectorAll('.spage > :not(.sgrp)');
+    if (!q) { rows.forEach((r) => { r.hidden = false; }); body.querySelectorAll('.sgrp').forEach((g) => { g.hidden = false; }); let last = 'look'; try { last = localStorage.getItem(PAGE_KEY) || 'look'; } catch (e) { /* ignore */ } go(last); return; }
+    pages.forEach((sec) => { sec.hidden = false; });
+    let any = false;
+    for (const sec of pages.values()) {
+      let grp = null, grpHit = false;
+      const flush = () => { if (grp) grp.hidden = !grpHit; };
+      for (const k of sec.children) {
+        if (k.classList.contains('sgrp')) { flush(); grp = k; grpHit = false; continue; }
+        const hit = (k.textContent + ' ' + (grp ? grp.textContent : '')).toLowerCase().includes(q);
+        k.hidden = !hit; if (hit) { grpHit = true; any = true; }
+      }
+      flush();
+    }
+    body.classList.toggle('nothing', !any);
+  };
+  find.addEventListener('input', () => filter(find.value));
+  let start = 'look';
+  try { start = localStorage.getItem(PAGE_KEY) || 'look'; } catch (e) { /* ignore */ }
+  go(start);
+  return go;
+}
+
 export const isSettingsOpen = () => $('#settings').classList.contains('on');
 export function closeSettings() { $('#settings').classList.remove('on'); }
 // the gear opens and closes the drawer
@@ -124,8 +190,13 @@ export function openSettings(section) {
       <code class="path" id="sAiRep" hidden></code></div>
     <div class="srow col" id="sAiApi"><span>Claude описывает каждую картинку и ставит теги — модель:</span>
       <select id="sAcModel" aria-label="Модель для тегов"></select>
+      <label class="srow-in"><input type="checkbox" id="sAiName" ${s.aiAutoName ? 'checked' : ''}> Называть по-английски картинки с именами вроде IMG_2034, Screenshot, Снимок экрана — Claude даёт имя вместе с описанием, без доплаты; остальные — F2 › «Названия от ИИ»</label>
       <span>Ключ Voyage (voyageai.com › API keys) — поиск и сортировка по смыслу через API. Без него поиск идёт по описаниям Claude.</span>
       <div class="keyf" id="sVoKey"></div></div>
+    <div class="sgrp">Текст на картинках</div>
+    <div class="srow col"><span>Oddments читает текст на скриншотах, постерах и экранах приложений — картинку находит поиск по написанному на ней, текст можно скопировать. На компьютере, без интернета; модель — ${OCR_MB} МБ, скачивается один раз.</span>
+      <code class="path" id="sOcrSt">…</code>
+      <div class="int-acts"><button class="ibtn" id="sOcrOn">Выключить</button><button class="ibtn" id="sOcrDel" hidden>Удалить модель</button></div></div>
     <div class="sgrp">Ключ Anthropic</div>
     <div class="srow col"><span>Для ИИ через API и для иконок по описанию (console.anthropic.com › API keys). Хранится в настройках Oddments на этом компьютере; в облако уходят только запросы и уменьшенные копии картинок, оригиналы и библиотека — нет.</span>
       <div class="keyf" id="sIaKey"></div></div>
@@ -141,6 +212,7 @@ export function openSettings(section) {
       <div class="int-acts"><button class="ibtn pri" id="sPlug">Плагины…</button><button class="ibtn" id="sTok">Скопировать токен</button></div>
     </div>
     <div class="sgrp">Цвета</div>
+    ${row('Язык · Language', `<select id="sLang" aria-label="Язык интерфейса · Interface language">${LANGS.map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>`)}
     ${row('Тема', `<select id="sTheme"><option value="system">Как в Windows</option><option value="light">Светлая</option><option value="dark">Тёмная</option><option value="marathon">Марафон</option><option value="calm">Тишина</option></select>`)}
     <div class="srow"><span>Акцент</span><div class="accs">${ACCENTS.map((c) => `<button data-acc="${c}" style="background:${c === 'mono' ? 'var(--fg)' : c}" class="${c === s.accent ? 'on' : ''}" aria-label="${c === 'mono' ? 'Монохром' : c}" title="${c === 'mono' ? 'Монохром' : c}"></button>`).join('')}<label class="own${ACCENTS.includes(s.accent) ? '' : ' on'}" title="Свой цвет"><input type="color" id="sAcc" value="${esc(s.accent === 'mono' ? '#ededed' : s.accent)}" aria-label="Свой цвет акцента"></label></div></div>
     <div class="sgrp">Форма</div>
@@ -168,24 +240,33 @@ export function openSettings(section) {
     ${row('Крестик окна убирает Oddments в трей', `<input type="checkbox" id="sTray" ${s.tray ? 'checked' : ''}>`)}
     <div class="srow"><span>Знакомство с Oddments</span><button class="ibtn" id="sOnb">Показать</button></div>
     <div class="srow col"><span>Папка с файлами</span><code class="path">${esc(getRoot())}</code><button class="ibtn" id="sRoot">Выбрать другую папку…</button></div>
+    <div class="srow col" id="sTeams"><span>Командные библиотеки</span><small class="hint">Общая папка команды (сетевой диск, OneDrive, Яндекс Диск): у каждого своя библиотека, общие файлы — рядом. Кто может добавлять, решают права на папку.</small><div class="watch-list"></div><button class="ibtn" id="sTeamAdd">Подключить папку команды…</button></div>
     <div class="srow col" id="sWatch"><span>Забирать новые файлы из папок</span><small class="hint">Новые картинки, видео и модели из этих папок сами попадают в Oddments (копией, оригинал остаётся на месте) — например «Загрузки» или «Снимки экрана».</small><div class="watch-list"></div><button class="ibtn" id="sWatchAdd">Добавить папку…</button></div>
+    <div class="sgrp">Правила бренда</div>
+    <div class="srow col" id="sBrand"><span>Проверка иллюстраций, рендеров и 3D-моделей: блок «Бренд» в панели свойств и «Проверка» в просмотре модели.</span><small class="hint" id="sBrSrc"></small>
+      <div class="br-row"><span>Палитра</span><div class="br-cols" data-list="colors"></div></div>
+      <div class="br-row"><span>Фирменный цвет</span><input type="color" id="sBrAcc" aria-label="Фирменный цвет"><span>занимает от</span><input type="number" id="sBrMin" min="0" max="100" aria-label="Не меньше, %"><span>до</span><input type="number" id="sBrMax" min="0" max="100" aria-label="Не больше, %"><span>%</span></div>
+      <div class="br-row"><span>Запрещённые</span><div class="br-cols" data-list="forbid"></div></div>
+      <div class="br-row"><span>3D-модели</span><span>до</span><input type="number" id="sBrTris" min="100" step="1000" aria-label="Треугольников не больше"><span>треугольников</span><label><input type="checkbox" id="sBrUV"> с UV</label><label><input type="checkbox" id="sBrNames"> имена по смыслу</label></div>
+      <div class="int-acts"><button class="ibtn" id="sBrTeam" hidden>Сделать правилами команды</button><button class="ibtn flat" id="sBrReset">Вернуть исходные</button></div></div>
+    <div class="sgrp">Словарь тегов</div>
+    <div class="srow col" id="sGloss"><span>Одно слово для одного: «онбординг», а не «onboarding», «Онбординг» и «онбординг» рядом. Синонимы сами становятся словом словаря, при вводе тега словарь подсказывает первым.</span><small class="hint" id="sGlSrc"></small>
+      <div class="gl-list"></div>
+      <form class="gl-add"><input type="text" placeholder="Слово, например «онбординг»" aria-label="Слово словаря"><input type="text" placeholder="синонимы через запятую" aria-label="Синонимы"><button class="ibtn" type="submit">Добавить</button></form>
+      <div class="int-acts"><button class="ibtn" id="sGlFind">Найти похожие теги</button><button class="ibtn" id="sGlTeam" hidden>Сделать словарём команды</button></div><div class="gl-merge"></div></div>
     <details class="adv"${s.css ? ' open' : ''}><summary>Для продвинутых: свой CSS</summary>
       <p>Правила CSS поверх оформления Oddments — для того, чего нет в настройках. Например, <code>--acc</code> меняет акцент, <code>.card .ph</code> — карточки.</p>
       <textarea id="sCss" rows="6" spellcheck="false" aria-label="Свой CSS" placeholder=":root { --acc: #ff5a5f; }\n.card .ph { border-radius: 0; }">${esc(s.css)}</textarea>
     </details>
     <button class="ibtn" id="sReset" style="margin-top:14px">Сбросить оформление</button>
   </div>`;
-  // in the browser build Blender and the integrations can only say «available in the desktop app»: they go to
-  // the end there, so the drawer opens on settings that work
-  if (!window.__TAURI_INTERNALS__) {
-    const body = el.querySelector('.sp-body'), kids = Array.from(body.children);
-    const from = kids.findIndex((k) => k.classList.contains('sgrp') && k.textContent.trim() === 'Blender'), to = kids.findIndex((k) => k.classList.contains('sgrp') && k.textContent.trim() === 'Цвета');
-    if (from >= 0 && to > from) { const reset = $('#sReset'); kids.slice(from, to).forEach((k) => body.insertBefore(k, reset)); }
-  }
+  const goPage = paginate(el);
   el.classList.add('on');
-  if (section === 'int') requestAnimationFrame(() => $('#sgInt').scrollIntoView({ block: 'start' }));
+  if (section === 'int') { goPage('apps'); requestAnimationFrame(() => $('#sgInt').scrollIntoView({ block: 'start' })); }
   // straight to a field (e.g. «Подключить ИИ» in the digest → the Anthropic key)
-  else if (section && document.getElementById(section)) requestAnimationFrame(() => { const f = document.getElementById(section); f.scrollIntoView({ block: 'center' }); f.focus(); });
+  else if (section && document.getElementById(section)) { goPage(document.getElementById(section).closest('.spage').dataset.page); requestAnimationFrame(() => { const f = document.getElementById(section); f.scrollIntoView({ block: 'center' }); f.focus(); }); }
+  $('#sLang').value = lang;
+  $('#sLang').onchange = (e) => setLang(e.target.value); // the window reloads in the new language
   $('#sTheme').value = s.theme; $('#sDens').value = s.density; $('#sFont').value = s.font; $('#sAnim').value = s.anim; $('#sWall').value = s.wall; $('#sVplay').value = s.vplay;
   enhanceAll(el);
 
@@ -228,7 +309,10 @@ export function openSettings(section) {
     };
   });
   $('#sBlAuto').onchange = (e) => upd({ blenderAuto: e.target.checked });
+  $('#sAiName').onchange = (e) => upd({ aiAutoName: e.target.checked });
   $('#sTray').onchange = (e) => upd({ tray: e.target.checked });
+  // team libraries, the tag dictionary, brand rules: their code loads with the drawer (settingsteam.js), not at start
+  import('./settingsteam.js').then((m) => m.bindTeamSettings());
   // watch folders (watch.js): the list, add, remove
   const drawWatch = () => import('../lib/watch.js').then((m) => {
     const box = $('#sWatch .watch-list');
@@ -281,7 +365,7 @@ export function openSettings(section) {
       $('#sAiApi').hidden = !api;
       note.textContent = api
         ? `В облако уходят уменьшенные копии картинок (512 px), не оригиналы. Оплата один раз за картинку: ≈ ${ac.usd(ac.estimate(1000, ac.hasVoyage() ? 1000 : 0))} за 1000 картинок с выбранной моделью. Перед большим проходом Oddments покажет сумму и спросит.`
-        : `Модель SigLIP 2 (около ${AI_MB} МБ) скачивается один раз, потом работает без интернета и бесплатно.`;
+        : `Модель, которая понимает картинки (SigLIP 2, около ${AI_MB} МБ), скачивается один раз, потом работает без интернета и бесплатно.`;
     };
     showEng();
     eng.onchange = async () => { await ai.setEngine(eng.value); showEng(); show(); };
@@ -323,6 +407,26 @@ export function openSettings(section) {
       rep.textContent = lines.join('\n');
     };
     $('#sAiDel').onclick = async () => { await ai.deleteModel(); $('#sAiDel').hidden = true; ui.toast('Модель ИИ удалена с диска'); show(); };
+  });
+  // text on pictures (ocr.js): on/off, how much is read, the model on disk
+  import('../lib/ocr.js').then((o) => {
+    const st = $('#sOcrSt');
+    if (!st) return;
+    const show = () => {
+      if (!document.body.contains(st)) { off(); return; }
+      const O = o.OCR, on = o.ocrOn();
+      st.textContent = !on ? 'Выключено'
+        : O.status === 'download' ? 'Скачиваю модель…'
+        : O.status === 'loading' ? 'Запускаю…'
+        : O.status === 'error' ? 'Ошибка: ' + O.error
+        : `Включено${O.device ? ' · ' + (O.device === 'webgpu' ? 'видеокарта' : 'процессор') : ''} · текст найден на ${o.ocrRead()} картинках${O.todo ? ` · осталось прочитать ${O.todo}` : ''}`;
+      $('#sOcrOn').textContent = on ? 'Выключить' : 'Включить';
+    };
+    const off = o.onOcr(show);
+    show();
+    $('#sOcrOn').onclick = () => { o.setOcrOn(!o.ocrOn()); show(); };
+    $('#sOcrDel').hidden = !window.__TAURI_INTERNALS__;
+    $('#sOcrDel').onclick = async () => { await o.deleteOcrModel(); ui.toast('Модель распознавания текста удалена с диска'); show(); };
   });
   // integrations: status of the local receiver, the token, and saving the add-on / plugin files
   import('../lib/bridge.js').then(async (br) => {

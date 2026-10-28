@@ -1,11 +1,13 @@
 // The top of the content area: big title with a dot-matrix counter, Drinkit-style stats,
 // collection covers (top-level folders), sticky tabs, and the "new files" line.
+import { linkLabel as wlLabel, linkKind as wlKind } from '../lib/worklinks.js';
 import { S, ui, KINDS, flatFolders, activeItems, folderById } from '../state.js';
 import { $, esc, fmtSize, plural } from '../util.js';
 import { ic } from './icons.js';
 import { assetUrl, saveIndex } from '../lib/library.js';
 import { slideIndicator, tick } from './motion.js';
 import { viewTitle, setView, matchesQuery } from '../lib/filter.js';
+import { colorName } from './colorpick.js';
 import { openDupes } from './lazy.js';
 import { arm, toast } from './dialogs.js';
 import { purgeItems } from '../lib/library.js';
@@ -28,7 +30,7 @@ function stats() {
 let moreKinds = [];
 
 function tabs() {
-  const v = S.view, all = activeItems();
+  const v = S.view, all = v.type === 'team' ? S.teamItems.filter((i) => i.team === v.id && !i.trashed) : activeItems(); // a team's tabs count the team's files
   // counts follow the search and colour filter; a type with nothing under the filter stays, dimmed
   const base = S.q.trim() || S.color ? all.filter(matchesQuery()) : all;
   const kinds = Object.keys(KINDS).filter((k) => all.some((i) => i.kind === k));
@@ -37,16 +39,18 @@ function tabs() {
     const on = v.type === vt && (v.id || null) === (id || null);
     return `<button class="chip${on ? ' on' : ''}" aria-pressed="${on}" data-vt="${vt}"${id ? ` data-id="${id}"` : ''}>${label}${extra}</button>`;
   };
+  // a team's place: the type tabs would lead out of it into one's own library — the count says what is there
+  if (v.type === 'team') return `<button class="chip on" aria-pressed="true" data-vt="team" data-id="${esc(v.id)}">Все файлы команды<span class="n">${base.length}</span></button>`;
   let h = t('all', null, 'Всё');
   // the active colour filter sits up front: at the end of a long row it would be scrolled out of sight
-  if (S.color) h += `<button class="chip col" data-act="clrColor" title="Убрать фильтр по цвету" aria-label="Фильтр по цвету ${S.color.toUpperCase()}, убрать"><i style="background:${S.color}"></i>${S.color.toUpperCase()}<span class="x">${ic('x')}</span></button>`;
+  if (S.color) h += `<button class="chip col" data-act="clrColor" title="Убрать фильтр по цвету" aria-label="Фильтр по цвету ${esc(colorName(S.color))}, убрать"><i style="background:${S.color}"></i>${esc(colorName(S.color))}<span class="x">${ic('x')}</span></button>`;
   if (fresh) { const nf = base === all ? fresh : base.filter((i) => i.fresh).length; h += t('new', null, '<span class="dotn"></span>Новые', `<span class="n">${nf}</span>`).replace('class="chip', `class="chip${nf ? '' : ' zero'}`); }
-  // the three biggest types stay in the row (and the open one); the rest wait behind «Ещё»
+  // the biggest types stay in the row (three, or fewer in a narrow window) and the open one; the rest wait behind «Ещё»
   const count = (k) => base.filter((i) => i.kind === k).length;
   const byN = kinds.slice().sort((a, b) => all.filter((i) => i.kind === b).length - all.filter((i) => i.kind === a).length);
-  const shown = byN.slice(0, 3);
+  const shown = byN.slice(0, kindRoom());
   if (v.type === 'kind' && !shown.includes(v.id) && kinds.includes(v.id)) shown.push(v.id);
-  const chip = (k) => { const n = count(k); return t('kind', k, KINDS[k].label, `<span class="n">${n}</span>`).replace('class="chip', `class="chip${n ? '' : ' zero'}`); };
+  const chip = (k) => { const n = count(k); return t('kind', k, KINDS[k].short || KINDS[k].label, `<span class="n">${n}</span>`).replace('class="chip', `class="chip${n ? '' : ' zero'}`); };
   h += kinds.filter((k) => shown.includes(k)).map(chip).join('');
   moreKinds = kinds.filter((k) => !shown.includes(k)).map((k) => [k, count(k)]);
   if (moreKinds.length) h += `<button class="chip more" data-act="moreKinds" aria-haspopup="menu" aria-expanded="false">Ещё${ic('chev')}</button>`;
@@ -57,22 +61,33 @@ function tabs() {
 function emptyText(v, filtered) {
   if (!filtered) return v.type === 'trash' ? 'Удалённые файлы появятся здесь.' : 'Перетащите сюда файлы или выберите их в другом разделе.';
   const wide = S.colorTol >= 100;
-  if (S.color && !S.q.trim()) return wide ? `Здесь нет файлов с цветом ${S.color.toUpperCase()}, даже при самой широкой точности.` : `Здесь нет файлов с цветом ${S.color.toUpperCase()}. Можно искать шире — по похожим оттенкам.`;
-  if (S.color) return `Ничего с «${esc(S.q.trim())}» и цветом ${S.color.toUpperCase()}. Уберите цвет или измените запрос.`;
-  return v.type === 'all' ? `Ничего с «${esc(S.q.trim())}» в названиях, тегах, заметках и ссылках.` : `В этом разделе ничего с «${esc(S.q.trim())}». Поищите во всей библиотеке.`;
+  const cn = S.color ? esc(colorName(S.color).toLowerCase()) : '';
+  if (S.color && !S.q.trim()) return wide ? `Здесь нет файлов, где есть ${cn} цвет, даже при самой широкой точности.` : `Здесь нет файлов, где есть ${cn} цвет. Можно искать шире — по похожим оттенкам.`;
+  if (S.color) return `Нет файлов по запросу «${esc(S.q.trim())}», где есть ${cn} цвет. Уберите цвет или измените запрос.`;
+  // a plain query: say where it looked, and how to look by what is in the picture when AI is off
+  const ai = aiSearchOn();
+  const where = v.type === 'all' ? 'в названиях, тегах, заметках и ссылках' : 'в этом разделе';
+  return `По запросу «${esc(S.q.trim())}» ничего нет ${where}.${ai ? ' ИИ тоже не нашёл похожего по смыслу — попробуйте другие слова.' : ' Чтобы искать по тому, что на картинке («стол», «девушка в красном»), включите ИИ в настройках.'}`;
 }
 function emptyActs() {
   let h = '';
   if (S.color && !S.q.trim() && S.colorTol < 100) h += '<button class="pill" data-act="widen">Искать шире</button>';
   if (S.q.trim() && S.view.type !== 'all') h += '<button class="pill" data-act="everywhere">Искать во всей библиотеке</button>';
-  return h + '<button class="pill ghost" data-act="reset">Сбросить фильтры</button>';
+  if (S.q.trim() && !S.color && !aiSearchOn()) h += '<button class="pill" data-act="aion">Включить поиск по смыслу</button>';
+  // «Сбросить фильтры» only when there is more than a query to reset
+  return h + (S.color ? '<button class="pill ghost" data-act="reset">Сбросить фильтры</button>' : '<button class="pill ghost" data-act="reset">Очистить поиск</button>');
 }
+// AI search state without loading the AI module: its preference in localStorage
+function aiSearchOn() { try { return !!JSON.parse(localStorage.getItem('perch.ai') || '{}').on; } catch (e) { return false; } }
 
 let keepBar = false, shownFor = null;
 
 export function renderHead() {
   const v = S.view;
-  $('#vTitle').textContent = viewTitle();
+  // a search titles the view by the query (audit 24.10: «ВСЕ ФАЙЛЫ 2» while «сфер» was being looked for)
+  const q = S.q.trim();
+  const qx = $('#qX'); if (qx) qx.hidden = !S.q;
+  $('#vTitle').textContent = q ? `«${q.length > 28 ? q.slice(0, 27) + '…' : q}»${v.type !== 'all' ? ' · ' + viewTitle() : ''}` : viewTitle();
   $('#trTitle').textContent = viewTitle();
   $('#trCount').textContent = S.vis.length;
   tick($('#vCount'), S.vis.length);
@@ -87,7 +102,12 @@ export function renderHead() {
   // the trash: where the extra copies end up, so duplicates are found from here
   // a flow collection (a recording cut into screens): its storyboard and the walk-through
   const flow = v.type === 'folder' && (folderById(v.id) || {}).flow;
-  $('#vAct').innerHTML = v.type === 'trash' ? trashActs() : flow ? flowActs() : '';
+  // a collection or a team: «Показ» — its pictures one by one, for a review (show.js)
+  const showBtn = `<button class="pill ghost" data-act="show" title="Картинки по одной, крупно, с комментариями; PDF">${ic('present')}<span>Показ</span></button>`;
+  // the collection's links to work (worklinks.js): Jira, Confluence, Figma — a click opens, × takes the link off
+  const fo = v.type === 'folder' && folderById(v.id);
+  const links = fo && fo.links ? fo.links.map((l, k) => `<span class="wl ${wlKind(l.url)}"><button class="pill ghost" data-wl="${k}" title="${esc(l.url)}">${ic('link')}<span>${esc(l.title || wlLabel(l.url))}</span></button><button class="ib wl-x" data-wlx="${k}" aria-label="Убрать ссылку">${ic('x')}</button></span>`).join('') : '';
+  $('#vAct').innerHTML = links + (v.type === 'trash' ? trashActs() : flow ? flowActs() + showBtn : v.type === 'folder' || v.type === 'team' ? showBtn : '');
   // the clean screen hides the view's header: the trash's two buttons float on top of the wall there (bugs #59, #62)
   trashBar(v.type === 'trash' ? 'trash' : flow ? 'flow' : '');
 
@@ -104,12 +124,13 @@ export function renderHead() {
     : '<i></i><span>Всё новое просмотрено</span><hr>';
 
   const filtered = S.q || S.color;
-  const fresh0 = !filtered && v.type === 'all';
+  const loading = document.body.classList.contains('lib-loading');
+  const fresh0 = !filtered && v.type === 'all' && !loading;
   const em = $('#empty');
   em.classList.toggle('first', fresh0);
-  em.innerHTML = fresh0
+  em.innerHTML = loading ? '<div class="em-body"><h2>Открываю библиотеку…</h2><p>Читаю список файлов — большая библиотека открывается несколько секунд.</p></div>' : fresh0
     ? `<div class="scatter" aria-hidden="true">${'<i></i>'.repeat(9)}</div><div class="em-body"><h2>Соберите первые референсы</h2><p>Скопируйте картинку где угодно и&nbsp;нажмите <kbd>Ctrl</kbd>&nbsp;<kbd>V</kbd> прямо здесь. Или перетащите файлы в&nbsp;окно.</p><p class="em-3d">Модели тоже сюда: GLB, OBJ, FBX, .blend. Из&nbsp;Blender — аддоном Oddments, он есть в&nbsp;настройках.</p><button class="pill" data-act="pick">${ic('plus')}<span>Добавить файлы</span></button></div>`
-    : `<div class="em-body"><h2>${filtered ? 'Ничего не нашлось' : v.type === 'trash' ? 'Корзина пуста' : 'Здесь пока пусто'}</h2><p>${emptyText(v, filtered)}</p>${filtered ? emptyActs() : ''}</div>`;
+    : `<div class="em-body"><h2>${filtered ? 'Ничего не нашлось' : v.type === 'trash' ? 'Корзина пуста' : 'Здесь пока пусто'}</h2><p>${emptyText(v, filtered)}</p>${filtered ? emptyActs() : v.type !== 'trash' ? `<button class="pill" data-act="pick">${ic('plus')}<span>Добавить файлы</span></button>` : ''}</div>`;
   document.body.classList.toggle('view-empty', !S.vis.length);
   document.body.classList.toggle('has-sel', S.sel.size > 0);
   const it = $('#inspTog');
@@ -129,6 +150,10 @@ export function renderHead() {
 
 // The tab row scrolls sideways when the types do not fit: fade the edge that hides something,
 // and keep the active tab in view.
+// how many type tabs fit next to «Всё», «Новые» and the sort: in a window under 1100 / 900 px the row was cut at its
+// right edge with «Ещё» out of sight (narrow-window pass 25.10)
+const kindRoom = () => (innerWidth < 900 ? 1 : innerWidth < 1100 ? 2 : 3);
+let lastRoom = 0;
 function fitTabs(reveal) {
   const t = $('#tabs');
   if (reveal) {
@@ -190,9 +215,11 @@ function trashActs() {
 }
 function flowActs() {
   return `<button class="pill ghost" data-act="story" title="Все шаги в ряд со стрелками">${ic('flow')}<span>Раскадровка</span></button>`
-    + `<button class="pill ghost" data-act="walk" title="Шаг за шагом в рамке телефона">${ic('play')}<span>Пройти сценарий</span></button>`;
+    + `<button class="pill ghost" data-act="walk" title="Шаг за шагом в рамке телефона">${ic('play')}<span>Пройти сценарий</span></button>`
+    + `<button class="pill ghost" data-act="cjm" title="Customer Journey Map по шагам записи: этапы, действия, эмоции, боли">${ic('journey')}<span>CJM</span></button>`;
 }
-const story = (how) => { if (S.view.type === 'folder') import('./storyboard.js').then((m) => m.openStory(S.view.id, how)); };
+// a flow whose steps all went to the trash opens nothing: it says so instead of a silent button
+const story = (how) => { if (S.view.type === 'folder') import('./storyboard.js').then((m) => { if (m.openStory(S.view.id, how) === false) toast('В этом сценарии нет шагов: экраны в корзине или удалены. Верните их из корзины.', 5000); }); };
 let inspHinted = false;
 let bar = null;
 function trashBar(kind) {
@@ -210,6 +237,7 @@ function trashBar(kind) {
       else if (b.dataset.act === 'empty') emptyTrash(b);
       else if (b.dataset.act === 'story') story('board');
       else if (b.dataset.act === 'walk') story('walk');
+      else if (b.dataset.act === 'cjm') story('cjm');
     });
   }
   bar.innerHTML = kind === 'trash' ? trashActs() : kind === 'flow' ? flowActs() : '';
@@ -238,13 +266,13 @@ export function initHead({ newFolder, pick }) {
     e.preventDefault();
     tabsEl.scrollLeft += e.deltaY;
   }, { passive: false });
-  new ResizeObserver(() => fitTabs(false)).observe(tabsEl);
+  new ResizeObserver(() => { fitTabs(false); if (lastRoom && kindRoom() !== lastRoom) renderHead(); lastRoom = kindRoom(); }).observe(tabsEl);
   // once the big header has scrolled away, its title and count ride along in the sticky tab row
   const head = document.querySelector('.head');
   new IntersectionObserver(([en]) => document.body.classList.toggle('head-gone', !en.isIntersecting), { root: scroll, rootMargin: '-24px 0px 0px 0px' }).observe(head);
   $('#trTop').addEventListener('click', () => scroll.scrollTo({ top: 0, behavior: document.body.classList.contains('motion') ? 'smooth' : 'auto' }));
   scroll.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-act],[data-vt],[data-fid]');
+    const b = e.target.closest('[data-act],[data-vt],[data-fid],[data-wl],[data-wlx]');
     if (!b || !scroll.contains(b) || b.closest('#grid')) return;
     if (b.dataset.fid) return setView('folder', b.dataset.fid);
     if (b.dataset.vt) return setView(b.dataset.vt, b.dataset.id);
@@ -256,6 +284,10 @@ export function initHead({ newFolder, pick }) {
     else if (a === 'dupes') openDupes();
     else if (a === 'story') story('board');
     else if (a === 'walk') story('walk');
+    else if (a === 'cjm') story('cjm');
+    else if (a === 'show') import('./show.js').then((m) => m.showCurrent());
+    else if (b.dataset.wl != null) { const l = (folderById(S.view.id).links || [])[+b.dataset.wl]; if (l) import('@tauri-apps/plugin-opener').then((m) => m.openUrl(l.url)).catch(() => window.open(l.url, '_blank')); }
+    else if (b.dataset.wlx != null) { const f = folderById(S.view.id); f.links = f.links.filter((_, k) => k !== +b.dataset.wlx); if (!f.links.length) delete f.links; saveIndex(); ui.refresh(); }
     else if (a === 'moreKinds') kindMenu(b);
     else if (a === 'reset') { S.q = ''; S.color = null; $('#q').value = ''; ui.refresh(); }
     else if (a === 'widen') {
@@ -265,6 +297,7 @@ export function initHead({ newFolder, pick }) {
       ui.refresh();
     }
     else if (a === 'everywhere') setView('all');
+    else if (a === 'aion') import('./settings.js').then((m) => m.openSettings('sAiEng'));
   });
 }
 

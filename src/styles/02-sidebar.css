@@ -1,0 +1,70 @@
+/* ——— sidebar (floating glass) ——— */
+.side {
+  position: fixed; z-index: 20; left: var(--gap); top: var(--gap); bottom: var(--gap); width: var(--sw);
+  border-radius: var(--rp); padding: 14px 10px 10px; display: flex; flex-direction: column; min-height: 0;
+  transition: transform .4s var(--ease), opacity .3s, visibility 0s;
+}
+/* a closed panel also leaves the Tab order (see the end of the file for how visibility is timed) */
+body.side-off .side { transform: translateX(calc(-100% - 24px)); opacity: 0; pointer-events: none; visibility: hidden; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 12px; }
+/* the Oddments «Prism» mark: the app icon itself (src/assets, cropped from the brand concept) */
+.mark { width: 26px; height: 26px; border-radius: 7px; background: url("../assets/oddments-mark.png") center / cover no-repeat; position: relative; flex: none; transition: transform .5s var(--ease); }
+.brand:hover .mark { transform: rotate(-8deg); }
+.brand-n { font-size: 18px; font-weight: 700; letter-spacing: -.045em; }
+.brand .sp { flex: 1; }
+.side-scroll { overflow: auto; padding: 0 2px 8px; flex: 1; min-height: 0; scrollbar-width: none; }
+.side-scroll::-webkit-scrollbar { display: none; }
+.grp { display: flex; align-items: center; justify-content: space-between; padding: 18px 10px 6px; font-size: 12px; font-weight: 500; color: var(--mut); }
+/* a folding group header (Новости, Инструменты) */
+.grp.fold { width: 100%; background: none; text-align: left; cursor: pointer; border-radius: 10px; }
+.grp.fold:hover { color: var(--fg); }
+/* the chevron is caret-right: folded › points right, open ⌄ points down (bug #93) */
+.grp.fold .fold-ch svg.i { width: 13px; height: 13px; transition: rotate .25s var(--spring, ease); rotate: 0deg; }
+.grp.fold[aria-expanded="true"] .fold-ch svg.i { rotate: 90deg; }
+/* «✦ ИИ-теги» under one's own tags */
+.grp.sub { padding-top: 10px; font-size: 11px; opacity: .8; }
+/* a field heading with a link at its right end («Похожие · Все →»): two things, not one word (bug #85) */
+.row-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.row-h .lnk { text-transform: none; letter-spacing: normal; font-family: var(--font-ui); font-weight: 500; font-size: 12px; }
+.grp button { color: var(--mut); border-radius: 50%; width: 26px; height: 26px; display: grid; place-items: center; margin: -6px -6px -6px 0; }
+.grp button:hover { background: var(--hover); color: var(--fg); }
+.grp svg.i { width: 15px; height: 15px; }
+.nav {
+  display: flex; align-items: center; gap: 10px; padding-top: var(--navpad); padding-bottom: var(--navpad); padding-right: 10px;
+  min-height: 34px; border-radius: 12px; cursor: pointer; user-select: none; white-space: nowrap;
+  color: color-mix(in srgb, var(--fg) 80%, var(--mut)); transition: background .15s, color .15s;
+}
+.nav svg.i { width: 17px; height: 17px; color: var(--mut); transition: color .15s; }
+.nav:hover { background: var(--hover); color: var(--fg); }
+.nav.on { background: var(--acc); color: var(--acc-fg); font-weight: 600; }
+.nav.on svg.i, .nav.on .ct { color: var(--acc-fg); opacity: .7; }
+.nav:focus-visible { outline: 2px solid var(--fg); outline-offset: -2px; }
+.nav.idle { color: var(--mut); cursor: default; }
+.nav.idle:hover { background: none; }
+.nav.drop { box-shadow: inset 0 0 0 1.5px var(--fg); }
+.nav .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav .ct { font-size: 12px; color: var(--mut); }
+/* the new-files count is a note, not an alarm: a tinted chip quieter than the selected row */
+/* the «new» count is quiet (#7 of the night list): red is kept for errors and the card's own «new» dot */
+.nav .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--hover); color: var(--fg); font-size: 11px; font-weight: 600; display: grid; place-items: center; }
+.nav.on .badge { background: color-mix(in srgb, var(--acc-fg) 14%, transparent); color: var(--acc-fg); }
+.nav .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; margin: 0 3.5px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15); }
+.nav { position: relative; }
+.nav .acts {
+  position: absolute; right: 4px; top: 50%; translate: 0 -50%; display: flex; gap: 1px; padding: 2px; border-radius: 99px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent); opacity: 0; pointer-events: none; transition: opacity .15s;
+}
+.nav.on .acts { background: var(--acc); }
+.nav:hover .acts, .nav:has(:focus-visible) .acts { opacity: 1; pointer-events: auto; } /* not :focus-within — a clicked button kept it shown (bug #90) */
+.side-menu { position: fixed; z-index: 80; min-width: 210px; padding: 6px; border-radius: 18px; display: grid; animation: rise .18s var(--ease); }
+.nav .acts button { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: inherit; opacity: .7; }
+.nav .acts button:hover { background: var(--hover-2); opacity: 1; }
+.nav .acts svg.i { width: 14px; height: 14px; color: inherit; }
+.chev { width: 16px; height: 16px; display: grid; place-items: center; margin-left: -4px; border-radius: 4px; }
+.chev svg.i { width: 11px; height: 11px; transition: transform .2s var(--ease); }
+.chev.open svg.i { transform: rotate(90deg); }
+.chev.none { visibility: hidden; }
+.tagdot { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--mut); margin: 0 5.5px; flex: none; }
+.nav.on .tagdot { border-color: var(--acc-fg); }
+.side-foot { display: flex; align-items: center; gap: 8px; padding: 6px 4px 0; border-top: 1px solid var(--line); }
+.side-foot .cap-sm { margin-left: auto; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }

@@ -1,4 +1,6 @@
 /* ——— «Новости» (news.js): the daily digest, saved articles, the reader ——— */
+@layer tokens, base, components, screens, themes;
+@layer screens {
 .news { position: fixed; inset: 0; z-index: 90; background: var(--bg); color: var(--fg); animation: fade .2s; }
 .news[hidden] { display: none; }
 .nw-top { position: absolute; z-index: 3; top: 14px; left: 20px; right: 20px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
@@ -85,3 +87,4 @@ body.news-on .qf { z-index: 95; left: 50%; }
 /* an inline icon the article kept: the size of a letter, not the column's width (bug #95) */
 .nw-article svg:not([width]) { width: 1.1em; height: 1.1em; vertical-align: -.15em; }
 .nw-article svg { max-width: 100%; height: auto; }
+}

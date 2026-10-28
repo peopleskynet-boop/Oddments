@@ -9,11 +9,12 @@ import { assetUrl } from '../lib/library.js';
 import { toast } from './dialogs.js';
 import { sfx } from './sound.js';
 import { embedMedia, embedSrc } from './embedmedia.js';
+import { readPref, writePref } from '../lib/prefs.js';
 
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 const PREFS = 'perch.player';
-const prefs = (() => { try { return JSON.parse(localStorage.getItem(PREFS)) || {}; } catch (e) { return {}; } })();
-const keep = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch (e) { /* ignore */ } };
+const prefs = readPref(PREFS, {});
+const keep = () => writePref(PREFS, prefs);
 
 let active = null; // { v, el, it, onKey }
 
@@ -250,6 +251,8 @@ ${own ? `
     const t = e.target;
     if (t.closest && t.closest('input:not(.vp-vol), textarea, [contenteditable]')) return;
     const k = e.key;
+    // Esc in fullscreen only leaves fullscreen; the preview stays open (bug #120)
+    if (k === 'Escape' && document.fullscreenElement === el) { e.preventDefault(); e.stopImmediatePropagation(); document.exitFullscreen().catch(() => {}); return; }
     const map = { k: toggle, K: toggle, л: toggle, j: () => seek(-5), о: () => seek(-5), l: () => seek(5), д: () => seek(5), ',': () => step(-1), б: () => step(-1), '.': () => step(1), ю: () => step(1), '<': () => speed(-1), '>': () => speed(1), m: () => { v.muted = !v.muted; prefs.muted = v.muted; keep(); }, ь: () => { v.muted = !v.muted; prefs.muted = v.muted; keep(); }, f: () => $('[data-vp="full"]').click(), а: () => $('[data-vp="full"]').click() };
     // in fullscreen the arrows seek (outside it they step through the files)
     if (document.fullscreenElement === el && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.preventDefault(); e.stopPropagation(); seek(k === 'ArrowLeft' ? -5 : 5); wake(); return; }

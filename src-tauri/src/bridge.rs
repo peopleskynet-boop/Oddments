@@ -12,6 +12,8 @@
 //   POST /mcp?token=… (or Authorization: Bearer …) → MCP (Streamable HTTP, JSON answers): the JSON-RPC message goes to
 //                                     the window (event «perch-mcp»), which runs the tools (lib/mcp.js) and answers
 //                                     through mcp_reply; `Oddments --mcp` (mcp.rs) forwards stdio to here.
+//   POST /mesh?token=…              → SVG → 3D for the Blender add-on: body {svg, name, style} goes to the window (event
+//                                     «perch-mesh»), which builds the mesh (lib/svg3d.js) and answers {v, f, p, uv} the same way
 // Every other request needs the token, which is created once and kept in the app's local data.
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
@@ -226,7 +228,7 @@ fn handle(mut stream: TcpStream, st: &Shared, app: &AppHandle) -> std::io::Resul
     if !who.is_empty() { if let Ok(mut b) = st.lock() { b.seen.insert(who.to_string(), now_ms()); } }
 
     match (method.as_str(), path.as_str()) {
-        ("POST", "/mcp") => {
+        ("POST", "/mcp") | ("POST", "/mesh") => {
             if len == 0 || len > 4 * 1024 * 1024 { drain(&mut reader); return reply(&mut stream, "413 Payload Too Large", "application/json", b"{\"error\":\"size\"}"); }
             let mut body = vec![0u8; len];
             reader.read_exact(&mut body)?;
@@ -238,12 +240,15 @@ fn handle(mut stream: TcpStream, st: &Shared, app: &AppHandle) -> std::io::Resul
                 b.mcp.insert(id, tx);
                 id
             };
-            let _ = app.emit("perch-mcp", McpMsg { id, body: String::from_utf8_lossy(&body).into_owned() });
+            // both go to the window and wait for its answer (mcp_reply): MCP messages, and SVG → 3D meshes for the add-on
+            let event = if path == "/mesh" { "perch-mesh" } else { "perch-mcp" };
+            let _ = app.emit(event, McpMsg { id, body: String::from_utf8_lossy(&body).into_owned() });
             let out = rx.recv_timeout(Duration::from_secs(90));
             if let Ok(mut b) = st.lock() { b.mcp.remove(&id); }
             match out {
                 Ok(s) if s.trim().is_empty() => reply(&mut stream, "202 Accepted", "application/json", b""),
                 Ok(s) => reply(&mut stream, "200 OK", "application/json", s.as_bytes()),
+                Err(_) if path == "/mesh" => reply(&mut stream, "504 Gateway Timeout", "application/json", b"{\"error\":\"Oddments did not answer\"}"),
                 Err(_) => reply(&mut stream, "504 Gateway Timeout", "application/json", b"{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32001,\"message\":\"Oddments did not answer\"}}"),
             }
         }

@@ -17,6 +17,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Проверки без браузера
+        run: npm run test:unit
+      # the dev server on a cold runner needs a minute for its first page: warmed up once, the tests reuse it
+      - name: Прогрев веб-версии
+        shell: pwsh
+        run: |
+          Start-Process -NoNewWindow npm.cmd -ArgumentList 'run','web'
+          node tests/perf/warmup.mjs http://127.0.0.1:5173
       - run: npx playwright test
         env:
           CI: 'true'
@@ -26,7 +34,7 @@ jobs:
           npx vite build --mode web --outDir dist-web
           $srv = Start-Process -PassThru -NoNewWindow npx.cmd -ArgumentList 'vite','preview','--mode','web','--outDir','dist-web','--port','4180','--strictPort'
           Start-Sleep 4
-          $env:BUDGET_KB = '360'
+          $env:BUDGET_KB = '430'  # the web build: ~120 KB of it is the demo library (seed, fflate); the exe starts lighter
           node tests/perf/measure.mjs http://127.0.0.1:4180 3
           $code = $LASTEXITCODE
           Stop-Process -Id $srv.Id -Force -ErrorAction SilentlyContinue

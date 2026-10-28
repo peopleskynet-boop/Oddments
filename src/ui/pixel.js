@@ -119,39 +119,3 @@ export function initPixel() {
   grid.addEventListener('pointerdown', () => { clearTimeout(timer); hide(); }, true);
   document.getElementById('scroll').addEventListener('scroll', () => { clearTimeout(timer); if (active) hide(); }, { passive: true });
 }
-
-/* ---------- launch: a loading line, then the name in raster dots ---------- */
-export function bootIntro() {
-  // a window that starts minimised (or a hidden webview) has no size: no intro then, or getImageData throws
-  if (!motionOK() || innerWidth < 2 || innerHeight < 2) return;
-  const el = document.createElement('div');
-  el.className = 'boot';
-  el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = '<canvas></canvas><i><b></b></i>';
-  document.body.appendChild(el);
-  const c = el.querySelector('canvas'), x = c.getContext('2d'), dpr = devicePixelRatio || 1, W = innerWidth, H = innerHeight;
-  c.width = W * dpr; c.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
-  requestAnimationFrame(() => { el.querySelector('b').style.width = '100%'; });
-  const m = document.createElement('canvas'); m.width = W; m.height = H; const mx = m.getContext('2d');
-  const theme = document.documentElement.dataset.theme;
-  mx.fillStyle = '#fff'; mx.textAlign = 'center'; mx.textBaseline = 'middle';
-  mx.font = `${theme === 'marathon' ? 800 : 650} ${Math.min(W * 0.12, 170)}px ${cssv('--font-ui')}`;
-  mx.fillText(theme === 'calm' ? 'oddments' : 'ODDMENTS', W / 2, H / 2);
-  const d = mx.getImageData(0, 0, W, H).data, step = 9, dots = [];
-  for (let y = 0; y < H; y += step) for (let i = 0; i < W; i += step) if (d[(y * W + i) * 4 + 3] > 120) dots.push([i, y, Math.random()]);
-  const fg = cssv('--fg'), acc = theme === 'marathon' ? cssv('--hud') : cssv('--red'), t0 = performance.now() + 450, D = 900;
-  const fr = (now) => {
-    const t = Math.max(0, Math.min(1.35, (now - t0) / D));
-    if (t > 0) el.querySelector('i').style.opacity = '0';
-    x.clearRect(0, 0, W, H);
-    for (const [X, Y, r] of dots) {
-      const k = Math.max(0, Math.min(1, (t - r * 0.5) / 0.5)); if (!k) continue;
-      const s = (t > 1 ? Math.max(0, 1 - (t - 1) / 0.35) : 1) * k * step * 0.62;
-      x.fillStyle = r > 0.85 ? acc : fg; x.fillRect(X - s / 2, Y - s / 2, s, s);
-    }
-    if (t < 1.35) requestAnimationFrame(fr);
-    else { el.classList.add('out'); setTimeout(() => el.remove(), 600); }
-  };
-  requestAnimationFrame(fr);
-}
-

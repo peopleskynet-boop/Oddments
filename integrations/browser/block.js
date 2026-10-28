@@ -31,7 +31,7 @@
   box.innerHTML = '<b></b>';
   const hint = document.createElement('div');
   hint.className = 'blk-hint';
-  hint.innerHTML = 'Наведите на блок · <kbd>колесо</kbd> или <kbd>↑</kbd><kbd>↓</kbd> — больше / меньше · <kbd>клик</kbd> — забрать · <kbd>Esc</kbd> — отмена';
+  hint.innerHTML = T('Наведите на блок · <kbd>колесо</kbd> или <kbd>↑</kbd><kbd>↓</kbd> — больше / меньше · <kbd>клик</kbd> — забрать · <kbd>Esc</kbd> — отмена');
   root.append(box, hint);
 
   /* ---------- what kind of block ---------- */
@@ -39,23 +39,23 @@
   function kindOf(el) {
     const t = tagOf(el), role = el.getAttribute('role') || '', r = el.getBoundingClientRect();
     const n = (sel) => el.querySelectorAll(sel).length;
-    if (t === 'button' || role === 'button' || (t === 'a' && r.height < 72 && r.width < 420 && n('img, svg') <= 1 && getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)')) return 'Кнопка';
-    if (t === 'input' || t === 'select' || t === 'textarea') return 'Поле ввода';
-    if (t === 'nav' || role === 'navigation') return 'Навигация';
-    if (t === 'header' || role === 'banner') return 'Шапка';
-    if (t === 'footer' || role === 'contentinfo') return 'Подвал';
-    if (t === 'form' || n('input, select, textarea') >= 2) return 'Форма';
-    if (t === 'table' || role === 'table' || role === 'grid') return 'Таблица';
-    if (t === 'dialog' || role === 'dialog') return 'Окно';
-    if ((t === 'ul' || t === 'ol' || role === 'list') && n(':scope > li, :scope > [role=listitem]') >= 3) return 'Список';
+    if (t === 'button' || role === 'button' || (t === 'a' && r.height < 72 && r.width < 420 && n('img, svg') <= 1 && getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)')) return T('Кнопка');
+    if (t === 'input' || t === 'select' || t === 'textarea') return T('Поле ввода');
+    if (t === 'nav' || role === 'navigation') return T('Навигация');
+    if (t === 'header' || role === 'banner') return T('Шапка');
+    if (t === 'footer' || role === 'contentinfo') return T('Подвал');
+    if (t === 'form' || n('input, select, textarea') >= 2) return T('Форма');
+    if (t === 'table' || role === 'table' || role === 'grid') return T('Таблица');
+    if (t === 'dialog' || role === 'dialog') return T('Окно');
+    if ((t === 'ul' || t === 'ol' || role === 'list') && n(':scope > li, :scope > [role=listitem]') >= 3) return T('Список');
     const top = r.top + scrollY;
-    if (top < innerHeight * 0.3 && r.width >= innerWidth * 0.8 && r.height >= innerHeight * 0.5) return 'Первый экран';
+    if (top < innerHeight * 0.3 && r.width >= innerWidth * 0.8 && r.height >= innerHeight * 0.5) return T('Первый экран');
     // a card: narrow, with words, and drawn as a card (a picture, a fill, rounded corners or a shadow)
     const cs = getComputedStyle(el);
     const looks = n('img, svg, picture') >= 1 || cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || parseFloat(cs.borderTopLeftRadius) > 4 || cs.boxShadow !== 'none';
-    if (r.width <= 640 && r.height <= 1600 && looks && (el.textContent || '').trim().length > 8) return 'Карточка';
-    if (r.width >= innerWidth * 0.8) return 'Секция';
-    return 'Блок';
+    if (r.width <= 640 && r.height <= 1600 && looks && (el.textContent || '').trim().length > 8) return T('Карточка');
+    if (r.width >= innerWidth * 0.8) return T('Секция');
+    return T('Блок');
   }
 
   /* ---------- picking ---------- */
@@ -304,7 +304,7 @@
     const top = (m, n) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
     return {
       fonts: top(fonts, 8).map(([k, w]) => { const [family, weight, size] = k.split('|'); return { family, weight: +weight, size: +size, chars: w }; }),
-      colors: [...top(fill, 5).map(([c]) => ({ hex: c, role: 'фон' })), ...top(text, 4).map(([c]) => ({ hex: c, role: 'текст' }))],
+      colors: [...top(fill, 5).map(([c]) => ({ hex: c, role: T('фон') })), ...top(text, 4).map(([c]) => ({ hex: c, role: T('текст') }))],
     };
   }
   function backdrop(el) {
@@ -341,7 +341,7 @@
         const off = segTop - r.top;
         if (segEnd <= segTop) break;
         const shot = await chrome.runtime.sendMessage({ t: 'blockCapture' });
-        if (!shot || !shot.data) throw new Error((shot && shot.error) || 'снимок не получился');
+        if (!shot || !shot.data) throw new Error((shot && shot.error) || T('снимок не получился'));
         const bmp = await createImageBitmap(await (await fetch(shot.data)).blob());
         if (!canvas) {
           k = bmp.width / innerWidth;
@@ -364,7 +364,7 @@
       document.documentElement.style.scrollBehavior = keep.behavior;
       host.style.display = '';
     }
-    if (!canvas) throw new Error('блок не виден на экране');
+    if (!canvas) throw new Error(T('блок не виден на экране'));
     return { png: new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer()), k, W, H };
   }
 
@@ -400,7 +400,7 @@
   /* ---------- taking it ---------- */
   async function take(el) {
     stop();
-    toast('Забираю блок…', 'busy');
+    toast(T('Забираю блок…'), 'busy');
     try {
       const kind = kindOf(el);
       const r = el.getBoundingClientRect();
@@ -424,10 +424,10 @@
         + `<body>${code.defs}${code.html}</body></html>`;
       const enc = new TextEncoder();
       const file = zip([['shot.png', shot.png], ['block.html', enc.encode(doc)], ['block.json', enc.encode(JSON.stringify(meta, null, 1))]]);
-      const tags = [kind, site, ...[...fams].slice(0, 2), lum(bg) < 0.4 ? 'Тёмный' : 'Светлый'];
+      const tags = [kind, site, ...[...fams].slice(0, 2), lum(bg) < 0.4 ? T('Тёмный') : T('Светлый')];
       send({ t: 'saveBlock', data: b64(file), name: title, page: location.href, tags });
     } catch (e) {
-      toast('Блок не забрался: ' + ((e && e.message) || e), 'err');
+      toast(T('Блок не забрался: ') + ((e && e.message) || e), 'err');
     }
   }
 

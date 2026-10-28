@@ -1,0 +1,128 @@
+/* ——— motion (see src/ui/motion.js). body.motion is off with Settings › Animations off or reduced motion ——— */
+:root { --spring: var(--sp-snappy, cubic-bezier(.2, .8, .2, 1)); } /* the snappy spring from spring.js */
+
+/* press feedback: things sink a little under the finger and spring back */
+body.motion .ib, body.motion .chip, body.motion .nav, body.motion .mi, body.motion .ibtn, body.motion .sb, body.motion .gsel, body.motion .cover .m {
+  transition-property: background, color, box-shadow, transform; transition-duration: .2s, .2s, .2s, .45s; transition-timing-function: ease, ease, ease, var(--spring);
+}
+body.motion .chip:active, body.motion .gsel:active, body.motion .sb:active { transform: scale(.95); transition-duration: .2s, .2s, .2s, .12s; }
+body.motion .nav:active, body.motion .mi:active { transform: scale(.98); transition-duration: .2s, .2s, .2s, .1s; }
+body.motion .cover:active .m { transform: scale(.95); }
+
+/* Liquid Glass: a soft light follows the pointer over glass */
+.tabs, .sortcap, .capg, .search { position: relative; }
+.glass::after, .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .45s ease; }
+/* a light rim along the glass edge, brightest near the pointer (masked to a 1px border) */
+.glass::after {
+  padding: 1px;
+  background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .75), rgba(255, 255, 255, .12) 55%, transparent 75%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* and a small, faint glow under the pointer */
+.glass::before { background: radial-gradient(70px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .06), transparent 70%); }
+.glass.lit-g::after, .glass.lit-g::before { opacity: 1; }
+.insp.glass::after, .insp.glass::before { content: none; } /* it scrolls: the rim would ride with the content */
+/* «Марафон» × Oddments «Призма» (sketch v5 C): thinner, glossier Liquid Glass with a gradient rim light (lavender → sky →
+   pink, or the colour chosen in the settings: --rim-a/b/c from applySettings). The rim is always there but quiet; the
+   bloom — two soft coloured shadows from opposite corners — only comes up while the pointer is over the panel and fades
+   away after it (--glow is a registered number; glassGlow() in motion.js eases it with WAAPI — a `transition` here would
+   replace the panels' own slide and fade transitions, bug #118). */
+@property --glow { syntax: '<number>'; inherits: true; initial-value: 0; }
+:root[data-theme="marathon"] body.glass-on .glass:not(.pill) { /* pills keep their own fill and text (bug #94) */
+  --glow: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .012) 40%, rgba(255, 255, 255, .025)), var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo),
+    -5px -5px 18px -12px color-mix(in srgb, var(--rim-a) calc(var(--glow) * 60%), transparent),
+    5px 5px 18px -12px color-mix(in srgb, var(--rim-c) calc(var(--glow) * 50%), transparent), var(--shadow);
+}
+:root[data-theme="marathon"] body.glass-on .glass:hover { --glow: 1; }
+:root[data-theme="marathon"] body.glass-on .glass::after {
+  opacity: 1;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--rim-a) calc(45% + var(--glow) * 40%), transparent), color-mix(in srgb, var(--rim-b) calc(22% + var(--glow) * 25%), transparent) 28%, rgba(255, 255, 255, .04) 52%, rgba(255, 255, 255, .03) 70%, color-mix(in srgb, var(--rim-c) calc(28% + var(--glow) * 30%), transparent));
+}
+:root[data-theme="marathon"] body.glass-on .glass.lit-g::after {
+  background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .55), transparent 70%),
+    linear-gradient(140deg, color-mix(in srgb, var(--rim-a) calc(45% + var(--glow) * 40%), transparent), color-mix(in srgb, var(--rim-b) calc(22% + var(--glow) * 25%), transparent) 28%, rgba(255, 255, 255, .04) 52%, rgba(255, 255, 255, .03) 70%, color-mix(in srgb, var(--rim-c) calc(28% + var(--glow) * 30%), transparent));
+}
+/* the properties panel scrolls itself (no ::after rim there): the light comes in along its top edge instead */
+:root[data-theme="marathon"] body.glass-on .insp.glass { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--rim-a) calc(40% + var(--glow) * 30%), transparent), inset 1px 0 0 color-mix(in srgb, var(--rim-b) 18%, transparent), inset 0 -1px 0 var(--glass-lo),
+    -5px -5px 18px -12px color-mix(in srgb, var(--rim-a) calc(var(--glow) * 60%), transparent), 5px 5px 18px -12px color-mix(in srgb, var(--rim-c) calc(var(--glow) * 50%), transparent), var(--shadow); }
+/* the lime of C: pills with a glass highlight on top and their own small glow */
+:root[data-theme="marathon"] :is(.tab-ind, .nav-ind, .chip.on:not(.tabs .chip), .split, .pill.pri, .dock .seg [aria-pressed="true"]) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65), inset 0 -2px 6px rgba(0, 0, 0, .12), 0 0 22px color-mix(in srgb, var(--acc) 28%, transparent);
+}
+:root[data-theme="marathon"] .card.sel .ph { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--acc), 0 0 26px color-mix(in srgb, var(--acc) 35%, transparent); }
+:root[data-theme="light"] .glass::before, :root[data-theme="calm"] .glass::before { background: radial-gradient(70px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, .45), transparent 70%); }
+
+/* cards: lean towards the pointer and lift; selection ring grows in */
+body.motion .ph { transition: box-shadow .3s var(--ease), transform .5s var(--spring); }
+body.motion .card:hover .ph { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-3px); box-shadow: 0 18px 40px rgba(0, 0, 0, .35); }
+body.motion .card.sel:hover .ph { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--acc), 0 18px 40px rgba(0, 0, 0, .35); }
+body.motion .card:active .ph { transform: perspective(900px) scale(.97); transition-duration: .3s, .12s; }
+body.motion .card.sel .ph { animation: ring .45s var(--spring); }
+@keyframes ring { from { box-shadow: 0 0 0 2px var(--bg), 0 0 0 0 var(--acc); } }
+body.motion .card.enter { animation: cardin .55s var(--ease) both; animation-delay: var(--d, 0ms); }
+@keyframes cardin { from { opacity: 0; translate: 0 14px; scale: .97; } to { opacity: 1; translate: 0 0; scale: 1; } }
+
+/* sliding selection pill: tabs and the sidebar */
+.tabs .chip.on { background: transparent; }
+.tab-ind, .nav-ind {
+  position: absolute; left: 0; top: 0; z-index: 0; border-radius: 99px; background: var(--acc); pointer-events: none;
+  transition: transform var(--sp-morph-t, .32s) var(--sp-morph, cubic-bezier(.2, .8, .2, 1)), width var(--sp-morph-t, .32s) var(--sp-morph, cubic-bezier(.2, .8, .2, 1)), height var(--sp-morph-t, .32s) var(--sp-morph, cubic-bezier(.2, .8, .2, 1)), opacity .2s;
+}
+.tabs .chip { position: relative; z-index: 1; }
+.side-scroll { position: relative; }
+.nav-ind { border-radius: 12px; }
+.side-scroll .nav.on { background: transparent; }
+.side-scroll .nav { position: relative; z-index: 1; }
+.nav.on:focus-visible { outline-color: var(--acc-fg); }
+
+/* shared hover highlight (glide.js, after Arc's floating button group): one surface travels under the
+   buttons of a group on the morph spring; the buttons themselves keep no hover background and never scale */
+.glide {
+  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; opacity: 0;
+  background: color-mix(in oklab, var(--fg) 9%, transparent);
+  transition: translate var(--sp-morph-t, .4s) var(--sp-morph, ease), width var(--sp-morph-t, .4s) var(--sp-morph, ease),
+    height var(--sp-morph-t, .4s) var(--sp-morph, ease), border-radius .2s, scale var(--sp-snappy-t, .3s) var(--sp-snappy, ease),
+    opacity .24s cubic-bezier(.22, 1, .36, 1), background-color .16s;
+}
+.glide[data-press] { background: color-mix(in oklab, var(--fg) 15%, transparent); scale: .965; transition-duration: var(--sp-morph-t, .4s), var(--sp-morph-t, .4s), var(--sp-morph-t, .4s), .2s, var(--sp-snappy-t, .3s), .24s, .12s; }
+.dock, .capg, .menu, .ctx, .gsel-list, .tabs, .side-scroll { isolation: isolate; }
+:is(.dock, .capg, .menu, .ctx, .gsel-list) :is(.ib, .mi) { position: relative; z-index: 1; }
+.tabs .chip, .side-scroll .nav { z-index: 2; }
+.tab-ind, .nav-ind { z-index: 1; }
+body.motion :is(.dock, .capg, .menu, .ctx, .gsel-list, .tabs, .side-scroll) :is(.ib, .mi, .chip, .nav):hover:not(.on):not([aria-pressed="true"]):not([aria-expanded="true"]):not(.kb) { background: transparent; }
+body.motion :is(.dock, .capg, .menu, .ctx, .gsel-list, .tabs, .side-scroll) :is(.ib, .mi, .chip, .nav):active:not(:disabled) { transform: none; }
+body:not(.motion) .glide { display: none; }
+
+/* popovers open from where they were called */
+body.motion .menu.open, body.motion .gsel-list, body.motion .ctx { animation: popin .26s var(--spring); transform-origin: top right; }
+body.motion .cpop { animation: popin .3s var(--spring); transform-origin: top right; }
+@keyframes popin { from { opacity: 0; transform: translateY(-6px) scale(.95); } to { opacity: 1; transform: none; } }
+
+/* panels slide on a spring; inspector content glides in on a new selection */
+body.motion .side, body.motion .insp { transition: transform .5s var(--spring), opacity .3s ease, visibility 0s; }
+body.motion .insp.swap > * { animation: inspin .35s var(--ease) both; }
+body.motion .insp.swap > *:nth-child(2) { animation-delay: 30ms; }
+body.motion .insp.swap > *:nth-child(3) { animation-delay: 60ms; }
+body.motion .insp.swap > *:nth-child(n+4) { animation-delay: 90ms; }
+@keyframes inspin { from { opacity: 0; transform: translateY(8px); } }
+
+/* preview fades out instead of vanishing; toast springs in */
+.pv.out { opacity: 0; transition: opacity .2s ease; }
+.pv:focus { outline: none; }
+
+/* calm cross-fade between library views (View Transitions) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .32s; animation-timing-function: var(--ease); }
+
+
+/* closed panels leave the Tab order: opening shows them at once (so focus can move in), closing hides
+   them only after they have slid out */
+body.side-off .side, body.insp-off .insp { transition: transform .4s var(--ease), opacity .3s, visibility .4s; }
+body.motion.side-off .side, body.motion.insp-off .insp { transition: transform .5s var(--spring), opacity .3s ease, visibility .5s; }
+.settings:not(.on) { transition: transform .4s var(--ease), visibility .4s; }
+@media (max-width: 860px) {
+  body:not(.nav-open) .side { transition: transform .4s var(--ease), visibility .4s; }
+  body.nav-open .side { transition: transform .5s var(--spring), visibility 0s; }
+}

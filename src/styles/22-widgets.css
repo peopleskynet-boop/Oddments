@@ -1,0 +1,158 @@
+/* ——— Beautiful UI patterns (beautifului.dev, MIT): pixel loader, selection bar, AI steps ——— */
+/* pixel-grid loader (pixload.js): nine pixels, a shimmering label, the seconds */
+.pxload { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+.pxl { display: inline-grid; grid-template-columns: repeat(3, 4px); gap: 1.5px; flex: none; color: var(--acc); }
+.pxl i { width: 4px; height: 4px; border-radius: 1.2px; background: currentColor; opacity: .18; }
+body.motion .pxl i:not(.off) { animation: pxon .66s ease-in-out infinite; }
+body:not(.motion) .pxl i:not(.off) { opacity: .6; }
+@keyframes pxon { 0%, 100% { opacity: .18; } 40% { opacity: 1; } }
+.shim { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+body.motion .shim { color: transparent; background: linear-gradient(90deg, var(--mut) 35%, var(--fg) 50%, var(--mut) 65%) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; animation: shim 1.5s linear infinite; }
+@keyframes shim { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.pxl-t { flex: none; font: 12px/1 var(--mono); color: var(--mut); font-variant-numeric: tabular-nums; }
+
+/* selection bar (selbar.js): above the dock while two or more files are selected */
+.selbar { position: fixed; z-index: 16; left: calc((var(--pl) + 100vw - var(--pr)) / 2); bottom: 82px; translate: -50% 10px; scale: .96;
+  display: flex; align-items: center; gap: 2px; height: 46px; padding: 0 5px 0 16px; border-radius: 99px; font-size: 12.5px;
+  opacity: 0; pointer-events: none; transition: opacity .2s, translate .35s var(--sp-snappy, var(--ease)), scale .35s var(--sp-snappy, var(--ease)), left .35s var(--ease); }
+.selbar.on { opacity: 1; translate: -50% 0; scale: 1; pointer-events: auto; }
+body.clean .selbar { bottom: 18px; }
+.sb-n { margin-right: 8px; color: var(--mut); white-space: nowrap; }
+.sb-n b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sb-b { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 13px; border-radius: 99px; white-space: nowrap; color: var(--fg); transition: background .2s; }
+.sb-b:hover { background: var(--hover-2); }
+.sb-b svg.i { width: 16px; height: 16px; }
+.sb-b.danger, .sb-b.danger svg.i { color: var(--warn); }
+.selbar .ib { width: 36px; height: 36px; }
+.selbar .sb-more { margin-left: 2px; }
+.sb-x { color: var(--mut) !important; }
+:root[data-theme="marathon"] .sb-n { font-family: var(--mono); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+:root[data-theme="marathon"] .sb-n b { color: var(--acc); }
+@media (max-width: 860px) { .selbar { left: 50%; max-width: calc(100vw - 24px); overflow-x: auto; scrollbar-width: none; } .sb-b span { display: none; } .sb-b { padding: 0 10px; } }
+
+/* the AI description of a picture (API mode, aicloud.js), under the tags in the properties panel */
+.ai-desc { margin: -4px 0 0; font-size: 12px; line-height: 1.45; color: var(--mut); }
+.ocr-blk { font-size: 12px; color: var(--mut); margin-bottom: 6px; }
+.ocr-blk summary { display: flex; gap: 8px; align-items: baseline; cursor: pointer; list-style: none; padding: 2px 0; }
+.ocr-blk summary::-webkit-details-marker { display: none; }
+.ocr-blk summary span { flex: none; color: var(--fg); opacity: .8; }
+.ocr-blk summary span::before { content: '›'; display: inline-block; width: 12px; transition: transform .2s; }
+.ocr-blk[open] summary span::before { transform: rotate(90deg); }
+.ocr-blk summary em { font-style: normal; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocr-blk[open] summary em { display: none; }
+.ocr-txt { margin: 6px 0 6px 12px; white-space: pre-wrap; line-height: 1.45; max-height: 180px; overflow: auto; user-select: text; color: var(--fg); opacity: .85; }
+.ocr-blk .lnk { margin-left: 12px; }
+.snote { font-size: 12px; line-height: 1.45; color: var(--mut); }
+.srow[hidden] { display: none; }
+/* the «ИИ» chip in the search box (aibar.js → updateAiChip): on, busy (pixels), found by meaning, error */
+.ai-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 99px; font-size: 12px; color: var(--fg); background: var(--hover); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ai-chip:hover { background: var(--hover-2); }
+.ai-chip[hidden] { display: none; }
+.ai-chip svg.i { width: 13px; height: 13px; color: var(--acc); }
+.ai-chip.err, .ai-chip.err svg.i { color: var(--warn); }
+:root[data-theme="marathon"] .ai-chip { font-family: var(--mono); text-transform: uppercase; font-size: 11px; letter-spacing: .03em; }
+#sAiRep { white-space: pre-line; line-height: 1.5; }
+
+/* the trash's buttons in the clean screen (hero.js trashBar): the view's header is hidden there (bugs #59, #62) */
+/* It stands below the top bar's zone for good (top 134 — under the search and the tabs when they slide out): at the
+   very top it sat inside the zone that brings the bar out, the bar pushed it down, the pointer followed, the bar
+   went away and the pill jumped back up — the button could hardly be pressed (#77 and the user's report 25.10) */
+.trashbar { position: fixed; z-index: 24; top: 134px; left: 50%; translate: -50% 0; display: none; gap: 4px; padding: 5px; border-radius: 99px; }
+body.clean.in-trash .trashbar:not(:empty) { display: flex; }
+/* the wall starts under the pill, so it covers no card */
+body.clean.in-trash:has(.trashbar:not(:empty)) .scroll { padding-top: 200px; }
+body.clean.in-trash.tidy-on .trashbar, body.clean.in-trash.dupes-on .trashbar { display: none; }
+.trashbar .pill svg.i, #vAct .pill svg.i { width: 15px; height: 15px; }
+
+/* settings › watch folders (watch.js) */
+.watch-list { display: grid; gap: 6px; }
+.watch-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.watch-row .path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sWatch .hint { color: var(--mut); font-size: 12px; line-height: 1.4; }
+/* the step number on the cards of a flow collection (grid.js) */
+.ph .step { position: absolute; z-index: 2; top: 8px; left: 8px; min-width: 28px; height: 22px; padding: 0 7px; border-radius: 99px; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(8px); color: var(--fg); font: 600 11px/1 var(--mono); pointer-events: none; }
+/* a model or a material in the preview: alone, the viewer gets the whole height (bug #108) */
+#pv.pv-solo #pvMore { display: none; }
+/* a service key in Settings: a state row with its buttons (keyfield.js, bug #110) */
+.keyf { margin-top: 6px; }
+.kf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kf-st { flex: 1 1 100%; font-size: 12.5px; color: var(--fg); }
+.kf-st.none { color: var(--mut); }
+.kf-st code { font: 500 12px var(--mono, monospace); }
+.kf-st .ok { color: #34c759; font-weight: 600; } .kf-st .bad { color: var(--red); font-weight: 600; }
+.kf-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.kf-acts .ibtn, .kf-edit .ibtn { height: 32px; }
+.kf-edit { display: flex; gap: 6px; align-items: center; }
+.kf-in { flex: 1; min-width: 0; height: 34px; border-radius: 99px; border: 0; padding: 0 14px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line, var(--line-2)); }
+
+/* «Анимации: выключены» (and «Как в системе» when the system asks for less motion): the entrance animations stop
+   too, not only the transitions (audit 24.10) — loaders and progress keep moving, they say that work goes on */
+body:not(.motion) :is(.side-menu, .menu.open, .ctx, .gsel-list, .kmenu, .keys, .pv-hold .zi, .card.enter, .insp, .sb-layer, .feed, .news, .flw, .ik, .plg, .s3d, .modal .dlg, .cpop, .tst, .pv.on) { animation: none !important; }
+
+/* the search field's clear button */
+.search .q-x { width: 26px; height: 26px; flex: none; }
+.search .q-x[hidden] { display: none; }
+.search .q-x svg.i { width: 13px; height: 13px; }
+.search:has(.q-x:not([hidden])) kbd { display: none; }
+
+/* personal data (pii.js): the card's shield and the properties panel's note (mask.js hides them on a copy) */
+.ph .piim { position: absolute; z-index: 2; left: 8px; bottom: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(8px); color: var(--fg); pointer-events: auto; }
+.ph .piim svg.i { width: 14px; height: 14px; }
+.pii-blk { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 10px; padding: 10px 12px; border-radius: 16px; font-size: 12px; background: color-mix(in srgb, var(--mag, #ff3b8b) 12%, transparent); }
+.pii-blk.ok { background: var(--hover); color: var(--mut); }
+.pii-blk > svg.i { width: 15px; height: 15px; flex: none; }
+.pii-blk > span { flex: 1 1 140px; min-width: 0; }
+
+/* «Экран приложения» in the properties panel (scrfields.js): app, platform, kind, patterns, date, version */
+.scr-blk { margin: 0 0 10px; font-size: 12px; }
+.scr-blk summary { display: flex; gap: 8px; align-items: baseline; cursor: pointer; list-style: none; padding: 2px 0; color: var(--mut); }
+.scr-blk summary::-webkit-details-marker { display: none; }
+.scr-blk summary em { font-style: normal; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scr-f { display: grid; grid-template-columns: 86px 1fr; gap: 6px 10px; align-items: center; margin: 8px 0 6px; }
+.scr-l { color: var(--mut); }
+.scr-v { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.scr-v input { flex: 1 1 110px; min-width: 0; height: 30px; padding: 0 10px; border: 0; border-radius: 99px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line); outline: 0; }
+.scr-v input:focus { box-shadow: inset 0 0 0 1.5px var(--acc); }
+.scr-v input[type="date"] { flex: 0 1 150px; color-scheme: dark light; }
+.scr-seg { display: inline-flex; padding: 2px; border-radius: 99px; background: var(--hover); }
+.scr-seg button { height: 26px; padding: 0 10px; border: 0; border-radius: 99px; background: none; color: var(--mut); font: inherit; cursor: pointer; }
+.scr-seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.scr-sug { height: 26px; padding: 0 10px; border: 0; border-radius: 99px; background: color-mix(in srgb, var(--acc) 16%, transparent); color: var(--fg); font: inherit; cursor: pointer; white-space: nowrap; }
+.scr-sug.maybe { background: none; box-shadow: inset 0 0 0 1px var(--line); outline: 1px dashed color-mix(in srgb, var(--acc) 60%, transparent); outline-offset: -1px; color: var(--mut); }
+.scr-pats .tag { height: 26px; }
+.scr-blk .lnk { margin-right: 12px; }
+
+/* the team library (team.js): a file's mark on its card and its block in the properties panel */
+.ph .teamm { position: absolute; z-index: 2; right: 8px; bottom: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--acc) 85%, transparent); color: var(--accfg, #000); pointer-events: auto; }
+.ph .teamm svg.i { width: 14px; height: 14px; }
+.team-blk { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 10px; padding: 10px 12px; border-radius: 16px; font-size: 12px; background: color-mix(in srgb, var(--acc) 12%, transparent); }
+.team-blk > svg.i { width: 15px; height: 15px; flex: none; }
+.team-blk > span { flex: 1 1 140px; min-width: 0; }
+
+/* comments of a picture in the properties panel (notesblock.js); the «Разметка» layer is notes.js */
+.nts-mini { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; counter-reset: n; }
+.nts-mini li { position: relative; padding-left: 26px; counter-increment: n; font-size: 12px; }
+.nts-mini li::before { content: counter(n); position: absolute; left: 0; top: 0; width: 18px; height: 18px; border-radius: 50% 50% 50% 3px; background: var(--acc); color: var(--accfg, #000); font: 700 10px/18px var(--mono); text-align: center; }
+.nts-mini li.more::before { content: none; }
+.nts-mini p { margin: 0 0 2px; color: var(--fg); overflow-wrap: anywhere; }
+.nts-mini small { color: var(--mut); font-size: 11px; }
+
+/* «Бренд» in the properties panel (brand.js): the palette and a model against the team's rules */
+.brand-blk { margin: 0 0 10px; font-size: 12px; }
+.brand-blk summary { display: flex; gap: 8px; align-items: baseline; cursor: pointer; list-style: none; color: var(--mut); padding: 2px 0; }
+.brand-blk summary::-webkit-details-marker { display: none; }
+.brand-blk summary em { font-style: normal; color: var(--fg); }
+.brand-blk.err summary em { color: var(--mag, #ff3b8b); }
+.brand-blk ul { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; }
+.brand-blk li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; background: var(--hover); }
+.brand-blk li.err { background: color-mix(in srgb, var(--mag, #ff3b8b) 14%, transparent); }
+.brand-blk li.ok { background: color-mix(in srgb, var(--acc) 12%, transparent); }
+.brand-blk li small { color: var(--mut); }
+
+/* a collection's links to work (worklinks.js): Jira, Confluence, Figma in its header */
+.wl { display: inline-flex; align-items: center; }
+.wl .pill { padding-right: 30px; }
+.wl .wl-x { width: 24px; height: 24px; margin-left: -28px; opacity: .5; }
+.wl .wl-x:hover { opacity: 1; }
+.wl.jira .pill svg.i { color: #4c9aff; }
+.wl.confluence .pill svg.i { color: #2684ff; }

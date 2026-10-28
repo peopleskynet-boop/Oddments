@@ -43,6 +43,8 @@
     {
       "identifier": "fs:scope",
       "allow": [
+        { "path": "$DOCUMENT/Oddments Library" },
+        { "path": "$DOCUMENT/Oddments Library/**" },
         { "path": "$DOCUMENT/Perch Library" },
         { "path": "$DOCUMENT/Perch Library/**" },
         { "path": "$APPLOCALDATA" },

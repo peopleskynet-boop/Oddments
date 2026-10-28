@@ -77,7 +77,13 @@ function parseSvg(text) {
     strokesOnly = false;
     shapes.push(...SVGLoader.createShapes(p));
   }
-  return { shapes, strokesOnly: strokesOnly && data.paths.length > 0 };
+  // the drawing's frame (viewBox, else width × height): a set of icons scaled by it keeps one size and one depth
+  let view = null;
+  const x = data.xml && data.xml.getAttribute ? data.xml : null;
+  const vb = x && (x.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+  if (vb && vb.length === 4 && vb.every(Number.isFinite) && vb[2] > 0 && vb[3] > 0) view = { x: vb[0], y: vb[1], w: vb[2], h: vb[3] };
+  else if (x && parseFloat(x.getAttribute('width')) > 0 && parseFloat(x.getAttribute('height')) > 0) view = { x: 0, y: 0, w: parseFloat(x.getAttribute('width')), h: parseFloat(x.getAttribute('height')) };
+  return { shapes, view, strokesOnly: strokesOnly && data.paths.length > 0 };
 }
 
 // reverse the direction but keep point 0 first: corners stay on even indices
@@ -159,10 +165,13 @@ function filletCorners(pts, radius, cornerDeg) {
   return clean(items.flatMap((x) => x.pts));
 }
 
-function contours(shapes, step, cornerDeg, round = 0) {
+// frame: the drawing's own box ({x, y, w, h}, the viewBox) — then 2 units are the whole frame, not the shape, and
+// every icon of a set comes out at the same scale
+function contours(shapes, step, cornerDeg, round = 0, frame = null) {
   const raw = shapes.map((s) => ({ outer: clean(s.getPoints(48)), holes: s.holes.map((h) => clean(h.getPoints(48))) })).filter((s) => s.outer.length > 2);
   const box = new THREE.Box2();
-  raw.forEach((s) => s.outer.forEach((p) => box.expandByPoint(p)));
+  if (frame) box.set(new THREE.Vector2(frame.x, frame.y), new THREE.Vector2(frame.x + frame.w, frame.y + frame.h));
+  else raw.forEach((s) => s.outer.forEach((p) => box.expandByPoint(p)));
   const c = box.getCenter(new THREE.Vector2()), sz = box.getSize(new THREE.Vector2()), k = 2 / Math.max(sz.x, sz.y, 1e-6);
   const norm0 = (pts) => pts.map((p) => new THREE.Vector2((p.x - c.x) * k, -(p.y - c.y) * k));
   const norm = (pts) => filletCorners(norm0(pts), round, cornerDeg);
@@ -367,7 +376,8 @@ function capMesh(loops, P) {
   // 1) edge loops
   for (let k = 0; k < P.loops && inset + gap <= maxInset; k++) {
     const next = rings.map((r) => offset(r.map(pos), gap));
-    let ok = apart(next);
+    // a loop that cuts through itself (thin arms of a plus under a wide bevel) ends the loops: the middle would fold
+    let ok = next.every(simple) && apart(next);
     for (let g = 0; g < rings.length && ok; g++) {
       const r = rings[g], n = r.length;
       for (let i = 0; i < n && ok; i++) { const i1 = (i + 1) % n; if (quadArea(pos(r[i]), pos(r[i1]), next[g][i1], next[g][i]) <= 1e-9) ok = false; }
@@ -388,7 +398,7 @@ function capMesh(loops, P) {
       if (edge * 2 > cell * 1.25 || inset + edge * 1.6 > maxInset * 1.6) return;
       const d = edge * 1.6, mid = offset(p, d / 2), inn = offset(p, d);
       const others = rings.map((x, k) => (k === g ? inn.filter((_, i) => i % 2 === 0) : x.map(pos)));
-      if (!apart(others)) return;
+      if (!simple(others[g]) || !apart(others)) return;
       const before = pts.length, nf = [];
       const inner = []; for (let t = 0; t < n / 2; t++) inner.push(add(inn[2 * t]));
       for (let q = 0; q < n / 4; q++) {
@@ -590,8 +600,10 @@ function splitFill(L) {
     if (!mid.has(key)) mid.set(key, add(even[k1].clone().lerp(even[k2], 0.5)));
     return mid.get(key);
   };
+  // every quad turns the way the loop itself turns (a piece of a cut cap can run clockwise; forcing one way flipped it)
+  const turn = Math.sign(THREE.ShapeUtils.area(even)) || 1;
   for (let [x, y, z] of tris) {
-    if (THREE.ShapeUtils.area([even[x], even[y], even[z]]) < 0) [y, z] = [z, y];
+    if (THREE.ShapeUtils.area([even[x], even[y], even[z]]) * turn < 0) [y, z] = [z, y];
     const A = 2 * x, B = 2 * y, C = 2 * z, ab = edge(x, y), bc = edge(y, z), ca = edge(z, x);
     const g = add(even[x].clone().add(even[y]).add(even[z]).multiplyScalar(1 / 3));
     faces.push([A, ab, g, ca], [B, bc, g, ab], [C, ca, g, bc]);
@@ -661,8 +673,12 @@ function mendTris(tris, pts) {
   return out;
 }
 
+// Every face gets a part (PART: front, back, bevel, wall — material slots in Blender) and the layout the UVs are
+// made from: the walls and bevels of each loop are one strip of rings, the caps are flat.
+const PART = { front: 0, back: 1, bevel: 2, wall: 3 };
+const PART_NAMES = ['Лицо', 'Тыл', 'Фаска', 'Стенка'];
 function build(cs, P) {
-  const verts = [], faces = [], kinds = [];
+  const verts = [], faces = [], kinds = [], parts = [], strips = [], caps = [];
   let bevelCut = Infinity;
   for (const { outer, holes } of cs) {
     const loops = [outer, ...holes];
@@ -672,9 +688,11 @@ function build(cs, P) {
     const rings = loops.map((loop) => prof.map(({ inset, z }) => offset(loop, inset).map((p) => verts.push(new THREE.Vector3(p.x, p.y, z)) - 1)));
     // walls and bevels: quads only
     rings.forEach((R) => {
+      strips.push({ R, prof, face0: faces.length });
       for (let j = 0; j < R.length - 1; j++) {
         const a = R[j], b = R[j + 1], n = a.length;
-        for (let i = 0; i < n; i++) faces.push([a[i], b[i], b[(i + 1) % n], a[(i + 1) % n]]);
+        const part = prof[j].inset > 1e-9 || prof[j + 1].inset > 1e-9 ? PART.bevel : PART.wall;
+        for (let i = 0; i < n; i++) { faces.push([a[i], b[i], b[(i + 1) % n], a[(i + 1) % n]]); parts.push(part); }
       }
     });
     // caps from the first and last ring (both sit at the same inset, so one cap mesh serves both)
@@ -719,18 +737,132 @@ function build(cs, P) {
         tris.forEach((t) => { const f = t.map((i) => idx[i]); if (THREE.ShapeUtils.area(t.map((i) => all[i])) < 0) f.reverse(); faces.push(front ? f : f.slice().reverse()); });
       }
     }
+    // the caps are flat: front at +z, back at −z — one island each per shape
+    const fr = [], bk = [];
+    for (let i = parts.length; i < faces.length; i++) { const isFront = verts[faces[i][0]].z > 0; parts.push(isFront ? PART.front : PART.back); (isFront ? fr : bk).push(i); }
+    caps.push({ faces: fr, back: false }, { faces: bk, back: true });
   }
   const kind = kinds.reduce((w, k) => (KIND_RANK[k] > KIND_RANK[w] ? k : w), 'grid');
-  return { verts, faces, kind: P.cap === 'quad' ? kind : P.cap, bevel: bevelCut === Infinity ? null : bevelCut };
+  const mesh = { verts, faces, parts, kind: P.cap === 'quad' ? kind : P.cap, bevel: bevelCut === Infinity ? null : bevelCut };
+  // the smoothing angle for Blender: smooth across the bevel's own steps (90° / segments), sharp at the outline's corners
+  mesh.smoothDeg = Math.min(60, Math.max(30, 90 / Math.max(1, P.bseg) + 6));
+  mesh.uv = layoutUV(mesh, strips, caps);
+  return mesh;
+}
+
+/* ---------- UVs straight from the shape: no unwrapping needed ---------- */
+// Caps lie flat as they are (the back mirrored, so it reads the right way round). The walls and bevels of a loop
+// are a strip of rings: u runs along the outline, v down the profile — a straight ribbon with no stretch. Long
+// ribbons are cut into a few pieces (at the sharpest corners near even spacing) so they pack well. One texel
+// density for everything; islands are shelf-packed into the 0–1 square. → per face, a [u, v] per corner.
+function layoutUV(mesh, strips, caps) {
+  const { verts, faces } = mesh;
+  const uv = faces.map((f) => f.map(() => [0, 0]));
+  const islands = []; // { w, h, put: (ox, oy, k) => void }
+  for (const c of caps) {
+    if (!c.faces.length) continue;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const P2 = (v) => [c.back ? -verts[v].x : verts[v].x, verts[v].y];
+    c.faces.forEach((fi) => faces[fi].forEach((v) => { const [x, y] = P2(v); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }));
+    islands.push({ w: x1 - x0, h: y1 - y0, put: (ox, oy, k) => c.faces.forEach((fi) => faces[fi].forEach((v, j) => { const [x, y] = P2(v); uv[fi][j] = [ox + (x - x0) * k, oy + (y - y0) * k]; })) });
+  }
+  for (const { R, prof, face0 } of strips) {
+    const n = R[0].length, rows = R.length - 1;
+    // v: length down the profile; u: length along the ring with no inset (the wall), the bevel rings follow it
+    const vAt = [0];
+    for (let j = 1; j < R.length; j++) vAt.push(vAt[j - 1] + Math.hypot(prof[j].inset - prof[j - 1].inset, prof[j].z - prof[j - 1].z));
+    const mid = R[prof.findIndex((p) => p.inset < 1e-9)] || R[0];
+    const uAt = [0];
+    for (let i = 1; i <= n; i++) uAt.push(uAt[i - 1] + verts[mid[i - 1]].distanceTo(verts[mid[i % n]]));
+    const L = uAt[n], H = vAt[rows];
+    if (L < 1e-9 || H < 1e-9) continue;
+    // pieces: about 6 : 1 at most; cuts go to the sharpest turn near each even split
+    const k = Math.max(1, Math.min(Math.floor(n / 4), Math.round(L / (H * 6))));
+    const turn = (i) => { const a = verts[mid[(i - 1 + n) % n]], b = verts[mid[i]], c = verts[mid[(i + 1) % n]]; return 1 - b.clone().sub(a).normalize().dot(c.clone().sub(b).normalize()); };
+    const cuts = [];
+    for (let q = 0; q < k; q++) {
+      const want = (q / k) * L, win = L / k / 4;
+      let best = -1, score = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const d = Math.min(Math.abs(uAt[i] - want), L - Math.abs(uAt[i] - want));
+        if (d > win || cuts.includes(i)) continue;
+        const sc = turn(i) - d / (L * 4);
+        if (sc > score) { score = sc; best = i; }
+      }
+      if (best < 0) best = Math.round((q / k) * n) % n;
+      if (!cuts.includes(best)) cuts.push(best);
+    }
+    cuts.sort((a, b) => a - b);
+    cuts.forEach((a, ci) => {
+      const b = ci + 1 < cuts.length ? cuts[ci + 1] : cuts[0] + n; // the piece runs a → b (b may pass n: it wraps)
+      const uOf = (s2) => (s2 <= n ? uAt[s2] : L + uAt[s2 - n]) - uAt[a];
+      const len = uOf(b);
+      islands.push({ w: len, h: H, put: (ox, oy, sc) => {
+        for (let j = 0; j < rows; j++) for (let s2 = a; s2 < b; s2++) {
+          const fi = face0 + j * n + (s2 % n);
+          const u0 = uOf(s2) * sc, u1 = uOf(s2 + 1) * sc, v0 = (H - vAt[j]) * sc, v1 = (H - vAt[j + 1]) * sc;
+          // face = [ring j · i, ring j+1 · i, ring j+1 · i+1, ring j · i+1]; ring j is on top (v counts downwards)
+          uv[fi] = [[ox + u0, oy + v0], [ox + u0, oy + v1], [ox + u1, oy + v1], [ox + u1, oy + v0]];
+        }
+      } });
+    });
+  }
+  packShelves(islands);
+  return uv;
+}
+
+// shelves, tallest first; the shelf width is tried a few ways and the most square layout wins
+function packShelves(islands) {
+  if (!islands.length) return;
+  const total = islands.reduce((s, i) => s + i.w * i.h, 0);
+  const gap = Math.sqrt(total) * 0.02;
+  const order = islands.slice().sort((a, b) => b.h - a.h);
+  const widest = Math.max(...islands.map((i) => i.w));
+  let best = null;
+  for (const f of [0.9, 1.0, 1.1, 1.2, 1.35, 1.5, 1.8]) {
+    const W = Math.max(widest, Math.sqrt(total) * f);
+    let x = 0, y = 0, rowH = 0, maxW = 0;
+    const at = [];
+    for (const it of order) {
+      if (x > 0 && x + it.w > W) { y += rowH + gap; x = 0; rowH = 0; }
+      at.push([x, y]); x += it.w + gap; rowH = Math.max(rowH, it.h); maxW = Math.max(maxW, x - gap);
+    }
+    const side = Math.max(maxW, y + rowH);
+    if (!best || side < best.side) best = { side, at };
+  }
+  const m = 0.01, k = (1 - 2 * m) / best.side;
+  order.forEach((it, i) => it.put(m + best.at[i][0] * k, m + best.at[i][1] * k, k));
 }
 
 
 // OBJ keeps quads and n-gons as they are (Blender imports them unchanged)
+// A mesh from the generator also carries its UVs (vt) and parts (usemtl Лицо, Тыл, Фаска, Стенка — material slots)
 export function toOBJ(mesh, name = 'PerchSVG') {
-  const lines = ['# Oddments — SVG → 3D', 'o ' + name.replace(/\s+/g, '_')];
+  // «# oddments-smooth N»: the add-on smooths the model by this angle on import (it has no normals of its own)
+  const lines = ['# Oddments — SVG → 3D', ...(mesh.smoothDeg ? ['# oddments-smooth ' + mesh.smoothDeg.toFixed(1)] : []), 'o ' + name.replace(/\s+/g, '_')];
   mesh.verts.forEach((v) => lines.push(`v ${v.x.toFixed(6)} ${v.y.toFixed(6)} ${v.z.toFixed(6)}`));
-  mesh.faces.forEach((f) => lines.push('f ' + f.map((i) => i + 1).join(' ')));
+  if (!mesh.uv || !mesh.parts) {
+    mesh.faces.forEach((f) => lines.push('f ' + f.map((i) => i + 1).join(' ')));
+    return lines.join('\n') + '\n';
+  }
+  const vt = new Map();
+  const ref = mesh.uv.map((cs) => cs.map(([u, v]) => {
+    const key = u.toFixed(6) + ' ' + v.toFixed(6);
+    if (!vt.has(key)) { vt.set(key, vt.size + 1); lines.push('vt ' + key); }
+    return vt.get(key);
+  }));
+  PART_NAMES.forEach((pn, p) => {
+    const fs = [];
+    mesh.faces.forEach((f, i) => { if (mesh.parts[i] === p) fs.push('f ' + f.map((v, j) => (v + 1) + '/' + ref[i][j]).join(' ')); });
+    if (fs.length) lines.push('usemtl ' + pn, ...fs);
+  });
   return lines.join('\n') + '\n';
+}
+
+// The same mesh as compact JSON for the Blender add-on (bridge /mesh): it builds the object itself with bmesh
+export function toMeshJSON(mesh) {
+  const r = (x) => Math.round(x * 1e6) / 1e6;
+  return { v: mesh.verts.flatMap((p) => [r(p.x), r(p.y), r(p.z)]), f: mesh.faces, p: mesh.parts || [], uv: mesh.uv ? mesh.uv.map((cs) => cs.flatMap(([u, v]) => [r(u), r(v)])) : [], parts: PART_NAMES };
 }
 
 // A model without errors: every edge between exactly two faces that run opposite ways, no face of zero area.
@@ -796,5 +928,5 @@ export function toEdges(mesh) {
   return g;
 }
 
-export { parseSvg, contours, build, KIND_RANK };
+export { parseSvg, contours, build, KIND_RANK, PART_NAMES };
 export const _internals = { capMesh, cutCap, offset, mendTris }; // for the fuzz checks in the browser console

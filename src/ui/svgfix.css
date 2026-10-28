@@ -1,0 +1,36 @@
+/* «Исправить SVG» (svgfix.js): before and after side by side, the points over the shapes */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.sfx { outline: none; position: fixed; inset: 0; z-index: 70; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px); animation: fade .25s; }
+.sfx[hidden] { display: none; }
+.sfx-bar { position: absolute; z-index: 2; top: 16px; left: 50%; translate: -50% 0; height: 50px; max-width: calc(100% - 32px); border-radius: 99px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; white-space: nowrap; }
+.sfx-bar .ib { width: 38px; height: 38px; }
+.sfx-bar .ibtn { height: 38px; }
+.sfx-bar .ibtn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.sfx-pg { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.sfx-pg.one .ib { display: none; }
+.sfx-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; color: var(--mut); padding: 0 4px; }
+.sfx-seg { display: inline-flex; padding: 3px; border-radius: 99px; background: var(--hover); }
+.sfx-seg button { height: 32px; padding: 0 14px; border: 0; border-radius: 99px; background: none; color: var(--mut); font: inherit; font-size: 13px; cursor: pointer; }
+.sfx-seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.sfx-stage { position: absolute; inset: 82px 24px 128px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-height: 0; }
+.sfx-pane { position: relative; margin: 0; min-width: 0; min-height: 0; border-radius: 22px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.sfx-lab { position: absolute; z-index: 1; top: 12px; left: 12px; padding: 5px 12px; border-radius: 99px; background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(8px); color: var(--fg); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sfx-art { position: absolute; inset: 44px 20px 20px; }
+.sfx-art svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.sfx-ink { fill: var(--fg); fill-opacity: .82; stroke: var(--fg); }
+.sfx-art[data-side="a"] .sfx-ink { fill-opacity: .5; }
+.sfx-dots circle { fill: var(--red); }
+.sfx-art[data-side="b"] .sfx-dots circle { fill: var(--acc); stroke: var(--bg); stroke-width: .3px; vector-effect: non-scaling-stroke; }
+.sfx-rep { position: absolute; left: 24px; right: 24px; bottom: 50px; margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-height: 70px; overflow: auto; scrollbar-width: none; }
+.sfx-rep li { padding: 6px 12px; border-radius: 99px; background: var(--hover); font-size: 12px; }
+.sfx-rep li.ok { color: var(--mut); }
+.sfx-rep li.bad { color: var(--warn); }
+.sfx-info { position: absolute; left: 0; right: 0; bottom: 18px; margin: 0; text-align: center; color: var(--mut); }
+:root[data-theme="marathon"] .sfx-lab, :root[data-theme="marathon"] .sfx-rep li { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+@media (max-width: 860px) {
+  .sfx-bar { left: 12px; right: 12px; translate: none; overflow-x: auto; scrollbar-width: none; }
+  .sfx-name, .sfx-bar .orb-t { display: none; }
+  .sfx-stage { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; inset: 78px 12px 140px; }
+}
+}

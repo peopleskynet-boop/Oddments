@@ -1,4 +1,4 @@
-// Batch rename of the selected files by a template: {name} {n} {date} {ext}, with a live preview before
+// Batch rename of the selected files by a template: {name} {n} {date} {ext} {ai}, with a live preview before
 // anything changes and «Отменить» afterwards. Only the name shown in Oddments changes (`it.name`, like renaming
 // in the inspector) — the original files on disk are never touched.
 import './rename.css';
@@ -13,7 +13,12 @@ const TOKENS = [
   ['{n}', 'номер по порядку; {n:3} — 001'],
   ['{date}', 'дата добавления'],
   ['{ext}', 'расширение'],
+  ['{ai}', 'название от ИИ по-английски'],
 ];
+// {ai}: Claude looks at each picture (a 512 px copy) and names it; names already known (the AI pass gives them with the
+// description, `it.aiName`) cost nothing. Asked six pictures at a time, once per file.
+const aiNames = new Map();
+let aiBusy = false, aiErr = '';
 const KEY = 'perch.renameTpl';
 let el = null, items = [], back = null;
 
@@ -30,6 +35,7 @@ export function applyTemplate(tpl, list, start = 1) {
     .replace(/\{name\}/g, it.name)
     .replace(/\{date\}/g, ymd(it.added))
     .replace(/\{ext\}/g, it.ext || '')
+    .replace(/\{ai\}/g, aiNames.get(it.id) || it.aiName || it.name)
     .replace(/[\r\n\t]+/g, ' ').trim().slice(0, 200));
 }
 
@@ -67,7 +73,9 @@ function build() {
     <label class="rn-l" for="rnTpl">Шаблон</label>
     <input id="rnTpl" type="text" autocomplete="off" spellcheck="false" aria-describedby="rnHelp">
     <div class="rn-tok" id="rnHelp">${TOKENS.map(([t, d]) => `<button type="button" class="rn-t" data-t="${t}" title="${esc(d)}"><code>${t}</code><span>${esc(d)}</span></button>`).join('')}</div>
-    <div class="rn-row"><label for="rnStart">Нумерация с</label><input id="rnStart" type="number" min="0" max="99999" value="1"></div>
+    <div class="rn-row"><label for="rnStart">Нумерация с</label><input id="rnStart" type="number" min="0" max="99999" value="1">
+      <button type="button" class="ibtn rn-ai" data-rn="ai" title="Claude посмотрит на картинки и даст короткие английские названия: «Brutalist Concrete Stairs»">✦ Названия от ИИ</button></div>
+    <p class="rn-aist" aria-live="polite" hidden></p>
     <div class="rn-pv" aria-live="polite"><div class="rn-pv-h"><span>Было</span><span>Станет</span></div><ol id="rnList"></ol></div>
     <p class="rn-note">Меняется только имя в Oddments, файлы на диске остаются как были.</p>
     <div class="row"><button type="button" class="ibtn" data-rn="cancel">Отмена</button><button type="submit" class="ibtn pri" id="rnGo">Переименовать</button></div>
@@ -86,6 +94,7 @@ function build() {
     preview();
   });
   el.querySelector('[data-rn="cancel"]').addEventListener('click', closeRename);
+  el.querySelector('[data-rn="ai"]').addEventListener('click', () => { inp.value = '{ai}'; preview(); inp.focus(); });
   el.addEventListener('pointerdown', (e) => { if (e.target === el) closeRename(); });
   form.addEventListener('submit', (e) => { e.preventDefault(); apply(); });
   el.addEventListener('keydown', (e) => {
@@ -106,7 +115,35 @@ function names() {
   return applyTemplate(el.querySelector('#rnTpl').value, items, start);
 }
 
-function preview() {
+// names for the files that have none yet, while {ai} is in the template
+async function askAi() {
+  if (aiBusy) return;
+  const want = items.filter((it) => !aiNames.has(it.id) && !it.aiName && it.thumb);
+  if (!want.length) return;
+  aiBusy = true; aiErr = '';
+  const st = el.querySelector('.rn-aist');
+  const C = await import('../lib/aicloud.js');
+  let done = 0;
+  try {
+    for (let i = 0; i < want.length && isRenameOpen(); i += 6) {
+      st.hidden = false; st.textContent = `ИИ придумывает названия: ${done} из ${want.length}…`;
+      const part = want.slice(i, i + 6), pics = [];
+      for (const it of part) { try { pics.push([it, await C.smallCopy(it)]); } catch (e) { aiNames.set(it.id, it.name); } }
+      if (!pics.length) continue;
+      const got = await C.nameOnly(pics.map((x) => x[1]));
+      pics.forEach(([it], k) => { aiNames.set(it.id, got[k] || it.name); if (got[k]) it.aiName = got[k]; });
+      done += part.length;
+      if (isRenameOpen()) preview(true);
+    }
+    st.hidden = true;
+  } catch (e) { aiErr = (e && e.message) || String(e); st.hidden = false; st.textContent = 'ИИ не ответил: ' + aiErr; }
+  aiBusy = false;
+  if (isRenameOpen()) preview(true);
+}
+
+function preview(fromAi) {
+  const tplNow = el.querySelector('#rnTpl').value;
+  if (/\{ai\}/.test(tplNow) && fromAi !== true) askAi();
   const next = names();
   const empty = next.filter((n) => !n).length, same = next.filter((n, i) => n === items[i].name).length;
   const MAX = 200;
@@ -116,8 +153,9 @@ function preview() {
     return `<li class="${cls.trim()}"><span title="${esc(it.name)}">${esc(it.name)}${ext}</span><span title="${esc(next[i])}">${next[i] ? esc(next[i]) + ext : 'пустое имя'}</span></li>`;
   }).join('') + (items.length > MAX ? `<li class="more">и ещё ${items.length - MAX}</li>` : '');
   const go = el.querySelector('#rnGo');
-  go.disabled = !!empty || same === items.length;
-  go.textContent = empty ? 'Есть пустые имена' : same === items.length ? 'Имена не меняются' : 'Переименовать';
+  const waiting = aiBusy && /\{ai\}/.test(tplNow);
+  go.disabled = !!empty || same === items.length || waiting;
+  go.textContent = waiting ? 'ИИ ещё думает…' : empty ? 'Есть пустые имена' : same === items.length ? 'Имена не меняются' : 'Переименовать';
 }
 
 function apply() {

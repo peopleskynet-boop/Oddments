@@ -1,33 +1,54 @@
-/* «Плагины» (plugins.js): a sheet over everything, one glass card per integration */
-.plg { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 28px; background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(10px); animation: fade .22s; }
+/* «Плагины» (plugins.js): a sheet over everything. Not a grid of web cards (audit 24.10) but the wall's own language:
+   the cross grid behind, one row per integration on a common column — mark, name and version in mono, what it does,
+   the actions at the right edge — // marks and (counters) in «Марафон». */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.plg { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 28px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); animation: fade .22s; }
 .plg[hidden] { display: none; }
-.plg-sheet { width: min(980px, 100%); max-height: 100%; overflow: auto; scrollbar-width: none; padding: 4px; }
+.plg::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: var(--hud, var(--line-2)); opacity: .3;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M24 20v8M20 24h8' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") 0 0 / 48px 48px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M24 20v8M20 24h8' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") 0 0 / 48px 48px; }
+.plg-sheet { position: relative; width: min(1040px, 100%); max-height: 100%; overflow: auto; scrollbar-width: none; padding: 4px; }
 .plg-sheet::-webkit-scrollbar { display: none; }
 .plg-top { display: flex; align-items: center; gap: 12px; padding: 4px 4px 6px; }
 .plg-top h2 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.035em; }
-:root[data-theme="marathon"] .plg-top h2 { text-transform: uppercase; }
+.plg-n { color: var(--mut); font-weight: 500; }
 .plg-st { margin-right: auto; display: inline-flex; align-items: center; gap: 7px; }
 .plg-st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mut); }
 .plg-st.ok::before { background: var(--acc); box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 60%, transparent); }
 .plg-top .ib { width: 40px; height: 40px; }
 .plg-lead { margin: 0 4px 18px; color: var(--mut); font-size: 13px; max-width: 640px; }
-.plg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; align-items: start; }
-.plg-c { border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-.plg-h { display: flex; align-items: center; gap: 12px; }
+/* one row per plugin: mark · name / version / status · what it does · actions; the steps open under the row */
+.plg-grid { display: grid; gap: 10px; }
+.plg-c { position: relative; border-radius: 24px; padding: 16px 18px; display: grid; grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) auto; align-items: center; column-gap: 22px; row-gap: 12px; }
+.plg-h { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .plg-h h3 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
-.plg-v { font-size: 12px; color: var(--mut); }
-.plg-h > div { min-width: 0; }
-.plg-i { width: 42px; height: 42px; flex: none; border-radius: 14px; display: grid; place-items: center; background: var(--hover-2); }
+.plg-v { font: 500 11px var(--mono); color: var(--mut); letter-spacing: .02em; }
+.plg-h > div { min-width: 0; display: grid; gap: 2px; }
+.plg-i { width: 44px; height: 44px; flex: none; border-radius: 15px; display: grid; place-items: center; background: var(--hover-2); }
 .plg-i svg { width: 22px; height: 22px; }
-.plg-s { display: flex; margin-top: 3px; align-items: center; gap: 6px; font-size: 11.5px; color: var(--mut); white-space: nowrap; }
+.plg-s { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--mut); white-space: nowrap; }
 .plg-s i { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--mut) 60%, transparent); }
 .plg-s.was i { background: var(--mut); }
 .plg-s.on { color: var(--fg); }
 .plg-s.on i { background: var(--acc); box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 60%, transparent); }
-.plg-w { margin: 0; font-size: 13px; line-height: 1.5; color: color-mix(in srgb, var(--fg) 82%, var(--mut)); }
-.plg-a { display: flex; flex-wrap: wrap; gap: 8px; }
+.plg-w { margin: 0; font-size: 13px; line-height: 1.5; color: color-mix(in srgb, var(--fg) 82%, var(--mut)); max-width: 460px; }
+.plg-a { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .plg-a .ibtn { height: 36px; }
 .plg-a .ibtn.ghost { background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); }
-.plg-steps { margin: 0; padding: 12px 14px 12px 32px; border-radius: 16px; background: var(--hover); font-size: 12.5px; line-height: 1.55; display: grid; gap: 6px; }
+.plg-steps { grid-column: 1 / -1; margin: 0; padding: 12px 14px 12px 32px; border-radius: 16px; background: var(--hover); font-size: 12.5px; line-height: 1.55; display: grid; gap: 6px; }
 .plg-steps[hidden] { display: none; }
+/* «Марафон»: the HUD type on the names, versions and statuses; a connected plugin's row gets the corner brackets
+   the wall gives a hovered card */
+:root[data-theme="marathon"] .plg-top h2 { text-transform: uppercase; }
+:root[data-theme="marathon"] .plg-top h2::before { content: '// '; color: var(--hud); font-weight: 500; }
+:root[data-theme="marathon"] .plg-h h3 { font: 600 14px var(--mono); text-transform: uppercase; letter-spacing: .05em; }
+:root[data-theme="marathon"] .plg-v { color: var(--hud); }
+:root[data-theme="marathon"] .plg-s { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+:root[data-theme="marathon"] .plg-c:has(.plg-s.on) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 35%, transparent); }
+@media (max-width: 900px) {
+  .plg-c { grid-template-columns: minmax(0, 1fr); }
+  .plg-a { justify-content: flex-start; }
+}
 @media (max-width: 700px) { .plg { padding: 12px; } .plg-top h2 { font-size: 24px; } }
+}

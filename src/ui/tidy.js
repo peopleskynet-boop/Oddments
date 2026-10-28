@@ -11,11 +11,12 @@ import { similarTo } from '../lib/similar.js';
 import { toast } from './dialogs.js';
 import { openPreview, isPreviewOpen } from './preview.js';
 import { sfx } from './sound.js';
+import { readPref, writePref } from '../lib/prefs.js';
 
 const SKIP = 'perch.tidySkip';
 let el = null, list = null, rows = [], shown = 0;
-const skipped = () => { try { return new Set(JSON.parse(localStorage.getItem(SKIP) || '[]')); } catch (e) { return new Set(); } };
-const keepSkipped = (set) => { try { localStorage.setItem(SKIP, JSON.stringify([...set].slice(-2000))); } catch (e) { /* private mode */ } };
+const skipped = () => new Set(readPref(SKIP, []));
+const keepSkipped = (set) => writePref(SKIP, [...set].slice(-2000));
 
 export const isTidyOpen = () => !!(el && !el.hidden);
 

@@ -53,7 +53,10 @@ export function readableFrom(html, url) {
   return readDoc(doc, url, paywall);
 }
 async function readDoc(doc, url, paywall) {
-  const base = doc.createElement('base'); base.href = url; doc.head.prepend(base); // relative links and pictures
+  // relative links and pictures made absolute by hand: a <base> breaks the app's CSP (base-uri 'self', bug #121)
+  const abs = (u) => { try { return new URL(u, url).href; } catch (e) { return u; } };
+  doc.querySelectorAll('[href], [src], [poster], [data-src]').forEach((n) => { for (const a of ['href', 'src', 'poster', 'data-src']) { const v = n.getAttribute(a); if (v && !/^(#|data:|blob:|javascript:|mailto:)/i.test(v)) n.setAttribute(a, abs(v)); } });
+  doc.querySelectorAll('[srcset]').forEach((n) => n.setAttribute('srcset', n.getAttribute('srcset').split(',').map((p) => { const [u, ...w] = p.trim().split(/\s+/); return [abs(u), ...w].join(' '); }).join(', ')));
   const og = (p) => { const m = doc.querySelector(`meta[property="${p}"], meta[name="${p}"]`); return m ? m.getAttribute('content') || '' : ''; };
   const image = og('og:image') || og('twitter:image');
   const published = Date.parse(og('article:published_time')) || 0;

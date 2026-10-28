@@ -1,4 +1,6 @@
 /* the preview of a block of a page (blockview.js) */
+@layer tokens, base, components, screens, themes;
+@layer components {
 .pv-hold.bv-host { padding: 0 72px 16px; }
 .bv { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
 .bv-tabs { justify-self: center; display: inline-flex; gap: 2px; padding: 4px; border-radius: 99px; }
@@ -38,3 +40,4 @@
 .bv-sw { width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); transition: transform .15s; }
 .bv-sw:hover { transform: scale(1.15); }
 .bv-copy { height: 32px; font-size: 12.5px; }
+}

@@ -33,7 +33,7 @@
     button.on { display: flex; }
     button:hover { background: #c6ff00; color: #0a0b09; }
     i { width: 9px; height: 9px; border-radius: 3px; border: 2px solid currentColor; }
-  </style><button type="button"><i></i>В Oddments</button>`;
+  </style><button type="button"><i></i>${T('В Oddments')}</button>`;
   const btn = root.querySelector('button');
   const mount = () => { if (!host.isConnected && document.body) document.body.appendChild(host); };
   let hideT = null;

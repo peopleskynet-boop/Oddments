@@ -2,6 +2,7 @@
 // ones, name the flow) → a collection marked as a flow: the screens in order, numbered steps on the cards.
 // The collection gets two optional fields, `flow: true` and `order: [ids]` — no migration needed.
 import './flows.css';
+import { pushLayer, popLayer } from './layers.js';
 import { S, ui } from '../state.js';
 import { esc, plural, uid } from '../util.js';
 import { ic } from './icons.js';
@@ -11,8 +12,10 @@ import { screensOf } from '../lib/flows.js';
 import { toast } from './dialogs.js';
 import { pixLoader } from './pixload.js';
 import { sfx } from './sound.js';
+import { readPref, writePref } from '../lib/prefs.js';
 
 let el = null, shots = [], off = new Set(), cancel = false, url = null, loader = null;
+const prefs = readPref('perch.flows', { pii: true }); // hide personal data on the saved screens (masker.js)
 export const isFlowOpen = () => !!(el && !el.hidden);
 
 function build() {
@@ -24,13 +27,14 @@ function build() {
   el.innerHTML = `<div class="flw-bar glass"><span class="orb-t">Сценарий</span>` +
     `<input class="flw-name" type="text" placeholder="Название сценария" aria-label="Название сценария" spellcheck="false">` +
     `<span class="flw-sum cap-sm" aria-live="polite"></span>` +
+    `<label class="flw-pii" title="Номера карт, телефоны, имена и суммы на экранах — пикселями, в сохранённых файлах"><input type="checkbox" data-fl="pii"${prefs.pii ? ' checked' : ''}> Скрыть личные данные</label>` +
     `<button type="button" class="ibtn pri" data-fl="save" disabled>Сохранить</button>` +
     `<button type="button" class="ib" data-fl="close" aria-label="Закрыть" title="Закрыть (Esc)">${ic('x')}</button></div>` +
     '<div class="flw-body"></div>';
   document.body.appendChild(el);
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-fl]');
-    if (b) { if (b.dataset.fl === 'close') closeFlow(); else if (b.dataset.fl === 'save') save(); return; }
+    if (b) { if (b.dataset.fl === 'close') closeFlow(); else if (b.dataset.fl === 'save') save(); else if (b.dataset.fl === 'pii') { prefs.pii = b.checked; writePref('perch.flows', prefs); } return; }
     const c = e.target.closest('.flw-c');
     if (c) toggle(+c.dataset.i);
   });
@@ -76,6 +80,7 @@ async function run(src, name) {
   cancel = false; shots = []; off = new Set();
   el.hidden = false;
   document.body.classList.add('flow-on');
+  pushLayer({ el, title: 'Сценарий из записи', close: closeFlow });
   sfx('open');
   const inp = el.querySelector('.flw-name');
   inp.value = name || '';
@@ -126,6 +131,7 @@ export function closeFlow() {
   shots = [];
   el.hidden = true;
   document.body.classList.remove('flow-on');
+  popLayer(el);
   sfx('close');
 }
 
@@ -138,15 +144,40 @@ async function save() {
   const w = Math.max(2, String(keep.length).length);
   const list = keep.map((s, i) => ({ blob: s.blob, name: `${name} — ${String(i + 1).padStart(w, '0')}.png` }));
   const times = keep.map((s) => Math.round(s.t * 10) / 10);
+  // what the recording says about the way between two kept steps (for the CJM hints, cjm.js): a loading screen right
+  // before a step — the wait; a screen seen before — the person went back. Optional field `flowSig` of the step's file.
+  const kept = keep.map((s) => shots.indexOf(s));
+  const sigs = kept.map((si, k) => {
+    const out = [], from = k ? kept[k - 1] + 1 : 0;
+    for (let j = from; j < si; j++) {
+      const x = shots[j];
+      if (x.empty) out.push({ k: 'wait', s: Math.round((shots[si].t - x.t) * 10) / 10 });
+      else if (x.dup >= 0) { const to = kept.findIndex((q) => q === x.dup || (shots[q] && shots[q].dup === x.dup)); out.push({ k: 'back', to: to >= 0 ? to + 1 : 0 }); }
+    }
+    return out;
+  });
   closeFlow();
+  let hidden = 0, unread = false;
+  if (prefs.pii) {
+    const { maskBlobAuto } = await import('../lib/masker.js');
+    const { busy } = await import('./dialogs.js');
+    for (let i = 0; i < list.length; i++) {
+      busy(`Скрываю личные данные · ${i + 1} из ${list.length}`, (i + 1) / list.length);
+      const r = await maskBlobAuto(list[i].blob).catch(() => ({ blob: list[i].blob, n: 0, ok: false }));
+      list[i].blob = r.blob; hidden += r.n; if (!r.ok) unread = true;
+    }
+  }
   const added = await addFromBlobs(list, { folder: fid });
   // the import runs three at a time: the order comes back from the step numbers in the names
   const f = S.folders.find((x) => x.id === fid);
   const ordered = added.slice().sort((a, b) => a.name.localeCompare(b.name, 'ru', { numeric: true }));
   if (f) f.order = ordered.map((x) => x.id);
-  ordered.forEach((x, i) => { x.flowT = times[i]; }); // the second of the recording (optional field): step timing in Figma
+  ordered.forEach((x, i) => { x.flowT = times[i]; if (sigs[i].length) x.flowSig = sigs[i]; }); // the second of the recording (optional field): step timing in Figma
   saveIndex();
   setView('folder', fid);
   ui.renderSide && ui.renderSide();
-  toast(`Сценарий «${name}»: ${added.length} ${plural(added.length, ['экран', 'экрана', 'экранов'])}`, 3500);
+  if (hidden) added.forEach((x) => { x.masked = true; delete x.pii; });
+  saveIndex();
+  toast(`Сценарий «${name}»: ${added.length} ${plural(added.length, ['экран', 'экрана', 'экранов'])}` +
+    (prefs.pii ? (unread ? ' · личные данные не проверены: чтение текста выключено (Настройки › ИИ)' : hidden ? ` · скрыто личных данных: ${hidden}` : ' · личных данных не нашлось') : ''), 5000);
 }

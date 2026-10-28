@@ -11,6 +11,7 @@ import * as fs from '@tauri-apps/plugin-fs';
 import { fetch as tfetch } from '@tauri-apps/plugin-http';
 import { absPath } from './library.js';
 import { SOURCES, readSource } from './feed.js';
+import { readPref, writePref } from './prefs.js';
 
 export const AI_SOURCES = [
   // popularity across Hacker News, GitHub, LessWrong, Lobsters, Replicate on one scale — Denis Trends by Denis Shiryaev
@@ -44,8 +45,8 @@ const AI_ALL = [...AI_SOURCES, ...SOURCES.filter((s) => s.topic === 'ai')];
 const DAY = 864e5, WINDOW = 1.5 * DAY;
 
 const PREFS = 'perch.digest';
-export const digestPrefs = () => { try { return { auto: false, model: 'claude-sonnet-5-5', ...JSON.parse(localStorage.getItem(PREFS) || '{}') }; } catch (e) { return { auto: false, model: 'claude-sonnet-5-5' }; } };
-export const setDigestPrefs = (p) => { try { localStorage.setItem(PREFS, JSON.stringify({ ...digestPrefs(), ...p })); } catch (e) { /* private */ } };
+export const digestPrefs = () => readPref(PREFS, { auto: false, model: 'claude-sonnet-5-5' });
+export const setDigestPrefs = (p) => writePref(PREFS, { ...digestPrefs(), ...p });
 
 const dayKey = (t = Date.now()) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const file = (key) => absPath(`news/digest-${key}.json`);

@@ -5,6 +5,7 @@
 // and marquee for several; smart guides snap to the centre, the keylines, the margins and other shapes. The geometry,
 // the rules check and every size in Fill and Outline come from ../lib/iconkit.js; AI variants from ../lib/iconai.js.
 import './iconkit.css';
+import { pushLayer, popLayer } from './layers.js';
 import { $, esc } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
@@ -56,6 +57,7 @@ export async function openIconKit(fromItem) {
   if (fromItem) await useSvgItem(fromItem);
   el.hidden = false;
   document.body.classList.add('s3d-on', 'ik-on');
+  pushLayer({ el, title: 'Конструктор иконок', close: closeIconKit, onKey });
   sfx('orbit');
   requestAnimationFrame(() => { fit(); draw(); });
 }
@@ -65,6 +67,7 @@ export function closeIconKit() {
   sfx('close');
   el.hidden = true;
   document.body.classList.remove('s3d-on', 'ik-on');
+  popLayer(el);
   document.getElementById('grid').focus({ preventScroll: true });
 }
 
@@ -140,6 +143,7 @@ function build() {
         <span class="ik-h">ИИ: опишите иконку</span>
         <div class="ik-ask"><input id="ikAsk" type="text" placeholder="умная лампа с Wi-Fi" autocomplete="off"><button type="button" data-ik="gen" title="Сгенерировать варианты (Enter)" aria-label="Сгенерировать">${ic('sparkle')}</button></div>
         <div class="ik-ask-foot"><button type="button" class="ik-model" data-ik="model" aria-haspopup="menu" aria-expanded="false" title="Модель"></button><span>Enter — 3 варианта</span></div>
+        <div class="ik-like ik-words" id="ikWords" hidden><span class="ik-h">Уже есть в библиотеке</span><div class="ik-like-g"></div></div>
         <div class="ik-trace" id="ikTrace" hidden></div>
         <div class="ik-vars" id="ikVars"></div>
       </div>
@@ -155,7 +159,8 @@ function build() {
   el.addEventListener('input', onInput);
   el.addEventListener('change', (e) => { if (e.target.dataset.k) { keep(); draw(); } });
   $('#ikAsk').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); gen(el.querySelector('[data-ik="gen"]')); } });
-  document.addEventListener('keydown', onKey, true);
+  $('#ikAsk').addEventListener('input', wordsSoon);
+  el.addEventListener('keydown', onKey, true); // keys outside the layer (focus on the page body) come through layers.js
   document.addEventListener('keyup', (e) => { if (e.code === 'Space') { spaceDown = false; svg.classList.remove('pan'); } }, true);
   bindCanvas();
   // an SVG dropped on the canvas: stylized (the app's own drop handling stays off while the constructor is open)
@@ -230,6 +235,27 @@ function likeSoon() {
     const { assetUrl } = await import('../lib/library.js');
     box.querySelector('.ik-like-g').innerHTML = list.map((x, i) => `<button type="button" class="ik-like-c" data-like="${i}" title="${esc(x.it.name.split(' — ')[0])} · похожа на ${Math.round(x.score * 100)} % · клик — открыть здесь (Ctrl+Z вернёт вашу)"><img src="${assetUrl(x.it.thumb)}" alt=""><span>${esc(x.it.name.split(' — ')[0])}</span></button>`).join('');
   }, 700);
+}
+
+// «Уже есть в библиотеке» under the description: icons the library has for these words (lib/iconlike.js
+// iconsByWords) — a base to open instead of drawing anew; no API key needed, the local AI adds matches by meaning
+let wordsT = 0, wordsItems = [];
+function wordsSoon() {
+  clearTimeout(wordsT);
+  wordsT = setTimeout(async () => {
+    const box = $('#ikWords');
+    if (!box) return;
+    const ask = $('#ikAsk').value.trim();
+    const { iconsByWords } = await import('../lib/iconlike.js');
+    let meaning = null;
+    try { const ai = await import('../lib/ai.js'); if (ai.aiReady()) meaning = await ai.scoreText(ask); } catch (e) { meaning = null; }
+    if ($('#ikAsk').value.trim() !== ask) return; // typed on meanwhile
+    const list = ask ? iconsByWords(ask, { meaning }) : [];
+    wordsItems = list.map((x) => x.it);
+    box.hidden = !list.length;
+    const { assetUrl } = await import('../lib/library.js');
+    box.querySelector('.ik-like-g').innerHTML = list.map((x, i) => `<button type="button" class="ik-like-c" data-word="${i}" title="${esc(x.it.name.split(' — ')[0])} · ${x.why === 'words' ? 'по словам' : 'по смыслу'} · клик — открыть здесь как основу (Ctrl+Z вернёт вашу)"><img src="${assetUrl(x.it.thumb)}" alt=""><span>${esc(x.it.name.split(' — ')[0])}</span></button>`).join('');
+  }, 350);
 }
 
 let guides = []; // [{ axis: 'x'|'y', v }] shown while dragging
@@ -463,7 +489,8 @@ function checksHtml() {
     return `<div class="ik-chk ${c.soft ? 'soft' : 'bad'} more"><b>${esc(c.text)}</b>${c.how ? `<small>${esc(c.how)}</small>` : ''}${acts ? `<span class="ik-chk-a">${acts}</span>` : ''}</div>`;
   };
   return `<div class="ik-sec"><span class="ik-h">Проверка</span>${list.map(row).join('')}${small.map((c) => row(c, -1)).join('')}<button type="button" class="ibtn wide" data-ik="fix" title="На пиксельную сетку, внутрь полей, оптический центр">Привести к правилам</button></div>`
-    + (tips.length ? `<div class="ik-sec"><span class="ik-h">Хороший тон</span>${tips.map((c) => `<p class="ik-chk ${c.ok ? 'ok' : 'soft'}">${esc(c.text)}</p>`).join('')}</div>` : '');
+    // «Хороший тон» (the user asked what it is): soft advice, not rules — what a careful designer would look at again
+    + (tips.length ? `<div class="ik-sec"><span class="ik-h">Хороший тон</span><p class="ik-note">Советы, а не правила: на что ещё посмотреть глазами. Жёлтое можно оставить, если так задумано.</p>${tips.map((c) => (c.ok ? `<p class="ik-chk ok">${esc(c.text)}</p>` : row({ ...c, soft: true }, -1))).join('')}</div>` : '');
 }
 function sizesHtml() {
   if (!doc.shapes.length) return '';
@@ -501,6 +528,8 @@ function onInput(e) {
 function onClick(e) {
   const like = e.target.closest('[data-like]');
   if (like) { const it = likeItems[+like.dataset.like]; if (it) useSvgItem(it); return; }
+  const word = e.target.closest('[data-word]');
+  if (word) { const it = wordsItems[+word.dataset.word]; if (it) useSvgItem(it); return; }
   const b = e.target.closest('button, [data-var]');
   if (!b) return;
   if (b.dataset.var != null && !b.dataset.ik) { useVariant(+b.dataset.var); return; }
@@ -1038,7 +1067,10 @@ async function gen(btn) {
   const ask = $('#ikAsk').value.trim();
   if (!ask) { $('#ikAsk').focus(); toast('Опишите иконку словами: «умная лампа с Wi-Fi», «календарь с галочкой»'); return; }
   const ai = AIK = AIK || await import('../lib/iconai.js');
-  if (!ai.aiPrefs().key) { toast('Нужен ключ API: Настройки › «ИИ для иконок»', 7000); return; }
+  if (!ai.aiPrefs().key) {
+    toast(wordsItems.length ? 'Без ключа API рисовать не выйдет — но в библиотеке уже есть похожие: они под полем' : 'Нужен ключ API: Настройки › «ИИ для иконок»', 7000);
+    return;
+  }
   btn.disabled = true;
   const model = shortModel(ai.aiPrefs().model);
   const t = $('#ikTrace');
@@ -1049,20 +1081,27 @@ async function gen(btn) {
   const h = t.querySelector('.ik-tr-h');
   h.append(live.el);
   h.insertAdjacentHTML('beforeend', ic('caretD'));
-  const prep = ['done', 'Правила иконок, примитивы и 5 примеров'];
-  trace([prep, ['run', `Запрос к ${model} · обычно 10–30 с`], ['wait', 'Проверка по правилам']]);
+  const prep = ['done', 'Правила иконок и примеры из библиотеки'];
+  let ask1 = ['run', `Запрос к ${model} · обычно 15–40 с`];
+  trace([prep, ask1, ['wait', 'Модель смотрит на варианты'], ['wait', 'Проверка по правилам']]);
   $('#ikVars').innerHTML = '';
   try {
-    const r = await ai.generateIcons(ask, 3);
+    let t1 = '';
+    const r = await ai.generateIcons(ask, 3, (text) => {
+      if (text.startsWith('Модель смотрит')) {
+        t1 = elapsed(live.since());
+        live.set('Модель смотрит на варианты');
+        trace([prep, ['done', ask1[1].replace(/ · обычно.*/, '') + ' · ' + t1], ['run', 'Модель смотрит на варианты'], ['wait', 'Проверка по правилам']]);
+      } else { ask1 = ['run', text.replace('Запрос к модели', `Запрос к ${model}`)]; trace([prep, ask1, ['wait', 'Модель смотрит на варианты'], ['wait', 'Проверка по правилам']]); }
+    });
     variants = r.variants;
-    if (!variants.length) throw new Error('модель не прислала ни одного годного варианта');
-    const took = elapsed(live.since());
+    const ex = r.examples.total ? `примеры: ${r.examples.mine} ваших из ${r.examples.total}` : 'примеры встроенные — отправьте свои иконки из Figma (плагин › «Иконки»)';
+    const looked = ['done', r.redone ? `Модель посмотрела: переделано ${r.redone}` : 'Модель посмотрела: всё похоже на запрос'];
     live.set('Проверяю по правилам');
-    trace([prep, ['done', `Ответ ${model} · ${took}`], ['run', 'Проверка по правилам']]);
     const bad = drawVariants(), n = variants.length;
     live.stop();
     t.classList.remove('open');
-    trace([prep, ['done', `Ответ ${model} · ${took}`], ['done', bad ? `Проверка: замечания у ${bad} из ${n}` : 'Проверка: все по правилам']],
+    trace([['done', 'Правила иконок, ' + ex], ['done', `Ответ ${model} · ${t1}`], looked, ['done', bad ? `Проверка: замечания у ${bad} из ${n}` : 'Проверка: все по правилам']],
       { state: 'done', text: `Готово за ${elapsed(live.since())} · ${n} ${n === 1 ? 'вариант' : n < 5 ? 'варианта' : 'вариантов'}` });
     t.querySelector('.ik-tr-h').setAttribute('aria-expanded', 'false');
     sfx('done');
@@ -1076,7 +1115,7 @@ function drawVariants() {
   $('#ikVars').innerHTML = variants.map((v, i) => {
     const r = K.build(v.shapes, 24), bad = K.check(v.shapes, 24).filter((c) => !c.ok).length;
     if (bad) worse++;
-    return `<button type="button" class="ik-var" data-var="${i}" title="${esc(v.idea || v.name)} — открыть в конструкторе">
+    return `<button type="button" class="ik-var" data-var="${i}" title="${esc((v.idea || v.name) + (v.why ? ' · ' + (v.redone ? 'переделано: ' : '') + v.why : ''))} — открыть в конструкторе">
       <span class="ik-var-pic"><svg viewBox="0 0 24 24"><path d="${r.outline}" fill-rule="evenodd"/></svg><svg viewBox="0 0 24 24"><path d="${r.fill}" fill-rule="evenodd"/></svg></span>
       <b>${esc(v.name)}</b><i class="${bad ? 'bad' : 'ok'}">${bad ? 'замечаний: ' + bad : 'по правилам'}</i></button>`;
   }).join('');

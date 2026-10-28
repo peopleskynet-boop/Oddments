@@ -1,0 +1,91 @@
+/* ——— the layout grid canvas (frame.js): «Марафон» and «Тишина» ——— */
+#frame { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: none; }
+:root[data-theme="marathon"] #frame, :root[data-theme="calm"] #frame { display: block; }
+:root[data-theme="marathon"] body, :root[data-theme="calm"] body { background-image: none; }
+
+/* ——— «Чистый экран» (clean.js): only the references; the panels wait at the edges ——— */
+/* nothing waits on the right in the clean mode: the bar and the tabs reach the edge of the window; the
+   properties panel (only with a selection) starts under them instead of sharing the top row */
+body.clean { --pl: 28px; --pr: 28px; }
+body.clean .insp { top: calc(var(--gap) + var(--barh) + 76px); }
+/* the sidebar slides in on the smooth spring and slides back out (it stays visible until it is gone: the
+   visibility switch waits for the slide, or the panel vanished in one frame) */
+body.clean .side, body.clean.side-off .side {
+  transform: translateX(calc(-100% - 24px)) scale(.98); opacity: 0; pointer-events: none; visibility: hidden;
+  transition: transform .42s cubic-bezier(.5, 0, .2, 1), opacity .3s ease .08s, box-shadow .3s, visibility 0s linear .42s;
+}
+body.clean.peek-side .side, body.clean.side-off.peek-side .side {
+  transform: none; opacity: 1; pointer-events: auto; visibility: visible; box-shadow: var(--shadow);
+  transition: transform var(--sp-smooth-t, .5s) var(--sp-smooth, cubic-bezier(.2, .8, .2, 1)), opacity .2s ease, box-shadow .3s, visibility 0s;
+}
+body.clean:not(.motion) .side { transition: opacity .15s, visibility 0s linear .15s; }
+body.clean:not(.motion).peek-side .side { transition: opacity .15s, visibility 0s; }
+/* a hint at the left edge: a soft line that brightens as the pointer comes near, so the panel is easy to find */
+.side-lip::before { content: ""; position: absolute; inset: -12px -14px; } /* a comfortable hit area around the 4px line */
+.side-lip { position: fixed; z-index: 19; left: 4px; top: 50%; width: 4px; height: 96px; padding: 0; border: 0; translate: 0 -50%; border-radius: 99px; cursor: pointer; display: none;
+  background: var(--hud, var(--fg)); opacity: calc(var(--near, 0) * .7); scale: 1 calc(.6 + var(--near, 0) * .5); transition: opacity .2s, scale .3s var(--sp-snappy, ease); }
+body.clean:not(.peek-side) .side-lip { display: block; }
+body.clean .head, body.clean .covers, body.clean .newbar { display: none; }
+body.clean .scroll { padding-top: 78px; overflow-x: hidden; }
+body.clean .tabrow { margin-bottom: 26px; transition: margin .35s var(--ease); }
+body.clean.overlay .tabrow { margin-right: 4px; }
+/* a pinned sidebar takes its column back: the grid, the tabs and the top bar move over instead of running under it */
+body.clean.peek-pin { --pl: calc(var(--sw) + var(--gap) + 20px); }
+body.clean.peek-pin .side { box-shadow: none; }
+/* the top bar and the tabs only show when called; they then sit on a strip of Liquid Glass across the window
+   (blur + a tint of the background, dissolving downwards), so search, tabs and sorting never mix with the
+   pictures under them. The tabrow itself never fades: opacity on it would cut the glass off from what is
+   behind (a backdrop root) — its children and the strip fade instead. */
+body.clean .tabrow::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  left: calc(-4px - var(--pl) - var(--tabx, 0px)); right: calc(-8px - var(--pr)); top: -140px; bottom: -30px;
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-mask: linear-gradient(#000 calc(100% - 46px), rgba(0, 0, 0, .55) calc(100% - 22px), transparent);
+  mask: linear-gradient(#000 calc(100% - 46px), rgba(0, 0, 0, .55) calc(100% - 22px), transparent);
+}
+:root[data-theme="light"] body.clean .tabrow::before, :root[data-theme="calm"] body.clean .tabrow::before { background: color-mix(in srgb, var(--bg) 66%, transparent); }
+/* the corner labels sit on the same kind of strip when the wall is scrolled under them */
+body.clean .edge { height: 64px; background: linear-gradient(var(--bg) 40%, transparent); }
+body.clean .bar, body.clean .tabrow > *, body.clean .tabrow::before, body.clean .dock { opacity: 0; transition: opacity .28s var(--ease), translate .35s var(--ease), left .35s var(--ease), right .35s var(--ease); }
+body.clean .tabrow { pointer-events: none; }
+body.clean .tabrow > * { pointer-events: auto; }
+body.clean .bar { translate: 0 -10px; }
+body.clean .tabrow > * { translate: 0 -6px; }
+body.clean .dock { translate: -50% 12px; }
+/* focus holds a panel up only for the keyboard (body.kbd) or while typing in the search: a mouse click that
+   leaves focus on «Ещё» or the sort button must not keep the row on screen after its menu closes */
+body.clean.peek-top .bar, body.clean .bar:hover, body.clean.kbd .bar:focus-within, body.clean .bar:has(#q:focus), body.clean .bar:has(#q:not(:placeholder-shown)),
+body.clean.peek-top .tabrow > *, body.clean .tabrow:hover > *, body.clean.kbd .tabrow:focus-within > *,
+body.clean.peek-top .tabrow::before, body.clean .tabrow:hover::before, body.clean.kbd .tabrow:focus-within::before { opacity: 1; translate: 0 0; }
+/* the sidebar that only peeked in at the edge pushes the search and the tabs aside; the grid stays put */
+body.clean.peek-side:not(.peek-pin) .bar { left: calc(var(--sw) + var(--gap) * 2 + 4px); }
+body.clean.peek-side:not(.peek-pin) .tabrow { --tabx: var(--sw); margin-left: calc(4px + var(--sw)); }
+body.clean.peek-dock .dock, body.clean .dock:hover, body.clean.kbd .dock:focus-within { opacity: 1; translate: -50% 0; }
+/* the corner labels in place of the big header */
+.hud-c { display: none; }
+body.clean .hud-c { display: block; }
+.hud-c > div, .hud-c > nav { position: fixed; z-index: 14; top: 22px; display: flex; gap: 18px; align-items: center; font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--mut);
+  pointer-events: none; transition: opacity .25s var(--ease); white-space: nowrap; }
+.hud-c .hud-tl { left: 28px; color: var(--fg); gap: 8px; }
+.hud-c .hud-tl b { color: var(--hud, var(--red)); font-weight: 500; }
+.hud-c .hud-tl span { color: var(--mut); }
+body.clean.peek-top .hud-c .hud-tl, body.clean .bar:focus-within ~ .hud-c .hud-tl { opacity: 0; }
+/* bottom-left: the ways back to the hidden panels, real buttons with their keys */
+.hud-c .hud-bl { top: auto; bottom: 20px; left: 22px; gap: 2px; pointer-events: auto; }
+/* the side panel out over them (peek or pinned): they would show from under its edge */
+.hud-c .hud-bl { transition: opacity .2s; }
+body.clean.peek-side .hud-c .hud-bl { opacity: 0; pointer-events: none; }
+/* the selection bar sits on the same bottom line in the clean screen (bug #119) */
+body.clean:has(.selbar.on) .hud-c .hud-bl { opacity: 0; pointer-events: none; }
+.hud-bl button { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 9px 0 6px; border-radius: 8px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--mut); transition: color .15s, background .15s; }
+.hud-bl button:hover, .hud-bl button:focus-visible { color: var(--fg); background: var(--hover); }
+.hud-bl kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--line-2); color: var(--fg); font: 500 10px/1 var(--mono); letter-spacing: 0; text-transform: none; }
+:root[data-theme="marathon"] .hud-bl kbd { color: var(--hud); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hud) 40%, transparent); }
+body.clean.peek-dock .hud-bl { opacity: .55; }
+:root[data-theme="calm"] .hud-c > div, :root[data-theme="light"] .hud-c > div { text-transform: none; letter-spacing: 0; font-size: 11.5px; }
+@media (max-width: 860px) { .hud-c .hud-bl { display: none; } }
+/* hidden panels take no clicks: invisible buttons over the cards (and over these labels) were a trap.
+   They come back with the peek (pointer near the edge), with keyboard focus or while search has text */
+body.clean:not(.peek-top) .bar > *, body.clean:not(.peek-top) .tabrow > *, body.clean:not(.peek-dock) .dock { pointer-events: none; }
+body.clean.kbd .bar:focus-within > *, body.clean .bar:has(#q:focus) > *, body.clean .bar:has(#q:not(:placeholder-shown)) > *, body.clean.kbd .tabrow:focus-within > *, body.clean.kbd .dock:focus-within { pointer-events: auto; }

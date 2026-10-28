@@ -1,0 +1,23 @@
+{
+  "name": {
+    "message": "Oddments — save to your library"
+  },
+  "desc": {
+    "message": "Saves pictures, videos, links and screenshots to Oddments on this computer: right click, Alt+click, drag and drop, all pictures of a page at once, UI blocks with a screenshot and code, Behance animations (Vimeo) as files."
+  },
+  "cmd_shot_visible": {
+    "message": "Screenshot of the visible area to Oddments"
+  },
+  "cmd_shot_area": {
+    "message": "Screenshot of a selected area to Oddments"
+  },
+  "cmd_save_all": {
+    "message": "All pictures on the page…"
+  },
+  "cmd_save_article": {
+    "message": "Save the article to Oddments — read it there"
+  },
+  "cmd_grab_block": {
+    "message": "Take a UI block to Oddments"
+  }
+}

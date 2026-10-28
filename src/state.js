@@ -2,6 +2,7 @@
 // so that logic modules can ask for a refresh without importing UI code.
 export const S = {
   items: [],
+  teamItems: [], // items of connected team libraries (team.js): found by id like any other, never written to index.json
   folders: [],
   byId: new Map(),
   view: { type: 'all', id: null },
@@ -9,7 +10,7 @@ export const S = {
   sort: 'added',
   dir: -1,
   color: null,
-  colorTol: 60,   // 0..100, how loosely the colour search matches
+  colorTol: 40,   // 0..100, how loosely the colour search matches (was 60: «Оранжевый» found a yellow star and a red heart)
   sel: new Set(),
   last: null,
   vis: [],
@@ -55,7 +56,7 @@ export const KINDS = {
   font: { label: 'Шрифты', ext: ['ttf', 'otf', 'woff', 'woff2'] },
   pdf: { label: 'PDF', ext: ['pdf'] },
   psd: { label: 'PSD', ext: ['psd', 'psb'] },
-  model: { label: '3D', ext: ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'dae', '3mf', '3ds', 'usdz', 'blend', 'abc'] }, // .blend/.abc: no viewer
+  model: { label: '3D-модели', short: '3D', ext: ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'dae', '3mf', '3ds', 'usdz', 'blend', 'abc'] }, // .blend/.abc: no viewer
   material: { label: 'Материалы', ext: ['perchmat'] }, // PBR set packed by Oddments: material.json + maps (lib/material.js)
   block: { label: 'Блоки', ext: ['oddblock'] }, // a block of a page's layout from the browser extension: shot + live markup (lib/block.js)
   figma: { label: 'Figma', ext: ['fig'] },

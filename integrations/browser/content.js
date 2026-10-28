@@ -25,7 +25,7 @@
   const load = () => chrome.runtime.sendMessage({ t: 'prefs' }).then((p) => { if (p) prefs = p; }).catch(() => {});
   load();
   chrome.storage.onChanged.addListener(load);
-  const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => toast('Расширение перезагружено: обновите страницу', 'err'));
+  const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => toast(T('Расширение перезагружено: обновите страницу'), 'err'));
 
   /* ---------- one shadow root for everything we draw ---------- */
   const host = document.createElement('perch-ui');
@@ -78,7 +78,7 @@
     .tile.on::after { background: var(--acc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.5l3 3 6-7' fill='none' stroke='%230a0b09' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); box-shadow: none; }
     .tile:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
     .empty { grid-column: 1 / -1; padding: 60px 0; text-align: center; color: var(--mut); }
-  </style><div class="toast"><i></i><span></span></div><button class="hov"><i></i>В Oddments</button><div class="dock"><i></i>Бросьте сюда — в Oddments</div>`;
+  </style><div class="toast"><i></i><span></span></div><button class="hov"><i></i>${T('В Oddments')}</button><div class="dock"><i></i>${T('Бросьте сюда — в Oddments')}</div>`;
   const mount = () => { if (!host.isConnected) (document.body || document.documentElement).appendChild(host); };
   const $ = (s) => root.querySelector(s);
 
@@ -173,7 +173,7 @@
     swallow = Date.now();
     if (vid) return saveVideo(vid, e.shiftKey);
     swallow = Date.now();
-    toast('Сохраняю…', 'busy');
+    toast(T('Сохраняю…'), 'busy');
     send({ t: 'saveFile', url: hit.url, page: location.href, alt: altOf(hit.el) });
   }, true);
   // the rest of that press must not reach the page either (Alt+click on a link would also download it)
@@ -234,7 +234,7 @@
     if (!code) throw new Error('no post');
     let id = 0n;
     for (const ch of code.slice(0, 11)) id = id * 64n + BigInt(IG.indexOf(ch));
-    toast('Сохраняю видео…', 'busy');
+    toast(T('Сохраняю видео…'), 'busy');
     const r = await fetch(`/api/v1/media/${id}/info/`, { credentials: 'include', headers: { 'X-IG-App-ID': '936619743392459', 'X-Requested-With': 'XMLHttpRequest' } });
     if (!r.ok) throw new Error('info ' + r.status);
     const item = ((await r.json()).items || [])[0];
@@ -271,7 +271,7 @@
     if (!best) return false;
     const og = document.querySelector('meta[property="og:title"]');
     const name = ((og && og.content) || document.title || 'Instagram').replace(/\s*[•|]\s*Instagram.*$/i, '').slice(0, 80);
-    toast('Сохраняю видео…', 'busy');
+    toast(T('Сохраняю видео…'), 'busy');
     send({ t: 'saveStream', video: best.video.url, audio: best.audio ? best.audio.url : '', page: link, title: name });
     return true;
   }
@@ -289,7 +289,7 @@
     const src = v.currentSrc || v.src || '';
     if (rec) { rec.stop(); return; }
     if (/^https?:/i.test(src) && !record) {
-      toast('Сохраняю…', 'busy');
+      toast(T('Сохраняю…'), 'busy');
       return send({ t: 'saveFile', url: src, page: location.href, alt: document.title });
     }
     const link = postOf(v), title = document.title;
@@ -298,8 +298,8 @@
     // link and Oddments downloads its MP4; Instagram — the post's own video file, asked for as the page itself does
     if (/(^|\.)pinterest\./i.test(location.hostname)) {
       const pin = pinOf(v), hls = pinStream(v);
-      if (hls) { toast('Сохраняю видео…', 'busy'); return send({ t: 'savePinVideo', hls, pin, title: pinName(v) }); }
-      if (pin) { toast('Сохраняю видео…', 'busy'); return send({ t: 'saveLink', url: pin, title }); }
+      if (hls) { toast(T('Сохраняю видео…'), 'busy'); return send({ t: 'savePinVideo', hls, pin, title: pinName(v) }); }
+      if (pin) { toast(T('Сохраняю видео…'), 'busy'); return send({ t: 'saveLink', url: pin, title }); }
     }
     if (/(^|\.)instagram\.com$/i.test(location.hostname)) {
       return instagramVideo(v, link).catch(() => { if (!instagramStream(v, link)) frameOf(v, link, title); });
@@ -313,18 +313,18 @@
       if (!c.width) throw new Error('empty');
       c.getContext('2d').drawImage(v, 0, 0);
       const data = c.toDataURL('image/png');
-      toast('Сохраняю кадр…', 'busy');
+      toast(T('Сохраняю кадр…'), 'busy');
       send({ t: 'saveFrame', data, link, title });
     } catch (er) {
       // a video from another site without CORS taints the canvas: the post goes as a link
-      toast('Кадр не взять — сохраняю ссылку', 'busy');
+      toast(T('Кадр не взять — сохраняю ссылку'), 'busy');
       send({ t: 'saveLink', url: link, title });
     }
   }
   function recordVideo(v, link, title) {
     let stream;
     try { stream = v.captureStream ? v.captureStream() : null; } catch (er) { stream = null; }
-    if (!stream) { toast('Это видео не записать — сохраните кадр (Alt+клик)', 'err'); return; }
+    if (!stream) { toast(T('Это видео не записать — сохраните кадр (Alt+клик)'), 'err'); return; }
     const type = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
     const r = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8e6 });
     const parts = [];
@@ -336,15 +336,15 @@
     r.onstop = () => {
       clearTimeout(stopT); v.removeEventListener('ended', end); rec = null;
       const blob = new Blob(parts, { type: 'video/webm' });
-      if (!blob.size) { toast('Запись пустая', 'err'); return; }
+      if (!blob.size) { toast(T('Запись пустая'), 'err'); return; }
       const f = new FileReader();
-      f.onload = () => { toast('Сохраняю запись…', 'busy'); send({ t: 'saveRecording', data: f.result, link, title }); };
+      f.onload = () => { toast(T('Сохраняю запись…'), 'busy'); send({ t: 'saveRecording', data: f.result, link, title }); };
       f.readAsDataURL(blob);
     };
     rec = r;
     r.start(1000);
     if (v.paused) v.play().catch(() => {});
-    toast('Записываю видео · Alt+клик — стоп', 'busy');
+    toast(T('Записываю видео · Alt+клик — стоп'), 'busy');
   }
 
   /* ---------- hover button ---------- */
@@ -377,7 +377,7 @@
   $('.hov').addEventListener('click', (e) => {
     e.preventDefault(); e.stopPropagation();
     if (!hovImg) return;
-    toast('Сохраняю…', 'busy');
+    toast(T('Сохраняю…'), 'busy');
     send({ t: 'saveFile', url: bestOf(hovImg), page: location.href, alt: hovImg.alt || document.title });
     $('.hov').classList.remove('on');
   });
@@ -405,7 +405,7 @@
     const d = dragged;
     endDrag();
     if (!d) return;
-    toast('Сохраняю…', 'busy');
+    toast(T('Сохраняю…'), 'busy');
     if (d.url) send({ t: 'saveFile', url: d.url, page: location.href, alt: d.alt || document.title });
     else send({ t: 'saveLink', url: d.link, title: d.title });
   });
@@ -416,7 +416,7 @@
       mount();
       const ov = document.createElement('div');
       ov.className = 'area';
-      ov.innerHTML = '<b hidden></b><span>Выделите область · Esc — отмена</span>';
+      ov.innerHTML = '<b hidden></b><span>' + T('Выделите область · Esc — отмена') + '</span>';
       root.appendChild(ov);
       const box = ov.querySelector('b');
       let x0 = 0, y0 = 0, rect = null;
@@ -480,11 +480,11 @@
     if ($('.gal')) return;
     const g = document.createElement('div');
     g.className = 'gal';
-    g.innerHTML = `<header><h2>Картинки страницы<em></em></h2>
-      <label>от <input type="range" min="0" max="1200" step="50"> <b></b></label>
-      <button class="btn" data-a="all">Выбрать все</button><button class="btn" data-a="none">Снять</button>
-      <button class="btn pri" data-a="save" disabled>Сохранить</button><button class="btn" data-a="close">Закрыть</button></header>
-      <div class="grid"><div class="empty">Ищу картинки…</div></div>`;
+    g.innerHTML = `<header><h2>${T('Картинки страницы')}<em></em></h2>
+      <label>${T('от')} <input type="range" min="0" max="1200" step="50"> <b></b></label>
+      <button class="btn" data-a="all">${T('Выбрать все')}</button><button class="btn" data-a="none">${T('Снять')}</button>
+      <button class="btn pri" data-a="save" disabled>${T('Сохранить')}</button><button class="btn" data-a="close">${T('Закрыть')}</button></header>
+      <div class="grid"><div class="empty">${T('Ищу картинки…')}</div></div>`;
     root.appendChild(g);
     const range = g.querySelector('input'), grid = g.querySelector('.grid'), save = g.querySelector('[data-a=save]');
     range.value = prefs.minSize || 200;
@@ -500,13 +500,13 @@
       const vis = shown();
       [...picked].forEach((u) => { if (!vis.some((it) => keyOf(it) === u)) picked.delete(u); });
       save.disabled = !picked.size;
-      save.textContent = picked.size ? `Сохранить ${picked.size} в Oddments` : 'Сохранить';
+      save.textContent = picked.size ? T('Сохранить {n} в Oddments', { n: picked.size }) : T('Сохранить');
       g.querySelector('h2 em').textContent = `(${vis.length})`;
       g.querySelector('label b').textContent = range.value + ' px';
     };
     const render = () => {
       const vis = shown();
-      grid.innerHTML = vis.length ? '' : '<div class="empty">Нет картинок такого размера — сдвиньте ползунок влево</div>';
+      grid.innerHTML = vis.length ? '' : '<div class="empty">' + T('Нет картинок такого размера — сдвиньте ползунок влево') + '</div>';
       for (const it of vis) {
         const t = document.createElement('button');
         t.className = 'tile' + (picked.has(keyOf(it)) ? ' on' : '');

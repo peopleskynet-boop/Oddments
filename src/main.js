@@ -5,7 +5,7 @@ import '@fontsource-variable/onest';
 import './styles.css';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { S, ui } from './state.js';
-import { $, $$, esc, plural, debounce, hexRGB } from './util.js';
+import { $, $$, esc, plural, debounce, hexRGB, isMac } from './util.js';
 import { ic } from './ui/icons.js';
 import { toast, isAskOpen, arm, trapTab } from './ui/dialogs.js';
 import { settings, loadSettings, applySettings, toggleSettings, isSettingsOpen, setLayoutPrefs, openSettings } from './ui/settings.js';
@@ -24,7 +24,9 @@ import { initElastic } from './ui/elastic.js';
 import { initPalette } from './ui/palette.js';
 import { toggleColor, close as closeColor, isColorOpen } from './ui/colorpick.js';
 import { renderInsp, initInspector } from './ui/inspector.js';
-import { openPreview, closePreview, stepPreview, isPreviewOpen, zoomKey } from './ui/preview.js';
+import { openPreview, closePreview, stepPreview, isPreviewOpen, zoomKey, setPreviewKeys } from './ui/preview.js';
+import { onLayers, layerOpen } from './ui/layers.js';
+import { hotkey, runHotkey, plain, mod } from './ui/hotkeys.js';
 import { computeVisible, setView } from './lib/filter.js';
 import { initLibrary, getRoot, addFromPaths, addFromBlobs, trashItems, restoreItems, purgeItems, flushIndex, saveIndex } from './lib/library.js';
 import { extractFromTransfer, readNativeClipboardImage } from './lib/clipboard.js';
@@ -37,7 +39,9 @@ import { setLazySelection, preloadLazy, isOverlayOpen, closeOverlays, isDupesOpe
 import { initSound, sfx } from './ui/sound.js';
 import { initOnboard, markStep } from './ui/onboard.js';
 import { initFrame } from './ui/frame.js';
-import { initPixel, bootIntro } from './ui/pixel.js';
+import { initPixel } from './ui/pixel.js';
+import { bootIntro, bootDone } from './ui/boot.js';
+import { initI18n } from './lib/i18n.js';
 import { initClean, cleanOn, toggleCleanSide, setClean, updateHud } from './ui/clean.js';
 
 const isTyping = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
@@ -64,14 +68,19 @@ ui.refresh = () => {
   pushCatalog();
   renderShelf();
   aiKick();
+  ocrKick();
   updateHud();
   updateSelBar();
   updateAiChip();
 };
 ui.relayout = () => { layoutGrid(false); };
+// text on pictures (ocr.js) loads a few seconds after the start, so the first screen does not wait for it
+let ocrMod = null;
+const ocrKick = () => { if (ocrMod) ocrMod.ocrKick(); };
 ui.freshChanged = () => { renderHeader(); renderSide(); };
 ui.renderSide = renderSide;
 ui.renderInsp = renderInsp;
+ui.syncCard = syncCard; // one card's marks (favourite, personal data) without a redraw
 ui.toast = toast;
 ui.addBlobs = (list) => addBlobs(list, {}); // the feed saves pictures through the usual path (and its «куда положить»)
 
@@ -122,8 +131,18 @@ function selectionChanged() {
 // The properties panel floats over the grid (settings.overlay): a selected card under it would be hidden. Then the
 // grid makes room for the panel (the cards glide aside) and keeps it while anything is selected, so it does not jump
 // between clicks; with nothing selected the grid takes the whole width again.
+// a narrow window: the panel is a sheet at the bottom — the selected card is scrolled to sit above it
+function aboveSheet() {
+  const insp = $('#insp'), id = S.last && S.sel.has(S.last) ? S.last : [...S.sel][0];
+  const c = id && document.getElementById('c-' + id), sc = document.querySelector('.scroll');
+  if (!insp || !c || !sc) return;
+  const r = insp.getBoundingClientRect(), q = c.getBoundingClientRect();
+  if (!r.height || q.bottom <= r.top - 12) return;
+  sc.scrollBy({ top: Math.min(q.top - 90, q.bottom - (r.top - 12)), behavior: document.body.classList.contains('motion') ? 'smooth' : 'auto' });
+}
 function makeRoom() {
   const b = document.body, on = b.classList.contains('insp-room');
+  if (innerWidth <= 860 && S.sel.size && !b.classList.contains('insp-off')) setTimeout(aboveSheet, 280);
   if (!settings.overlay || b.classList.contains('insp-off') || innerWidth <= 860) { if (on) reflow(() => { b.classList.remove('insp-room'); ui.refresh(); }); return; }
   if (!S.sel.size) { if (on) reflow(() => { b.classList.remove('insp-room'); ui.refresh(); }); return; }
   if (on) return;
@@ -131,7 +150,8 @@ function makeRoom() {
     if (!S.sel.size || b.classList.contains('insp-room')) return;
     const insp = $('#insp'), r = insp && insp.getBoundingClientRect();
     if (!r || !r.width) return;
-    const hidden = [...S.sel].some((id) => { const c = document.getElementById('c-' + id); if (!c) return false; const q = c.getBoundingClientRect(); return q.right > r.left + 24 && q.left < r.right && q.bottom > r.top && q.top < r.bottom; });
+    // a narrow window (≤ 1000 px): the panel would cover half the grid — it always makes room there (audit 24.10)
+    const hidden = innerWidth <= 1000 || [...S.sel].some((id) => { const c = document.getElementById('c-' + id); if (!c) return false; const q = c.getBoundingClientRect(); return q.right > r.left + 24 && q.left < r.right && q.bottom > r.top && q.top < r.bottom; });
     if (hidden) reflow(() => { b.classList.add('insp-room'); ui.refresh(); });
   }, 120);
 }
@@ -242,8 +262,6 @@ function bind() {
   $('#simBtn').innerHTML = ic('scan'); $('#backBtn').innerHTML = ic('left');
   $('#addBtn').innerHTML = ic('plus') + '<span>Добавить</span>';
   $('#addDirBtn').innerHTML = ic('folderplus') + '<span>Импортировать папку</span>';
-  $('#svg3dBtn').innerHTML = ic('cube') + '<span>SVG в 3D…</span>';
-  $('#ikBtn').innerHTML = ic('grid') + '<span>Конструктор иконок…</span>';
   $('#flowBtn').innerHTML = ic('flow') + '<span>Сценарий из записи экрана…</span>';
   $('#matBtn').innerHTML = ic('sphere') + '<span>Материал из текстур…</span>';
   $('#pasteBtn').innerHTML = ic('paste') + '<span>Вставить из буфера</span><kbd>Ctrl V</kbd>';
@@ -292,6 +310,22 @@ function bind() {
       $('#wMin').addEventListener('click', () => w.minimize());
       $('#wMax').addEventListener('click', () => w.toggleMaximize());
       $('#wClose').addEventListener('click', () => w.close());
+      // a full-screen section covers the top bar: the window's own strip comes up over it (the sections start under it)
+      const wb = $('#winbar');
+      wb.querySelector('[data-w="min"]').innerHTML = ic('minus');
+      wb.querySelector('[data-w="close"]').innerHTML = ic('x');
+      wb.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-w]');
+        if (!b) return;
+        if (b.dataset.w === 'min') w.minimize(); else if (b.dataset.w === 'max') w.toggleMaximize(); else w.close();
+      });
+      const wbMax = async () => {
+        const on = await w.isMaximized(), b = wb.querySelector('[data-w="max"]');
+        b.innerHTML = ic(on ? 'restoreWin' : 'square'); b.title = on ? 'Восстановить' : 'Развернуть'; b.setAttribute('aria-label', b.title);
+      };
+      wbMax(); w.onResized(wbMax);
+      // the strip shows over whatever layer is on top (layers.js), with its title
+      onLayers((top) => { wb.hidden = !top; if (top) $('#winbarT').textContent = 'Oddments · ' + top.title; });
     }).catch(() => {});
   }
 
@@ -302,7 +336,15 @@ function bind() {
   dir();
 
   const onSearch = debounce((v) => { S.q = v; S.sel.clear(); ui.refresh(); }, 90);
-  $('#q').addEventListener('input', (e) => onSearch(e.target.value));
+  // × in the field and Esc clear the query (audit 24.10: Esc only left the field, the query stayed)
+  const qx = $('#qX');
+  qx.innerHTML = ic('x');
+  const clearQ = () => { $('#q').value = ''; qx.hidden = true; S.q = ''; ui.refresh(); };
+  $('#q').addEventListener('input', (e) => { qx.hidden = !e.target.value; onSearch(e.target.value); });
+  $('#q').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target.value) { e.preventDefault(); e.stopPropagation(); clearQ(); }
+  });
+  qx.addEventListener('click', () => { clearQ(); $('#q').focus(); });
   $('#sort').addEventListener('change', (e) => {
     S.sort = e.target.value;
     if (S.sort === 'ai') import('./lib/ai.js').then((ai) => { if (!ai.aiReady()) toast('Сортировка по смыслу работает с ИИ-поиском: включите его в Настройках › ИИ-поиск. Пока — по дате.'); });
@@ -320,8 +362,6 @@ function bind() {
   });
   $('#addBtn').addEventListener('click', pickFiles);
   $('#addDirBtn').addEventListener('click', pickFolder);
-  $('#svg3dBtn').addEventListener('click', () => import('./ui/svg3d.js').then((m) => m.pickSvgFor3d()));
-  $('#ikBtn').addEventListener('click', () => import('./ui/iconkit.js').then((m) => m.openIconKit()));
   $('#flowBtn').addEventListener('click', () => import('./ui/flows.js').then((m) => m.flowFromDisk()));
   $('#matBtn').addEventListener('click', () => import('./ui/materials.js').then((m) => m.pickTextures()));
   $('#pasteBtn').addEventListener('click', pasteNow);
@@ -489,16 +529,53 @@ function bind() {
   });
 
   // keyboard
+  const previewKey = (e) => {
+    if (e.key === 'Tab') { trapTab(e, $('#pv')); return; }
+    if (e.key === 'Escape' || (e.key === ' ' && !isTyping(e.target))) { e.preventDefault(); closePreview(); }
+    else if (e.key === 'ArrowRight' && !isTyping(e.target)) stepPreview(1, moved);
+    else if (e.key === 'ArrowLeft' && !isTyping(e.target)) stepPreview(-1, moved);
+    else if (['+', '=', '-', '0'].includes(e.key) && !e.ctrlKey && !isTyping(e.target) && zoomKey(e.key)) e.preventDefault();
+    else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); import('./ui/ctxmenu.js').then((m) => m.openInApp(S.byId.get(S.previewId))); }
+  };
+  setPreviewKeys(previewKey);
+
+  // the wall's shortcuts — one table with the «?» sheet (hotkeys.js); keys by their place (e.code) work in any layout
+  const sel = () => S.sel.size > 0, notTrash = () => S.view.type !== 'trash';
+  hotkey({ group: 'Сетка', keys: '← ↑ → ↓', what: 'по карточкам', hit: (e) => (NAV[e.key] || e.key === 'Home' || e.key === 'End') && plain(e) && S.vis.length > 0, run: (e) => { e.preventDefault(); navGrid(e.key, e.shiftKey); } });
+  hotkey({ group: 'Сетка', keys: 'Shift + стрелки', what: 'выделить подряд' });
+  hotkey({ group: 'Сетка', keys: 'Ctrl A', what: 'выделить всё', hit: (e) => mod(e) && e.code === 'KeyA', run: (e) => { e.preventDefault(); S.sel = new Set(S.vis.map((i) => i.id)); selectionChanged(); } });
+  hotkey({ group: 'Сетка', keys: 'Пробел', what: 'просмотр', hit: (e) => e.key === ' ' && sel(), run: (e) => { e.preventDefault(); openPreview(focusedId()); } });
+  hotkey({ group: 'Сетка', hit: (e) => e.key === 'Enter' && plain(e) && sel() && !e.target.closest('button, a, [role="button"]'), run: (e) => { e.preventDefault(); openPreview(focusedId()); } });
+  // Ctrl+Enter: open in the file's own program (Photoshop for PSD, Blender for .blend…)
+  hotkey({ group: 'Сетка', keys: 'Ctrl Enter', what: 'открыть в программе', hit: (e) => e.key === 'Enter' && mod(e) && S.sel.size === 1, run: (e) => { e.preventDefault(); import('./ui/ctxmenu.js').then((m) => m.openInApp(S.byId.get(Array.from(S.sel)[0]))); } });
+  // F: add the selection to favourites (or remove, if it is all there already)
+  hotkey({ group: 'Сетка', keys: 'F', what: 'в избранное', hit: (e) => e.code === 'KeyF' && plain(e) && sel(), run: () => {
+    const items = selItems(), on = !items.every((i) => i.fav);
+    items.forEach((i) => { i.fav = on; syncCard(i.id); });
+    sfx(on ? 'fav' : 'unfav');
+    saveIndex();
+    toast(on ? 'В избранном: ' + items.length : 'Убрано из избранного: ' + items.length);
+    if (S.view.type === 'fav') ui.refresh(); else { renderSide(); renderInsp(); }
+  } });
+  hotkey({ group: 'Сетка', keys: 'F2', what: 'переименовать', hit: (e) => e.key === 'F2' && sel() && notTrash(), run: (e) => { e.preventDefault(); openRename(selItems()); } });
+  hotkey({ group: 'Сетка', keys: 'Delete', what: 'в корзину', hit: (e) => (e.key === 'Delete' || e.key === 'Backspace') && sel() && notTrash(), run: (e) => {
+    e.preventDefault();
+    const items = selItems();
+    trashItems(items); S.sel.clear(); ui.refresh();
+    toast('В корзину: ' + items.length, 0, { fn: () => { restoreItems(items); ui.refresh(); } });
+  } });
+  hotkey({ group: 'Сетка', keys: 'Menu', what: 'меню карточки' });
+  hotkey({ group: 'Сетка', keys: '/', what: 'поиск', hit: (e) => e.key === '/', run: (e) => { e.preventDefault(); $('#q').focus(); } });
+  hotkey({ group: 'Добавить', keys: 'Ctrl V', what: 'вставить из буфера' });
+  hotkey({ group: 'Добавить', keys: 'Ctrl Shift C', what: 'в Figma: копировать как PNG' });
+  hotkey({ group: 'Окно', keys: isMac ? '⌘ K' : 'Ctrl Пробел', what: 'команды и поиск по всему' });
+  hotkey({ group: 'Окно', keys: '[', what: 'боковая панель', hit: (e) => e.code === 'BracketLeft' && !mod(e), run: () => bind.togSide() });
+  hotkey({ group: 'Окно', keys: ']', what: 'панель свойств', hit: (e) => e.code === 'BracketRight' && !mod(e), run: () => bind.togInsp() });
+  hotkey({ group: 'Окно', keys: '\\', what: 'чистый экран', hit: (e) => e.code === 'Backslash' && !mod(e), run: () => reflow(() => setClean(!cleanOn())) });
+  hotkey({ group: 'Окно', keys: '?', what: 'эта шпаргалка', hit: (e) => e.key === '?', run: (e) => { e.preventDefault(); import('./ui/keys.js').then((m) => m.toggleKeys()); } });
   document.addEventListener('keydown', (e) => {
-    if (isPreviewOpen()) {
-      if (e.key === 'Tab') { trapTab(e, $('#pv')); return; }
-      if (e.key === 'Escape' || (e.key === ' ' && !isTyping(e.target))) { e.preventDefault(); closePreview(); }
-      else if (e.key === 'ArrowRight' && !isTyping(e.target)) stepPreview(1, moved);
-      else if (e.key === 'ArrowLeft' && !isTyping(e.target)) stepPreview(-1, moved);
-      else if (['+', '=', '-', '0'].includes(e.key) && !e.ctrlKey && !isTyping(e.target) && zoomKey(e.key)) e.preventDefault();
-      else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); import('./ui/ctxmenu.js').then((m) => m.openInApp(S.byId.get(S.previewId))); }
-      return;
-    }
+    if (isPreviewOpen()) { previewKey(e); return; }
+    if (layerOpen()) return; // a full-screen layer owns the keys (layers.js)
     if (isAskOpen()) { if (e.key === 'Escape') $('#dlgNo').click(); else trapTab(e, $('#dlg')); return; }
     if (isOverlayOpen() && !isTyping(e.target) && !(e.target.closest && e.target.closest('.insp, .side, #settings'))) {
       // the grid is hidden under the duplicates / «Разобрать»: only Esc (back) and the panel toggles apply
@@ -516,7 +593,7 @@ function bind() {
       if (isTyping(e.target)) e.target.blur();
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && !isTyping(e.target)) {
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV' && !isTyping(e.target)) { // by the key's place: any layout
       pasteSeen = false;
       setTimeout(async () => {
         if (pasteSeen) return;
@@ -526,36 +603,7 @@ function bind() {
       return;
     }
     if (isTyping(e.target)) return;
-    if (e.key === '/') { e.preventDefault(); $('#q').focus(); }
-    else if (e.key === '?') { e.preventDefault(); import('./ui/keys.js').then((m) => m.toggleKeys()); }
-    else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && S.sel.size === 1) {
-      // Ctrl+Enter: open in the file's own program (Photoshop for PSD, Blender for .blend…)
-      e.preventDefault();
-      import('./ui/ctxmenu.js').then((m) => m.openInApp(S.byId.get(Array.from(S.sel)[0])));
-    }
-    else if (e.code === 'KeyF' && !e.ctrlKey && !e.altKey && S.sel.size) {
-      // F: add the selection to favourites (or remove, if it is all there already)
-      const items = selItems(), on = !items.every((i) => i.fav);
-      items.forEach((i) => { i.fav = on; syncCard(i.id); });
-      sfx(on ? 'fav' : 'unfav');
-      saveIndex();
-      toast(on ? 'В избранном: ' + items.length : 'Убрано из избранного: ' + items.length);
-      if (S.view.type === 'fav') ui.refresh(); else { renderSide(); renderInsp(); }
-    }
-    else if (e.key === 'F2' && S.sel.size && S.view.type !== 'trash') { e.preventDefault(); openRename(selItems()); }
-    else if (e.code === 'BracketLeft' && !e.ctrlKey) bind.togSide();
-    else if (e.code === 'BracketRight' && !e.ctrlKey) bind.togInsp();
-    else if (e.code === 'Backslash' && !e.ctrlKey) reflow(() => setClean(!cleanOn()));
-    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); S.sel = new Set(S.vis.map((i) => i.id)); selectionChanged(); }
-    else if (e.key === ' ' && S.sel.size) { e.preventDefault(); openPreview(focusedId()); }
-    else if (e.key === 'Enter' && S.sel.size && !e.target.closest('button, a, [role="button"]')) { e.preventDefault(); openPreview(focusedId()); }
-    else if ((NAV[e.key] || e.key === 'Home' || e.key === 'End') && !e.ctrlKey && !e.metaKey && !e.altKey && S.vis.length) { e.preventDefault(); navGrid(e.key, e.shiftKey); }
-    else if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.size && S.view.type !== 'trash') {
-      e.preventDefault();
-      const items = selItems();
-      trashItems(items); S.sel.clear(); ui.refresh();
-      toast('В корзину: ' + items.length, 0, { fn: () => { restoreItems(items); ui.refresh(); } });
-    }
+    runHotkey(e);
   });
 
   document.addEventListener('visibilitychange', () => { if (document.hidden) flushIndex(); });
@@ -576,7 +624,9 @@ function bind() {
 async function boot() {
   loadSettings();
   applySettings();
+  await initI18n(); // English, when chosen: the dictionary loads (a Russian start skips it), then what the interface shows is translated
   bootIntro();
+  document.body.classList.add('lib-loading'); // the header says «Открываю библиотеку…» until the index is read
   initFrame();
   initClean();
   bind();
@@ -589,10 +639,14 @@ async function boot() {
     $('#libLabel').textContent = root.split(/[\\/]/).filter(Boolean).pop() || root;
     $('#libLabel').title = 'Папка библиотеки: ' + root;
   } catch (e) {
+    document.body.classList.remove('lib-loading');
+    bootDone();
     fatal(e && e.message ? e.message : String(e));
     return;
   }
+  document.body.classList.remove('lib-loading');
   ui.refresh();
+  bootDone();
   initSprings();
   initMotion();
   initGlide();
@@ -603,6 +657,8 @@ async function boot() {
   // (bug #60: the icon constructor silently did not open in the exe)
   window.addEventListener('unhandledrejection', (e) => {
     const m = String((e.reason && (e.reason.message || e.reason)) || '');
+    // a load cut short because the file changed under it (flipping files fast) is not an error (bug #123)
+    if (e.reason && e.reason.name === 'AbortError') { e.preventDefault(); return; }
     if (/dynamically imported module|Failed to fetch|Importing a module|Content Security|unsafe-eval|is not defined|Cannot read/i.test(m)) {
       console.error(e.reason);
       toast('Раздел не открылся: ' + m.slice(0, 160), 9000);
@@ -613,7 +669,10 @@ async function boot() {
   initShelf();
   renderShelf();
   initAi();
+  import('./lib/team.js').then((m) => m.initTeams()).catch((e) => console.warn('team', e)); // shared folders of the team, if connected
+  setTimeout(() => import('./lib/ocr.js').then((m) => { ocrMod = m; m.initOcr(); }), 5000);
   import('./lib/mcp.js').then((m) => m.initMcp()); // Claude and other MCP clients: the library as tools
+  import('./lib/meshjob.js').then((m) => m.initMeshJobs()); // SVG → 3D meshes for the Blender add-on (bridge /mesh)
   initBridge(addPaths, (url, ctx) => { const v = parseVideoUrl(url); return v && v.site === 'Pinterest' ? addVideoLink(v, ctx).then(() => true) : null; });
 }
 boot();

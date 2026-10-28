@@ -33,9 +33,9 @@ function toPolyline(item) {
   return q.segments.map((s) => ({ X: Math.round(s.point.x * SCALE), Y: Math.round(s.point.y * SCALE) }));
 }
 
-function run(paths, delta, end) {
-  const co = new ClipperOffset(2, ARC * SCALE);
-  co.AddPaths(paths, JoinType.jtRound, end);
+function run(paths, delta, end, join = JoinType.jtRound, miter = 2) {
+  const co = new ClipperOffset(miter, ARC * SCALE);
+  co.AddPaths(paths, join, end);
   const sol = new Paths();
   co.Execute(sol, delta * SCALE);
   return sol;
@@ -127,10 +127,19 @@ export function offsetShape(item, d) {
   return toItem(sol);
 }
 
-// an open line (or polyline) as a filled stroke of width w with round caps and joins
-export function strokeShape(line, w) {
-  const sol = run([toPolyline(line)], w / 2, EndType.etOpenRound);
-  return toItem(sol);
+// an open line (or polyline) as a filled stroke of width w; round caps and joins unless the SVG says otherwise
+// (svgfix.js: cap butt / square, join miter / bevel, a closed contour's stroke). The constants above are in px of
+// the 24 grid, so a drawing in another frame passes `size` and is worked on scaled to 24.
+const CAPS = { round: EndType.etOpenRound, butt: EndType.etOpenButt, square: EndType.etOpenSquare };
+const JOINS = { round: JoinType.jtRound, miter: JoinType.jtMiter, bevel: JoinType.jtSquare };
+export function strokeShape(line, w, { cap = 'round', join = 'round', closed = false, miter = 4, size = 24 } = {}) {
+  const k = 24 / size, l = line.clone({ insert: false });
+  if (k !== 1) l.scale(k, new paper.Point(0, 0));
+  const end = closed ? EndType.etClosedLine : CAPS[cap] || EndType.etOpenRound;
+  const sol = run([toPolyline(l)], (w * k) / 2, end, JOINS[join] || JoinType.jtRound, Math.max(1, miter));
+  const out = toItem(sol);
+  if (out && k !== 1) out.scale(1 / k, new paper.Point(0, 0));
+  return out;
 }
 
 /* ---------- «Умный 16» in polygons (iconkit.js smartSmall) ----------

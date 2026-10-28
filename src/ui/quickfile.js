@@ -1,6 +1,8 @@
 // "Where should it go?" pill after adding files (idea from Memotron's "link to curate"):
 // a glass bar at the bottom for ~6 s — put the new files into a collection, tag them, or undo.
 // Stays while hovered or focused; Esc closes it.
+import { canonical } from '../lib/glossary.js';
+import { glossary } from '../lib/teamconf.js';
 import { S, ui, flatFolders, folderById, activeItems } from '../state.js';
 import { esc, plural, uid } from '../util.js';
 import { ic } from './icons.js';
@@ -157,7 +159,8 @@ function tagInput(btn) {
 function applyTags(raw) {
   const tags = raw.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
   if (!tags.length) return;
-  items.forEach((it) => tags.forEach((t) => { if (!it.tags.includes(t)) it.tags.push(t); }));
+  const g = glossary(); // the team's dictionary form of each tag (glossary.js)
+  items.forEach((it) => tags.map((t) => canonical(t, g)).filter(Boolean).forEach((t) => { if (!it.tags.includes(t)) it.tags.push(t); }));
   saveIndex();
   ui.refresh();
   tags.forEach((t) => { const d = '#' + t; if (!done.includes(d)) done.push(d); });

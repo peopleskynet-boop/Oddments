@@ -19,11 +19,14 @@ function html(list) {
   }
   const allFav = list.every((i) => i.fav);
   const b3d = list.some((i) => i.kind === 'model' || i.kind === 'material');
+  const pii = list.some((i) => i.pii && i.pii.length && !i.masked);
   return `<span class="sb-n"><b>${n}</b> выбрано</span>`
     + `<button type="button" class="ib sb-grip" data-sb="grip" title="Перетащите выбранные в другую программу" aria-label="Перетащить выбранные в другую программу">${ic('grip')}</button>`
     + b('fav', allFav ? 'heartOn' : 'heart', allFav ? 'Из избранного' : 'В избранное')
     + b('folder', 'folderplus', 'В подборку')
     + (b3d ? b('blender', 'external', 'В Blender') : '')
+    + (pii ? b('mask', 'shield', 'Скрыть личные данные') : '')
+    + ((S.teams || []).length && list.every((i) => !i.team) ? b('toteam', 'team', 'В команду') : '')
     + b('rename', 'edit', 'Переименовать')
     + b('trash', 'trash', 'В корзину', ' danger')
     + `<button type="button" class="ib sb-more" data-sb="more" title="Все действия" aria-label="Все действия">${ic('more')}</button>`

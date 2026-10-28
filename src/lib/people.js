@@ -6,6 +6,7 @@
 import { fetch as tfetch } from '@tauri-apps/plugin-http';
 import { readSource } from './feed.js';
 import { channelName, CHANNELS } from './telegram.js';
+import { readPref, writePref } from './prefs.js';
 
 const yt = (id) => `https://www.youtube.com/feeds/videos.xml?channel_id=${id}`;
 export const STARTER = [
@@ -27,7 +28,6 @@ export const STARTER = [
   { id: 'chimero', name: 'Frank Chimero', role: 'дизайнер, эссе о ремесле', topic: 'design', kind: 'Блог', url: 'https://frankchimero.com', feed: 'https://frankchimero.com/feed.xml' },
   { id: 'vanschneider', name: 'Tobias van Schneider', role: 'DESK Magazine · о карьере дизайнера', topic: 'design', kind: 'Блог', url: 'https://vanschneider.com', feed: 'https://vanschneider.com/feed' },
   { id: 'pablostanley', name: 'Pablo Stanley', role: 'иллюстрация, UI, инструменты', topic: 'design', kind: 'Substack', url: 'https://pablostanley.substack.com', feed: 'https://pablostanley.substack.com/feed' },
-  { id: 'densediscovery', name: 'Dense Discovery', role: 'Кай Брах · еженедельная рассылка', topic: 'design', kind: 'Рассылка', url: 'https://www.densediscovery.com', feed: 'https://www.densediscovery.com/feed/' },
   { id: 'juliezhuo', name: 'Julie Zhuo', role: 'The Looking Glass · продукт и команда', topic: 'ux', kind: 'Substack', url: 'https://lg.substack.com', feed: 'https://lg.substack.com/feed' },
   { id: 'lukew', name: 'Luke Wroblewski', role: 'продуктовый дизайн, ИИ в интерфейсах', topic: 'ux', kind: 'Блог', url: 'https://www.lukew.com', feed: 'https://www.lukew.com/ff/rss.php' },
   { id: 'joshcomeau', name: 'Josh W. Comeau', role: 'интерактивные интерфейсы, CSS', topic: 'ux', kind: 'Блог', url: 'https://www.joshwcomeau.com', feed: 'https://www.joshwcomeau.com/rss.xml' },
@@ -36,8 +36,8 @@ export const STARTER = [
 ];
 
 const KEY = 'perch.people';
-const load = () => { try { return { added: [], removed: [], ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { return { added: [], removed: [] }; } };
-const save = (s) => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { /* private */ } };
+const load = () => readPref(KEY, { added: [], removed: [] });
+const save = (s) => writePref(KEY, s);
 
 export const people = () => { const s = load(); return [...s.added, ...STARTER.filter((p) => !s.removed.includes(p.id) && !s.added.some((a) => a.id === p.id))]; };
 // as feed sources: the person's name is the «source», everything goes under the «Люди» topic

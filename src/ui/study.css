@@ -1,0 +1,43 @@
+/* «Исследование» in a flow's window (studyview.js): respondents, the steps with their notes, the summary on the right */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.st { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 340px; gap: 20px; padding: 4px 28px 24px; }
+.st-main { min-width: 0; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 16px; scrollbar-width: thin; }
+.st-resp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.st-resp label { display: flex; align-items: center; gap: 8px; color: var(--mut); font-size: 13px; }
+.st-resp input { height: 34px; width: 180px; padding: 0 14px; border: 0; border-radius: 99px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line); outline: 0; }
+.st-resp input:focus { box-shadow: inset 0 0 0 1.5px var(--acc); }
+.st-chip { height: 34px; padding: 0 14px; border: 0; border-radius: 99px; background: var(--hover); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
+.st-chip.add { background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--mut); }
+.st-steps { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 8px; scrollbar-width: thin; }
+.st-step { position: relative; flex: none; width: 92px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--card); cursor: pointer; box-shadow: 0 0 0 1px var(--line); }
+.st-step img { display: block; width: 100%; height: 150px; object-fit: cover; object-position: top; }
+.st-step b { position: absolute; left: 6px; top: 6px; padding: 2px 7px; border-radius: 99px; background: color-mix(in srgb, var(--bg) 75%, transparent); font: 600 11px var(--mono); color: var(--fg); }
+.st-step i { position: absolute; right: 6px; top: 6px; min-width: 20px; height: 20px; border-radius: 99px; background: var(--acc); color: var(--accfg, #000); font: 700 11px/20px var(--mono); font-style: normal; text-align: center; }
+.st-step.on { box-shadow: 0 0 0 2.5px var(--acc); }
+.st-form { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; }
+.st-kinds { display: inline-flex; padding: 3px; border-radius: 99px; background: var(--hover); }
+.st-kinds button { height: 32px; padding: 0 12px; border: 0; border-radius: 99px; background: none; color: var(--mut); font: inherit; font-size: 13px; cursor: pointer; }
+.st-kinds button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.st-form textarea { min-height: 38px; resize: vertical; padding: 9px 14px; border: 0; border-radius: 18px; background: var(--field); color: var(--fg); font: inherit; font-size: 13px; box-shadow: inset 0 0 0 1px var(--field-line); outline: 0; }
+.st-form textarea:focus { box-shadow: inset 0 0 0 1.5px var(--acc); }
+.st-form .ibtn { height: 38px; white-space: nowrap; }
+.st-notes { display: grid; gap: 14px; }
+.st-notes h4 { margin: 0 0 6px; font: 600 12px var(--mono); color: var(--mut); }
+.st-n { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; padding: 8px 8px 8px 12px; border-radius: 14px; background: var(--hover); font-size: 13px; line-height: 1.45; }
+.st-n span { flex: none; font-size: 11px; color: var(--mut); width: 64px; }
+.st-n.problem span { color: var(--mag, #ff3b8b); }
+.st-n.insight span { color: var(--acc); }
+.st-n .ib { margin-left: auto; width: 26px; height: 26px; opacity: .55; flex: none; }
+.st-n .ib:hover { opacity: 1; }
+.st-side { min-height: 0; overflow: auto; border-radius: 26px; padding: 20px 18px; display: flex; flex-direction: column; gap: 10px; }
+.st-h { margin: 0; font-size: 15px; font-weight: 600; }
+.st-sum { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 13px; line-height: 1.45; }
+.st-sum li::marker { color: var(--acc); }
+.st-p { margin: 0; color: var(--fg); font-size: 13px; line-height: 1.5; }
+.st-p.mut { color: var(--mut); font-size: 12px; }
+.st-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+:root[data-theme="marathon"] .st-h { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+:root[data-theme="marathon"] .st-h::before { content: '// '; color: var(--hud); }
+@media (max-width: 1000px) { .st { grid-template-columns: 1fr; } .st-side { max-height: 40vh; } .st-form { grid-template-columns: 1fr; } }
+}

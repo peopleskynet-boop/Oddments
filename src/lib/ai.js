@@ -10,6 +10,10 @@ import { S, ui } from '../state.js';
 import { absPath, assetUrl, getRoot, saveIndex } from './library.js';
 import { VOCAB, VOCAB_V, wordStats, tagsFor } from './aitags.js';
 import * as C from './aicloud.js';
+import { settings } from '../ui/settings.js';
+import { readPref, writePref } from './prefs.js';
+import { workerRpc } from './workerrpc.js';
+import { downloadFile } from './download.js';
 
 export const MODEL = {
   id: 'siglip2-large',
@@ -63,8 +67,8 @@ const hfUrl = (f) => (base() ? base().replace(/\/$/, '') + '/' + f.path : `https
 
 /* ---------- state the interface reads ---------- */
 const PREF_KEY = 'perch.ai';
-const prefs = (() => { try { return { on: false, paused: false, engine: 'local', ...JSON.parse(localStorage.getItem(PREF_KEY) || '{}') }; } catch (e) { return { on: false, paused: false, engine: 'local' }; } })();
-const keepPrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ } };
+const prefs = readPref(PREF_KEY, { on: false, paused: false, engine: 'local' });
+const keepPrefs = () => writePref(PREF_KEY, prefs);
 
 // status: off · download · loading · ready · error; device: webgpu · wasm · api
 // confirm: { n, usd } — a pass through the API waits for the person to agree to its cost
@@ -97,24 +101,12 @@ export async function setEngine(e) {
 const vecId = () => (cloud() ? C.VOYAGE.id : MODEL.id);
 
 /* ---------- the worker ---------- */
-let worker = null, rid = 0;
-const waiting = new Map();
-function call(msg, transfer) {
-  return new Promise((res, rej) => {
-    const id = ++rid;
-    waiting.set(id, { res, rej });
-    worker.postMessage({ ...msg, rid: id }, transfer || []);
-  });
-}
+let worker = null;
+const call = (msg, transfer) => (worker ? worker.call(msg, transfer) : Promise.reject(new Error('ИИ не запущен')));
 function startWorker() {
-  worker = new Worker(new URL('./ai.worker.js', import.meta.url), { type: 'module' });
-  worker.onmessage = ({ data: m }) => {
-    const w = waiting.get(m.rid);
-    if (!w) return;
-    waiting.delete(m.rid);
-    if (m.type === 'error') w.rej(new Error(m.error)); else w.res(m);
-  };
-  worker.onerror = (e) => { fail('Фоновый поток ИИ упал: ' + (e.message || 'без подробностей')); };
+  // a crash fails what was waiting (workerrpc.js) and the next start makes a new worker
+  worker = workerRpc(() => new Worker(new URL('./ai.worker.js', import.meta.url), { type: 'module' }),
+    (msg) => { worker = null; fail('Фоновый поток ИИ упал: ' + msg); });
 }
 
 /* ---------- model files ---------- */
@@ -146,48 +138,12 @@ async function modelUrls() {
 // download goes on from where it stopped: the .part file stays, the next try asks for the rest (HTTP Range).
 let dlAbort = null;
 async function download(url, path, size) {
-  const { fetch: tfetch } = await import('@tauri-apps/plugin-http');
-  const part = path + '.part';
-  const have = await fs.stat(part).then((st) => (st.size < size ? st.size : 0)).catch(() => 0);
   dlAbort = new AbortController();
-  const headers = have ? { Range: `bytes=${have}-` } : {};
-  const r = await tfetch(url, { method: 'GET', headers, signal: dlAbort.signal });
-  if (!r.ok) throw new Error(`Hugging Face ответил ${r.status}`);
-  const resume = have && r.status === 206; // the server sent only the rest
-  const file = await fs.open(part, resume ? { write: true, append: true } : { write: true, create: true, truncate: true });
-  if (resume) AI.got += have;
-  const start = AI.got - (resume ? have : 0);
+  let t = 0;
   try {
-    if (r.body && r.body.getReader) {
-      // the body comes in small pieces over IPC: they are gathered into 8 MB before each disk write
-      const rd = r.body.getReader();
-      let t = 0, pend = [], pendLen = 0;
-      const flush = async () => {
-        if (!pendLen) return;
-        const buf = new Uint8Array(pendLen);
-        let o = 0;
-        for (const c of pend) { buf.set(c, o); o += c.length; }
-        pend = []; pendLen = 0;
-        await file.write(buf);
-      };
-      for (;;) {
-        if (!prefs.on) { await rd.cancel().catch(() => {}); throw new Error('загрузка остановлена'); }
-        const { done, value } = await rd.read();
-        if (done) break;
-        pend.push(value); pendLen += value.length;
-        AI.got += value.length;
-        if (pendLen >= 8 << 20) await flush();
-        if (Date.now() - t > 250) { t = Date.now(); emit(); }
-      }
-      await flush();
-    } else {
-      const buf = new Uint8Array(await r.arrayBuffer());
-      await file.write(buf);
-      AI.got += buf.length;
-    }
-  } finally { await file.close(); dlAbort = null; }
-  if (AI.got - start !== size) throw new Error('файл модели скачался не полностью — «Повторить» докачает остальное');
-  await fs.rename(part, path);
+    await downloadFile(url, path, { size, signal: dlAbort.signal, stop: () => !prefs.on, what: 'файл модели',
+      onBytes: (n) => { AI.got += n; if (Date.now() - t > 250) { t = Date.now(); emit(); } } });
+  } finally { dlAbort = null; }
   emit();
 }
 
@@ -330,11 +286,12 @@ let approved = 0;
 export function approveCloud() { approved = (AI.confirm ? AI.confirm.usd : 0) * 1.2 + 0.01; AI.confirm = null; AI.paused = prefs.paused = false; keepPrefs(); emit(); study(); }
 export function declineCloud() { AI.confirm = null; setPaused(true); }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const autoName = () => !!settings.aiAutoName;
 async function studyCloud() {
   if (running || AI.status !== 'ready') return;
   const my = gen;
   running = true;
-  let saved = Date.now(), tagged = 0, changed = false;
+  let saved = Date.now(), tagged = 0, changed = false, renamed = 0;
   try {
     const queue = cloudTodo().sort((a, b) => b.added - a.added);
     AI.done = S.items.filter((it) => studyable(it) && !needsDesc(it) && !needsVec(it)).length;
@@ -364,6 +321,12 @@ async function studyCloud() {
             const o = out[k];
             it.aiDesc = o.desc;
             it.aiTags = o.tags.filter((t) => !it.tags.includes(t) && !(it.aiNo || []).includes(t));
+            // the English name (optional field); a file named by a camera or a screenshot tool takes it at once when
+            // «Называть по-английски» is on — the old name stays in `nameWas` (the inspector can bring it back)
+            if (o.name) {
+              it.aiName = o.name;
+              if (autoName() && C.junkName(it.name) && !it.nameWas) { it.nameWas = it.name; it.name = o.name; renamed++; }
+            }
             it.aiTagsV = CLOUD_V; it.aiDescT = it.thumb;
             if (it.aiTags.length) tagged++;
           });
@@ -389,6 +352,7 @@ async function studyCloud() {
     running = false;
     saveVectors();
     if (changed) { AI.tagged = tagged; saveIndex(); ui.refresh(); }
+    if (renamed) import('../ui/dialogs.js').then((d) => d.toast(`ИИ назвал по-английски: ${renamed} — у картинок с именами вроде IMG_2034`, 4000));
     if (AI.status === 'ready') AI.todo = cloudTodo().length;
     emit();
   }
@@ -545,7 +509,7 @@ export async function turnOff() {
   if (dlAbort) dlAbort.abort(); // a download in progress stops (its .part stays for a later resume)
   gen++;
   // what was waiting for the worker fails now, so a start in progress ends instead of hanging
-  if (worker) { worker.terminate(); worker = null; waiting.forEach((w) => w.rej(new Error('ИИ выключен'))); waiting.clear(); }
+  if (worker) { worker.terminate('ИИ выключен'); worker = null; }
   AI.status = 'off'; AI.confirm = null; emit();
   S.aiScores = null; S.aiQ = '';
   ui.refresh();

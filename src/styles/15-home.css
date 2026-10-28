@@ -1,0 +1,16 @@
+/* ——— calm home screen: less on screen at once ——— */
+/* the inspector shows up when something is selected; the layout stays put, the grid shows through */
+body:not(.has-sel) .insp { transform: translateX(calc(100% + 24px)); opacity: 0; pointer-events: none; visibility: hidden; }
+body.motion:not(.has-sel) .insp { transition: transform .45s var(--ease), opacity .25s ease, visibility .45s; }
+/* library stats appear when you look at the header */
+.stats { opacity: 0; transition: opacity .25s ease; }
+.head:hover .stats, .head:focus-within .stats, body.has-sel .stats { opacity: 1; }
+/* type badges on cards: on hover, selection and keyboard focus only — the tabs and the picture tell the type */
+.ph .badge { opacity: 0; transition: opacity .2s ease; }
+.card:hover .ph .badge, .card.sel .ph .badge, body.kbd .card.cur .ph .badge { opacity: 1; }
+/* «Ещё» in the type tabs */
+.chip.more svg.i { width: 13px; height: 13px; rotate: 90deg; }
+.kmenu { position: fixed; display: block; right: auto; top: auto; min-width: 200px; z-index: 40; animation: rise .2s var(--ease); }
+.kmenu .mi .n { margin-left: auto; color: var(--mut); font-variant-numeric: tabular-nums; }
+.kmenu .mi.zero { opacity: .5; }
+.kmenu .mi:focus-visible { outline: none; background: var(--hover-2); }

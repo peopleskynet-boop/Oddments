@@ -1,4 +1,6 @@
 /* «Разобрать» (tidy.js): a screen over the grid, like the duplicates */
+@layer tokens, base, components, screens, themes;
+@layer screens {
 body.tidy-on .scroll, body.tidy-on .dock { visibility: hidden; }
 .tidy { position: absolute; z-index: 2; top: calc(var(--barh) + var(--gap) * 2); bottom: 0; left: var(--pl); right: var(--pr); transition: left .35s var(--ease), right .35s var(--ease); animation: fade .25s; }
 .tidy[hidden] { display: none; }
@@ -22,3 +24,4 @@ body.tidy-on .scroll, body.tidy-on .dock { visibility: hidden; }
 .td-empty { text-align: center; color: var(--mut); margin-top: 18vh; }
 .td-empty h2 { color: var(--fg); font-size: 22px; font-weight: 650; letter-spacing: -.02em; margin: 0 0 6px; }
 .td-empty p { max-width: 420px; margin: 0 auto; }
+}

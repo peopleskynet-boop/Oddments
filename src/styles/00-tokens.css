@@ -1,0 +1,102 @@
+/* Oddments v3. Everything visual hangs off these variables, so the look can be re-skinned from
+   Settings (or "Свой CSS") without touching the code.
+   Two layers, as in Apple's Liquid Glass: content (the grid, edge to edge) and a floating
+   functional layer of glass panels and capsules above it. Dark theme first. */
+:root {
+  --bg: #070708; --fg: #f5f5f7; --mut: #98989f;
+  --line: rgba(255, 255, 255, .08); --line-2: rgba(255, 255, 255, .15);
+  --hover: rgba(255, 255, 255, .06); --hover-2: rgba(255, 255, 255, .1);
+  --card: #141417; --field: rgba(255, 255, 255, .05); --panel: #151518;
+  --glass: rgba(28, 28, 32, .72); --glass-hi: rgba(255, 255, 255, .2); --glass-lo: rgba(255, 255, 255, .05);
+  --dot: rgba(255, 255, 255, .06);
+  --field-line: rgba(255, 255, 255, .34);   /* input borders: 3:1 against the panels */
+  --red-ui: #d70015;                         /* red behind white text (4.6:1) */
+  --acc: var(--fg); --acc-fg: var(--bg);
+  --red: #ff3b30; --warn: #ff6b5e;
+  --shadow: 0 22px 56px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .35);
+  --r: 16px; --rp: 28px; --fs: 13px; --navpad: 6px; --gap: 12px;
+  --font-ui: 'Golos Text Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Geist Mono Variable', Consolas, ui-monospace, monospace;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --sw: 256px; --iw: 316px; --barh: 52px;
+  --pl: calc(var(--sw) + var(--gap) + 20px);   /* content inset left / right of the panels */
+  --pr: calc(var(--iw) + var(--gap) + 20px);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #efefed; --fg: #0c0c0d; --mut: #5d5d62; /* 4.5:1 on --card */
+  --line: rgba(0, 0, 0, .08); --line-2: rgba(0, 0, 0, .15);
+  --hover: rgba(0, 0, 0, .05); --hover-2: rgba(0, 0, 0, .08);
+  --card: #e2e2df; --field: rgba(0, 0, 0, .04); --panel: #fafaf9;
+  --glass: rgba(255, 255, 255, .74); --glass-hi: rgba(255, 255, 255, .95); --glass-lo: rgba(0, 0, 0, .04);
+  --dot: rgba(0, 0, 0, .08); --warn: #d33a2c; --field-line: rgba(0, 0, 0, .4);
+  --shadow: 0 22px 56px rgba(40, 40, 30, .14), 0 2px 8px rgba(40, 40, 30, .08);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #efefed; --fg: #0c0c0d; --mut: #66666b;
+    --line: rgba(0, 0, 0, .08); --line-2: rgba(0, 0, 0, .15);
+    --hover: rgba(0, 0, 0, .05); --hover-2: rgba(0, 0, 0, .08);
+    --card: #e2e2df; --field: rgba(0, 0, 0, .04); --panel: #fafaf9;
+    --glass: rgba(255, 255, 255, .74); --glass-hi: rgba(255, 255, 255, .95); --glass-lo: rgba(0, 0, 0, .04);
+    --dot: rgba(0, 0, 0, .08); --warn: #d33a2c; --field-line: rgba(0, 0, 0, .4);
+    --shadow: 0 22px 56px rgba(40, 40, 30, .14), 0 2px 8px rgba(40, 40, 30, .08);
+    color-scheme: light;
+  }
+}
+/* «Марафон» (after Bungie's Marathon): near-black, acid lime and magenta, a technical HUD over the pictures */
+/* every lime tint comes from the accent: «Монохром» keeps the lime, any other accent recolours the whole HUD
+   (lines, hovers, crosses, rims, the selection) */
+:root[data-theme="marathon"] {
+  --bg: #0b0c10; --fg: #eceaf2; --mut: #8a8b9c;
+  --line: color-mix(in srgb, var(--acc) 10%, transparent); --line-2: color-mix(in srgb, var(--acc) 22%, transparent);
+  --hover: color-mix(in srgb, var(--acc) 7%, transparent); --hover-2: color-mix(in srgb, var(--acc) 12%, transparent);
+  --card: #181d2a; --field: rgba(236, 234, 242, .05); --panel: #12141b;
+  --glass: rgba(16, 19, 30, .46); --glass-hi: rgba(255, 255, 255, .16); --glass-lo: rgba(236, 234, 242, .04);
+  --dot: transparent; --field-line: color-mix(in srgb, var(--acc) 34%, transparent);
+  --red: #ff2e88; --warn: #ff5c9d; --red-ui: #c4005f;
+  --hud: var(--acc); --hud-2: #ff2e88;
+  color-scheme: dark;
+}
+/* «Тишина»: warm paper, ink, the same layout grid and nothing loud */
+:root[data-theme="calm"] {
+  --bg: #f0eee8; --fg: #1d1d1b; --mut: #5c5a54; /* 4.5:1 on --card too (audit 24.10) */
+  --line: rgba(29, 29, 27, .09); --line-2: rgba(29, 29, 27, .16);
+  --hover: rgba(29, 29, 27, .05); --hover-2: rgba(29, 29, 27, .08);
+  --card: #e4e1d9; --field: rgba(29, 29, 27, .04); --panel: #f7f6f2;
+  --glass: rgba(247, 246, 242, .76); --glass-hi: rgba(255, 255, 255, .95); --glass-lo: rgba(29, 29, 27, .04);
+  --dot: transparent; --warn: #c2412f; --field-line: rgba(29, 29, 27, .4);
+  --shadow: 0 22px 56px rgba(40, 36, 24, .13), 0 2px 8px rgba(40, 36, 24, .08);
+  --hud: #1d1d1b; --hud-2: #1d1d1b;
+  color-scheme: light;
+}
+/* "Монохром": the accent is the text colour itself — in «Марафон» it is the lime */
+:root[data-accent="mono"] { --acc: var(--fg); --acc-fg: var(--bg); }
+:root[data-theme="marathon"][data-accent="mono"] { --acc: #d7ff63; --acc-fg: #0b0c10; } /* Oddments Lime */
+
+@property --amb1 { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --amb2 { syntax: '<color>'; inherits: true; initial-value: transparent; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); overflow: hidden;
+  font: var(--fs)/1.45 var(--font-ui); letter-spacing: -.005em;
+  -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+  /* Nothing: a faint dot grid under everything */
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.3px); background-size: 18px 18px;
+}
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+button:disabled { cursor: default; opacity: .35; }
+svg.i { width: 18px; height: 18px; flex: none; fill: currentColor; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+[hidden] { display: none !important; }
+::selection { background: color-mix(in srgb, var(--acc) 30%, transparent); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--mut) 30%, transparent); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--mut) 55%, transparent); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+kbd { font: 500 11px var(--font-ui); border-radius: 6px; padding: 2px 6px; background: var(--hover-2); color: var(--mut); }
+.cap-sm { font-size: 12px; font-weight: 500; color: var(--mut); letter-spacing: -.01em; }

@@ -1,4 +1,6 @@
 /* «Сценарий из записи экрана» (flows.js): a review window over everything */
+@layer tokens, base, components, screens, themes;
+@layer screens {
 .flw { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px); animation: fade .25s; }
 .flw[hidden] { display: none; }
 .flw-bar { position: absolute; z-index: 2; top: 16px; left: 50%; translate: -50% 0; height: 50px; max-width: calc(100% - 32px); border-radius: 99px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 14px; }
@@ -7,6 +9,7 @@
 .flw-name { width: 240px; min-width: 0; height: 36px; border-radius: 99px; border: 0; padding: 0 14px; background: var(--hover); color: var(--fg); font: inherit; font-size: 14px; outline: 0; }
 .flw-name:focus-visible { box-shadow: 0 0 0 2px var(--acc); }
 .flw-sum { white-space: nowrap; color: var(--mut); }
+.flw-pii { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; color: var(--mut); cursor: pointer; padding: 0 6px; }
 .flw-body { position: absolute; inset: 82px 0 0; overflow: auto; padding: 8px 32px 80px; scrollbar-width: thin; }
 .flw-hint { color: var(--mut); font-size: 12px; margin: 0 0 14px; text-align: center; }
 .flw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 16px; max-width: 1400px; margin: 0 auto; }
@@ -16,8 +19,9 @@
 .flw-c:hover .flw-ph { box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 60%, transparent); }
 .flw-c:focus-visible .flw-ph { box-shadow: 0 0 0 2px var(--acc); }
 .flw-ph img { display: block; width: 100%; height: auto; }
-.flw-n { position: absolute; top: 8px; left: 8px; min-width: 30px; height: 24px; padding: 0 8px; border-radius: 99px; display: grid; place-items: center; background: var(--acc); color: var(--accfg, #000); font: 600 12px/1 'Geist Mono', monospace; }
+.flw-n { position: absolute; top: 8px; left: 8px; min-width: 30px; height: 24px; padding: 0 8px; border-radius: 99px; display: grid; place-items: center; background: var(--acc); color: var(--accfg, #000); font: 600 12px/1 var(--mono); }
 .flw-c.off .flw-n { background: rgba(0, 0, 0, .55); color: #fff; }
-.flw-t { color: var(--mut); font-family: 'Geist Mono', monospace; }
+.flw-t { color: var(--mut); font-family: var(--mono); }
 .flw-wait { display: grid; place-items: center; margin-top: 30vh; }
 .flw-empty { text-align: center; color: var(--mut); margin: 26vh auto 0; max-width: 460px; }
+}

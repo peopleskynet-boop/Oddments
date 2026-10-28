@@ -1,0 +1,11 @@
+/* ——— pixel effects (pixel.js) ——— */
+.ph canvas.facts { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+/* what can be clicked on a card is always seen: the heart (and the new-file dot) stay above the facts card and
+   above the video that plays on hover */
+.ph > .fav, .ph > .newdot { z-index: 3; }
+.ph > video.hv { z-index: 1; }
+.boot { position: fixed; inset: 0; z-index: 400; background: var(--bg); transition: opacity .55s var(--ease); pointer-events: none; }
+.boot.out { opacity: 0; }
+.boot canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.boot i { position: absolute; left: 50%; top: 50%; width: 54px; height: 2px; translate: -50% -50%; background: color-mix(in srgb, var(--fg) 22%, transparent); transition: opacity .3s; }
+.boot b { display: block; width: 0; height: 100%; background: var(--fg); transition: width .45s cubic-bezier(.4, 0, .2, 1); }

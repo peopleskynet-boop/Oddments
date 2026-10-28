@@ -35,8 +35,19 @@ export function folderItems(fid) {
 export async function runExport(items, title, asZip) {
   const { busy, busyDone, toast } = await import('../ui/dialogs.js');
   if (typeof window !== 'undefined' && !window.__TAURI_INTERNALS__) { toast('Экспорт — в приложении Oddments'); return; }
+  // personal data on some pictures (pii.js): asked first — hidden in the exported copies, or as they are
+  const pii = items.filter((i) => i.pii && i.pii.length && !i.masked && !i.trashed);
+  let hide = false;
+  if (pii.length) {
+    const { choose } = await import('../ui/dialogs.js');
+    const v = await choose('Личные данные на картинках', `На ${pii.length} из ${items.length} картинок есть номера карт, телефоны или имена. В экспорт можно положить копии, где они скрыты; файлы в библиотеке не меняются.`,
+      [{ label: 'Как есть', value: 'raw' }, { label: 'Скрыть в копиях', value: 'hide', pri: true }]);
+    if (!v) return;
+    hide = v === 'hide';
+  }
   try {
-    const r = await exportItems(items, title, asZip, (d, t) => busy(`Экспорт · ${d} из ${t}`, d / t));
+    const masked = hide ? await maskedFiles(pii, (d, t) => busy(`Скрываю личные данные · ${d} из ${t}`, d / t)) : new Map();
+    const r = await exportItems(items, title, asZip, (d, t) => busy(`Экспорт · ${d} из ${t}`, d / t), masked);
     if (!r) return;
     busyDone(`Экспортировано: ${r.n}`);
     const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
@@ -45,18 +56,31 @@ export async function runExport(items, title, asZip) {
 }
 
 // → { n, where } or null when the dialog was cancelled; onProgress(done, total)
-export async function exportItems(items, title, asZip = false, onProgress = () => {}) {
+// the pictures with their personal data hidden, as PNG bytes by item id (masker.js; regions found by the text reader)
+async function maskedFiles(items, onProgress) {
+  const { findRegions, maskToBlob } = await import('./masker.js');
+  const out = new Map();
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i], f = await findRegions(it);
+    try { if (f.regions.length) out.set(it.id, new Uint8Array(await (await maskToBlob(f.url, f.regions)).arrayBuffer())); } finally { URL.revokeObjectURL(f.url); }
+    onProgress(i + 1, items.length);
+  }
+  return out;
+}
+
+// masked: id → bytes to write instead of the original (a hidden-data copy), named .png
+export async function exportItems(items, title, asZip = false, onProgress = () => {}, masked = new Map()) {
   const list = items.filter((it) => it && it.file && !it.trashed);
   if (!list.length) throw new Error('Нечего экспортировать');
   // recursive: the chosen folder (and what goes into it) joins the app's file access, as other dialog paths do
   const dir = await open({ directory: true, recursive: true, title: asZip ? 'Куда положить zip' : 'Куда скопировать' });
   if (!dir) return null;
-  const nm = names(list), base = clean(title);
+  const nm = names(list).map((n, i) => (masked.has(list[i].id) ? n.replace(/\.[^.]+$/, '') + '.png' : n)), base = clean(title);
   if (asZip) {
     const total = list.reduce((a, it) => a + (it.size || 0), 0);
     if (total > 1e9) throw new Error('Больше 1 ГБ — экспортируйте в папку');
     const files = {};
-    for (let i = 0; i < list.length; i++) { files[nm[i]] = [await fs.readFile(absPath(list[i].file)), { level: 0 }]; onProgress(i + 1, list.length); }
+    for (let i = 0; i < list.length; i++) { files[nm[i]] = [masked.get(list[i].id) || await fs.readFile(absPath(list[i].file)), { level: 0 }]; onProgress(i + 1, list.length); }
     let out = dir + SEP + base + '.zip', k = 2;
     while (await fs.exists(out)) out = `${dir}${SEP}${base} (${k++}).zip`;
     await fs.writeFile(out, zipSync(files));
@@ -65,6 +89,10 @@ export async function exportItems(items, title, asZip = false, onProgress = () =
   let to = dir + SEP + base, k = 2;
   while (await fs.exists(to)) to = `${dir}${SEP}${base} (${k++})`;
   await fs.mkdir(to, { recursive: true });
-  for (let i = 0; i < list.length; i++) { await fs.copyFile(absPath(list[i].file), to + SEP + nm[i]); onProgress(i + 1, list.length); }
+  for (let i = 0; i < list.length; i++) {
+    const m = masked.get(list[i].id);
+    if (m) await fs.writeFile(to + SEP + nm[i], m); else await fs.copyFile(absPath(list[i].file), to + SEP + nm[i]);
+    onProgress(i + 1, list.length);
+  }
   return { n: list.length, where: to };
 }

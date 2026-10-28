@@ -1,3 +1,4 @@
+import { screenWords } from './screenwords.js';
 import { S, ui, KINDS, folderById, descend, recentSet } from '../state.js';
 import { okDist } from './palette.js';
 import { similarity, SIM_MIN } from './similar.js';
@@ -21,6 +22,7 @@ export function viewTitle() {
     case 'kind': return KINDS[v.id] ? KINDS[v.id].label : 'Файлы';
     case 'tag': return '#' + v.id;
     case 'folder': { const f = folderById(v.id); return f ? f.name : 'Подборка'; }
+    case 'team': { const t = (S.teams || []).find((x) => x.id === v.id); return t ? t.name : 'Команда'; }
     default: return '';
   }
 }
@@ -36,10 +38,11 @@ export function stemsHit(parts, text) {
   return words.length > 0 && words.every((p) => text.includes(stem(p)));
 }
 
-export const hayOf = (i) => (i.name + ' ' + i.tags.join(' ') + ' ' + (i.aiTags || []).join(' ') + ' ' + i.note + ' ' + i.url + ' ' + i.ext).toLowerCase();
+// `ocr` — the text read on the picture (ocr.js): a screenshot is found by what is written on it
+export const hayOf = (i) => (i.name + ' ' + i.tags.join(' ') + ' ' + (i.aiTags || []).join(' ') + ' ' + i.note + ' ' + i.url + ' ' + i.ext + ' ' + (i.ocr || '') + (i.pii && i.pii.length ? ' личные данные' : '') + (i.masked ? ' без личных данных' : '') + (i.scr ? ' ' + screenWords(i.scr) : '') + (i.notes ? ' ' + i.notes.map((n) => n.text).join(' ') : '')).toLowerCase().replace(/ё/g, 'е');
 
 export function matchesQuery() {
-  const parts = S.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const parts = S.q.trim().toLowerCase().replace(/ё/g, 'е').split(/\s+/).filter(Boolean);
   const lim = 0.05 + S.colorTol * 0.0022; // tolerance 0..100 → an OKLab distance 0.05..0.27 (perceptual, palette.js)
   const sem = semScores(), min = S.aiMin || 0;
   return (i) => {
@@ -55,7 +58,9 @@ export function matchesQuery() {
 
 export function computeVisible() {
   const v = S.view;
-  let a = S.items.filter((i) => (v.type === 'trash' ? i.trashed : !i.trashed));
+  let a = v.type === 'team' ? S.teamItems.filter((i) => i.team === v.id && !i.trashed) : S.items.filter((i) => (v.type === 'trash' ? i.trashed : !i.trashed));
+  // a search over everything finds the team's files too (marked on the card, team.js)
+  if (v.type === 'all' && S.q.trim() && S.teamItems.length) a = a.concat(S.teamItems.filter((i) => !i.trashed));
   if (v.type === 'folder') { const ids = descend(v.id); a = a.filter((i) => i.folders.some((f) => ids.has(f))); }
   else if (v.type === 'nofolder') a = a.filter((i) => !i.folders.length);
   else if (v.type === 'notag') a = a.filter((i) => !i.tags.length);
@@ -70,7 +75,7 @@ export function computeVisible() {
   if (S.q.trim() || S.color) a = a.filter(matchesQuery());
   // how many of the results only the AI found (not by their words): the search box says «по смыслу: N»
   S.aiHits = 0;
-  if (S.q.trim()) { const parts = S.q.trim().toLowerCase().split(/\s+/); S.aiHits = a.filter((i) => !parts.every((p) => hayOf(i).includes(p))).length; }
+  if (S.q.trim()) { const parts = S.q.trim().toLowerCase().replace(/ё/g, 'е').split(/\s+/); S.aiHits = a.filter((i) => !parts.every((p) => hayOf(i).includes(p))).length; }
   // a search by meaning is ranked by meaning: the closest pictures first (word matches count as close)
   const sem = S.q.trim() && v.type !== 'similar' ? semScores() : null;
   if (sem) {

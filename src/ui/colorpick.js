@@ -10,6 +10,8 @@ const PRESETS = ['#ff453a', '#ff9f0a', '#ffd60a', '#30d158', '#64d2ff', '#0a84ff
 const NAMES = { '#ff453a': 'Красный', '#ff9f0a': 'Оранжевый', '#ffd60a': 'Жёлтый', '#30d158': 'Зелёный', '#64d2ff': 'Голубой',
   '#0a84ff': 'Синий', '#5e5ce6': 'Индиго', '#bf5af2': 'Фиолетовый', '#ff375f': 'Розовый', '#a2845e': 'Коричневый', '#8e8e93': 'Серый',
   '#1c1c1e': 'Чёрный', '#ffffff': 'Белый', '#f2e6d0': 'Бежевый', '#2c3b34': 'Тёмно-зелёный', '#14213d': 'Тёмно-синий' };
+// the name of a preset colour, for the filter chip and the empty-result text (audit 24.10: «#FF9F0A» told little)
+export const colorName = (c) => NAMES[String(c || '').toLowerCase()] || String(c || '').toUpperCase();
 const R = 86; // wheel radius, px
 const RECENT_KEY = 'perch.recentColors';
 
