@@ -6,7 +6,7 @@ PSD в одной библиотеке. Библиотека — обычная 
 *A desktop reference manager for designers: images, video, 3D models, materials, fonts, PDF and PSD in one local
 library. Russian and English interface. Windows and macOS, MIT licence.*
 
-![Библиотека](docs/screenshots/library.png)
+![Библиотека](docs/screenshots/library.jpg)
 
 ## Что умеет
 
@@ -41,8 +41,11 @@ library. Russian and English interface. Windows and macOS, MIT licence.*
 
 | | |
 |---|---|
-| ![Просмотр](docs/screenshots/preview.png) | ![3D](docs/screenshots/3d.png) |
-| ![Конструктор иконок](docs/screenshots/icons.png) | |
+| ![Поиск по смыслу](docs/screenshots/ai-search.jpg) | ![Поиск по цвету](docs/screenshots/color-search.jpg) |
+| ![3D-просмотр](docs/screenshots/3d-viewer.jpg) | ![SVG в 3D](docs/screenshots/svg-to-3d.jpg) |
+| ![Конструктор иконок](docs/screenshots/icon-constructor.jpg) | ![Чистый экран](docs/screenshots/clean.jpg) |
+
+Все экраны и подробное описание — на странице [релиза 0.1.0](../../releases/tag/v0.1.0).
 
 ## Установка
 

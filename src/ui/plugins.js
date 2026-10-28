@@ -8,9 +8,16 @@ import { esc, isMac } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
 import { sfx } from './sound.js';
+import { t } from '../lib/i18n.js';
+import extManifest from '../../integrations/browser/manifest.json';
 
 const inApp = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
 const addonPy = () => import('../../integrations/blender/perch_blender.py?raw').then((m) => m.default);
+// versions come from the files themselves (they were typed by hand and lagged: «Аддон 1.12» next to add-on 1.19);
+// the add-on's bl_info is read when the hub opens — its text is a lazy chunk anyway
+const extVer = String(extManifest.version || '').replace(/\.0$/, '');
+let addonVer = '';
+const addonVersion = async () => { const m = (await addonPy()).match(/"version":\s*\((\d+),\s*(\d+)/); return m ? `${m[1]}.${m[2]}` : ''; };
 const FIGMA = import.meta.glob('../../integrations/figma/*.{json,js,html}', { query: '?raw', import: 'default' });
 const figmaFiles = () => Promise.all(['manifest.json', 'code.js', 'ui.html'].map((f) => FIGMA['../../integrations/figma/' + f]().then((t) => [f, t])));
 const extText = import.meta.glob('../../integrations/browser/*.{json,js,html}', { query: '?raw', import: 'default' });
@@ -93,25 +100,25 @@ const claudeCode = (i) => `claude mcp add --transport http oddments http://127.0
 
 const CARDS = [
   {
-    id: 'blender', seen: 'blender', title: 'Blender', icon: 'cube', ver: 'Аддон 1.12',
+    id: 'blender', seen: 'blender', title: 'Blender', icon: 'cube', get ver() { return t('Аддон') + (addonVer ? ' ' + addonVer : ''); },
     what: 'Модели и материалы из Oddments — в сцену, выделенное — обратно; браузер Oddments поверх 3D-вида и своя библиотека материалов.',
     acts: [{ a: 'addon', label: 'Сохранить аддон…', pri: true }],
     steps: ['Сохраните аддон (файл perch_blender.py — имя прежнее, чтобы токен и настройки остались).', 'Blender › Edit › Preferences › Add-ons › Install from Disk — выберите файл.', 'В панели N › Oddments нажмите «Вставить токен…» — токен копируется кнопкой вверху этого окна.', 'Включите «Принимать из Oddments», чтобы кнопка «В Blender» работала одним нажатием.'],
   },
   {
-    id: 'figma', seen: 'figma', title: 'Figma', icon: 'figma', ver: 'Плагин 2.1',
+    id: 'figma', seen: 'figma', title: 'Figma', icon: 'figma', ver: 'Плагин',
     what: 'Библиотека Oddments внутри Figma: поиск, картинка на холст, мудборд из подборки, палитра — в стили, иконки — в компоненты.',
     acts: [{ a: 'figma', label: 'Сохранить плагин…', pri: true }],
     steps: ['Сохраните плагин в папку.', 'Figma › Plugins › Development › Import plugin from manifest — выберите manifest.json в этой папке.', 'Откройте плагин и вставьте токен.'],
   },
   {
-    id: 'browser', seen: 'browser', title: 'Chrome и Edge', icon: 'external', ver: 'Расширение 1.4',
+    id: 'browser', seen: 'browser', title: 'Chrome и Edge', icon: 'external', ver: t('Расширение') + ' ' + extVer,
     what: 'Картинки, видео, ссылки и снимки экрана — в Oddments: правый клик, Alt+клик, все картинки страницы, блоки интерфейса со снимком и кодом, статьи — читать здесь.',
     acts: [{ a: 'ext', label: 'Сохранить расширение…', pri: true }],
     steps: ['Сохраните расширение в папку.', 'Откройте chrome://extensions (или edge://extensions) и включите «Режим разработчика».', '«Загрузить распакованное» — папка «Oddments for Browser».', 'В окне расширения вставьте токен.'],
   },
   {
-    id: 'safari', seen: 'browser', title: 'Safari', icon: 'link', ver: 'Расширение 1.4 · Mac',
+    id: 'safari', seen: 'browser', title: 'Safari', icon: 'link', ver: t('Расширение') + ' ' + extVer + ' · Mac',
     what: 'То же расширение для Safari на Mac: правый клик, Alt+клик, все картинки страницы.',
     acts: [{ a: 'safari', label: isMac ? 'Установить в Safari' : 'Только на Mac', pri: true, off: !isMac }],
     steps: ['Нажмите «Установить в Safari» — откроется маленькое приложение «Oddments for Safari».', 'Safari › Настройки › Дополнения: включите «Показывать меню разработки», затем в меню «Разработка» — «Разрешить неподписанные расширения» (Safari спрашивает это после каждого перезапуска).', 'Safari › Настройки › Расширения — включите Oddments и разрешите его на всех сайтах.', 'В окне расширения вставьте токен.'],
@@ -192,6 +199,7 @@ export async function openPlugins() {
   pushLayer({ el, title: 'Плагины', close: closePlugins });
   sfx('open');
   last = await info().catch(() => null);
+  if (!addonVer) addonVer = await addonVersion().catch(() => '');
   const refresh = async () => {
     if (!isPluginsOpen()) return;
     const open = [...el.querySelectorAll('.plg-steps')].map((o) => !o.hidden);
