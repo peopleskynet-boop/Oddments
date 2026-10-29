@@ -660,6 +660,7 @@ async function boot() {
   await initI18n(); // English, when chosen: the dictionary loads (a Russian start skips it), then what the interface shows is translated
   // the first run: language, the library folder, AI and the network, before the library opens (ui/welcome.js)
   const firstRun = welcome ? await (await import('./ui/welcome.js')).runWelcome() : null;
+  document.body.classList.add('booted'); // the layout shows now (index.html keeps it hidden behind the first-run window)
   // the tray menu is drawn by the system, not the page: its words go to Rust (tray.rs starts in Russian)
   if (lang !== 'ru' && window.__TAURI_INTERNALS__) import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_tray_labels', { open: t('Открыть Oddments'), paste: t('Вставить из буфера'), quit: t('Выход') })).catch(() => {});
   bootIntro();

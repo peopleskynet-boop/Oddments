@@ -3,7 +3,8 @@
 @layer screens {
 .wz { position: fixed; inset: 0; z-index: 420; display: grid; place-items: center; padding: 24px; background: var(--bg); overflow: auto; transition: opacity .35s var(--ease); }
 .wz.out { opacity: 0; pointer-events: none; }
-.wz-glow { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.wz-glow { position: absolute; inset: 0; overflow: hidden; pointer-events: none; animation: fade .6s var(--ease); }
+.wz.leaving .wz-card { opacity: 0; translate: 0 6px; transition: opacity .18s var(--ease), translate .18s var(--ease); }
 .wz-glow i { position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; filter: blur(90px); opacity: .28; }
 .wz-glow i:nth-child(1) { left: -12vmax; top: -16vmax; background: var(--rim-a); animation: wz-drift 18s ease-in-out infinite alternate; }
 .wz-glow i:nth-child(2) { right: -14vmax; top: 8vmax; background: var(--rim-b); animation: wz-drift 22s ease-in-out infinite alternate-reverse; }
@@ -33,6 +34,6 @@
 .wz-row:has(input:disabled) { opacity: .5; cursor: default; }
 .wz-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 .wz-nav .ibtn { height: 42px; padding: 0 22px; border-radius: 99px; }
-body:not(.motion) .wz-card, body:not(.motion) .wz-glow i { animation: none; }
+body:not(.motion) .wz-card, body:not(.motion) .wz-glow, body:not(.motion) .wz-glow i { animation: none; }
 @media (max-width: 520px) { .wz-card { padding: 22px 18px 18px; border-radius: 26px; } .wz-card h2 { font-size: 24px; } }
 }

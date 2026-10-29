@@ -79,7 +79,9 @@ export function runWelcome() {
       if (b.dataset.lang) {
         if (b.dataset.lang === lang) { go(1); return; }
         st.step = 1; save();
-        setLang(b.dataset.lang); // reloads; the window comes back on the next step in that language
+        // reloads; the window comes back on the next step in that language — the card fades out first (no blink)
+        el.classList.add('leaving');
+        setTimeout(() => setLang(b.dataset.lang), document.body.classList.contains('motion') ? 180 : 0);
         return;
       }
       const a = b.dataset.wz;

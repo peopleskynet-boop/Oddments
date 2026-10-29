@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Oddments</title>
     <link rel="icon" type="image/png" href="/src/assets/oddments-mark.png" />
+    <!-- the first frame, before the styles: dark (no white flash on start or on the reload a language switch makes), and
+         the layout hidden until boot knows whether the first-run window covers it (main.js adds body.booted; a broken
+         start still shows the window after 6 s). In the styles' own layers, so the themes keep their colours. -->
+    <style>
+      @layer tokens, base, components, screens, themes;
+      @layer base {
+        html, body { background: #0b0c10; }
+        #app { visibility: hidden; animation: app-shown 0s 6s forwards; }
+        body.booted #app { visibility: visible; animation: none; }
+        @keyframes app-shown { to { visibility: visible; } }
+      }
+    </style>
   </head>
   <body>
     <div class="app" id="app">
