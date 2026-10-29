@@ -1,4 +1,4 @@
-/* Oddments styles: one file per part of the window, in this order (see CLAUDE.md «Правила кода»). */
+/* Oddments styles: one file per part of the window, in this order (see CONTRIBUTING.md). */
 @layer tokens, base, components, screens, themes;
 @import './styles/00-tokens.css' layer(tokens);
 @import './styles/01-base.css' layer(base);

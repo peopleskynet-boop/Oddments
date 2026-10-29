@@ -16,6 +16,8 @@
 :root[data-theme="marathon"] :is(.fld > span, .sec) > :last-child:not(:first-child) { margin-left: auto; }
 :root[data-theme="marathon"] .search kbd { font-family: var(--mono); color: var(--hud); background: none; box-shadow: none; }
 :root[data-theme="marathon"] .search kbd::before { content: '[ '; } :root[data-theme="marathon"] .search kbd::after { content: ' ]'; }
+/* the glass rule above the components (12-motion.css) owns box-shadow here: the focus ring of the search lives in this layer */
+:root[data-theme="marathon"] body.glass-on .search:focus-within { box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 1.5px var(--acc), 0 0 0 4px color-mix(in srgb, var(--acc) 18%, transparent), var(--shadow); }
 :root[data-theme="marathon"] :is(.tabs .chip .n, .tr-t span)::before { content: '('; } :root[data-theme="marathon"] :is(.tabs .chip .n, .tr-t span)::after { content: ')'; }
 :root[data-theme="marathon"] .pv-top .t { font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; font-size: 13px; font-weight: 500; }
 :root[data-theme="marathon"] .pv-top .c { color: var(--hud); }

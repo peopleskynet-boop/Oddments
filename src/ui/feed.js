@@ -97,7 +97,7 @@ function postBody(x, t) {
 }
 
 function card(x, i) {
-  const t = x.ru || x;
+  const t = F.trOf(x) || x; // a translation into the other language (the interface was switched) is not shown
   const liked = F.state.liked.includes(x.id);
   return `<article class="reel" data-i="${i}" aria-label="${esc(t.title)}">
     <div class="reel-card">
@@ -113,7 +113,7 @@ function card(x, i) {
       <button type="button" data-fd="like" aria-pressed="${liked}" title="Нравится (H или двойной клик) — чаще показывать этот источник">${ic(liked ? 'heartOn' : 'heart')}<span>Нравится</span></button>
       <button type="button" data-fd="save" title="Картинку — в библиотеку (S)">${ic('download')}<span>В Oddments</span></button>
       <button type="button" data-fd="read" title="Читать целиком здесь (R) — статья сохранится в «Новости › Сохранённое»">${ic('article')}<span>Читать</span></button>
-      <button type="button" data-fd="tr" title="Перевести на русский (T)">${ic('sparkle')}<span>${x.ru ? 'Оригинал' : 'Перевести'}</span></button>
+      <button type="button" data-fd="tr" title="${lang === 'en' ? 'Перевести на английский (T)' : 'Перевести на русский (T)'}">${ic('sparkle')}<span>${F.trOf(x) ? 'Оригинал' : 'Перевести'}</span></button>
       <button type="button" data-fd="open" title="Открыть на сайте (O)">${ic('external')}<span>Открыть</span></button>
       <button type="button" data-fd="hide" title="Не показывать ${esc(x.sourceName)}">${ic('eyeOff')}<span>Скрыть</span></button>
       <button type="button" data-fd="ad" title="Это реклама — скрыть; похожие посты ${esc(x.sourceName)} тоже скроются">${ic('megaphone')}<span>Реклама</span></button>
@@ -245,10 +245,22 @@ async function load(force) {
     box.className = 'fd-empty';
     box.appendChild(live.el);
     list.appendChild(box);
+    let early = false;
     try {
-      await F.refresh((d, n, failed) => live.set(`Собираю ленту · ${d} из ${n} источников${failed.length ? ' · не ответили: ' + failed.length : ''}`), force);
-    } finally { live.stop(); }
-  } else F.refresh(() => {}).then(() => { if (isFeedOpen() && !list.querySelector('.reel')) render(); }); // fresh enough: show the cache, refresh quietly
+      await F.refresh((d, n, failed) => {
+        if (early) return;
+        live.set(`Собираю ленту · ${d} из ${n} источников${failed.length ? ' · не ответили: ' + failed.length : ''}`);
+        // the first sources are enough to start reading; the rest join when all have answered
+        if (!force && F.ordered(F.cached()).length >= 8) { early = true; live.stop(); render(); }
+      }, force);
+    } finally { if (!early) live.stop(); }
+    loading = false;
+    btn.classList.remove('spinning');
+    // read on from the early cards: the full list comes in only while the first card is still on screen (no jump)
+    if (!early || cur === 0) render();
+    return;
+  }
+  F.refresh(() => {}).then(() => { if (isFeedOpen() && !list.querySelector('.reel')) render(); }); // fresh enough: show the cache, refresh quietly
   loading = false;
   btn.classList.remove('spinning');
   render();
@@ -334,7 +346,7 @@ async function act(a, i, btn, ev) {
     if (btn) btn.disabled = false;
     if (!ok) return;
   } else if (a === 'tr') {
-    if (x.ru && reel.dataset.ru !== '0') { reel.dataset.ru = '0'; swapText(reel, x); return; }
+    if (F.trOf(x) && reel.dataset.ru !== '0') { reel.dataset.ru = '0'; swapText(reel, x); return; }
     btn.disabled = true;
     try { await F.translate(x); reel.dataset.ru = '1'; swapText(reel, x.ru, true); } catch (e) { toast('Перевод не получился: ' + e.message, 6000); }
     btn.disabled = false;

@@ -6,7 +6,12 @@ body.tidy-on .scroll, body.tidy-on .dock { visibility: hidden; }
 .tidy[hidden] { display: none; }
 .tidy .orb-bar { padding-left: 14px; gap: 10px; }
 .tidy .orb-bar .ibtn { height: 38px; }
-.td-sum { white-space: nowrap; }
+/* centred by margins, not left: 50% (that capped the bar at half the screen: «Разложит…» and the count ran under the
+   button at 1100 px, audit 29.10); the count gives way first */
+.tidy .orb-bar { left: 0; right: 0; translate: none; margin-inline: auto; width: fit-content; }
+.tidy .orb-bar .ibtn, .tidy .orb-bar .ib { flex: none; }
+.tidy .orb-t { flex: none; max-width: none; }
+.td-sum { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .td-list { position: absolute; inset: 60px 0 0; overflow: auto; padding: 8px 4px 110px; scrollbar-width: none; outline: 0; }
 .td-list::-webkit-scrollbar { display: none; }
 .td-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px 14px; }
@@ -24,4 +29,7 @@ body.tidy-on .scroll, body.tidy-on .dock { visibility: hidden; }
 .td-empty { text-align: center; color: var(--mut); margin-top: 18vh; }
 .td-empty h2 { color: var(--fg); font-size: 22px; font-weight: 650; letter-spacing: -.02em; margin: 0 0 6px; }
 .td-empty p { max-width: 420px; margin: 0 auto; }
+/* the properties panel floats over the wall (body.overlay): this screen runs to the right edge like the grid, not short
+   of it by the panel's width (audit 29.10) */
+@media (min-width: 861px) { body.overlay .tidy { right: 24px; } }
 }

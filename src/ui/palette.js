@@ -4,7 +4,7 @@
 // height of the list; Enter runs, Esc closes. Actions reuse the app's own buttons and functions, so the
 // palette never behaves differently from the place the action lives in.
 import { t } from '../lib/i18n.js';
-import { S, KINDS } from '../state.js';
+import { S, KINDS, isSplatItem, isPic } from '../state.js';
 import { $, esc, isMac } from '../util.js';
 import { ic, KIND_ICONS } from './icons.js';
 import { setView } from '../lib/filter.js';
@@ -28,7 +28,11 @@ function actions() {
     { icon: 'plus', label: 'Добавить файлы…', keys: 'импорт открыть загрузить', run: click('#addBtn') },
     { icon: 'paste', label: 'Вставить из буфера', hint: 'Ctrl+V', keys: 'скриншот картинка', run: click('#pasteBtn') },
     { icon: 'folderplus', label: 'Добавить папку…', keys: 'импорт каталог', run: click('#addDirBtn') },
+    { icon: 'download', label: 'Перенести из Eagle…', keys: 'eagle импорт перенос библиотека library миграция', run: click('#eagleBtn') },
+    { icon: 'image', label: 'Картинки с доски PureRef…', keys: 'pureref pur доска импорт мудборд', run: click('#purBtn') },
     { icon: 'cube', label: 'SVG в 3D…', keys: 'иконка модель конвертер blender', run: () => import('./svg3d.js').then((m) => m.pickSvgFor3d()) },
+    { icon: 'splat', label: 'Сплат из модели…', keys: 'гауссовы сплаты gaussian splat 3dgs spz ply облако точек', run: () => import('./splatmaker.js').then((m) => m.splatSelected()) },
+    ...pickTools(),
     { icon: 'external', label: 'Плагины: Blender, Figma, браузеры, Claude…', keys: 'plugins плагины интеграции аддон расширение safari chrome figma blender mcp claude токен', run: () => import('./plugins.js').then((m) => m.openPlugins()) },
     { icon: 'team', label: 'Командная библиотека: подключить папку…', keys: 'команда team общая папка сетевой диск onedrive sharepoint яндекс диск', run: () => import('./teamui.js').then((m) => m.connectFlow()) },
     { icon: 'present', label: 'Показ: картинки по одной, крупно', keys: 'презентация показ ревью слайды pdf защита концепта', run: () => import('./show.js').then((m) => m.showCurrent()) },
@@ -40,7 +44,7 @@ function actions() {
     { icon: 'palette', label: 'Поиск по цвету', keys: 'цвет палитра', run: click('#filtBtn') },
     { icon: 'scan', label: 'Найти дубликаты', keys: 'повторы копии', run: () => openDupes() },
     { icon: 'trash', label: 'Очистить корзину', keys: 'удалить навсегда корзина стереть', run: () => import('./hero.js').then((m) => m.askEmptyTrash()) },
-    { icon: 'folder', label: 'Разобрать: файлы без подборки', keys: 'разобрать подсказки подборка сортировать', run: () => openTidy() },
+    { icon: 'folder', label: 'Разложить по подборкам: файлы без подборки', keys: 'разобрать подсказки подборка сортировать', run: () => openTidy() },
     { icon: 'play', label: 'Лента новостей', keys: 'новости дизайн рилс feed behance dezeen 3d моушн', run: () => openFeed() },
     { icon: 'sparkle', label: 'Сводка дня', keys: 'новости ии ai дизайн дайджест digest', run: () => openNews('digest') },
     { icon: 'bookmark', label: 'Сохранённые статьи', keys: 'новости читать статьи reader закладки', run: () => openNews('saved') },
@@ -48,10 +52,25 @@ function actions() {
     { icon: 'grid', label: 'Сетка', keys: 'вид раскладка', run: click('#lyG') },
     { icon: 'sideL', label: cleanOn() ? 'Выключить чистый экран' : 'Чистый экран', hint: '\\', keys: 'интерфейс скрыть панели', run: () => setClean(!cleanOn()) },
     { icon: 'gear', label: 'Настройки', keys: 'параметры', run: toggleSettings },
+    { icon: 'download', label: 'Проверить обновления', keys: 'обновить версия update новая версия о программе', run: () => import('../lib/updater.js').then((m) => m.checkUpdates()) },
     { icon: 'info', label: 'Горячие клавиши', hint: '?', keys: 'клавиатура сочетания', run: () => import('./keys.js').then((m) => m.toggleKeys(true)) },
   ];
   // the current theme stays in the list, marked, so you can see what you are on
   THEMES.forEach(([v, n]) => a.push({ icon: v === 'light' || v === 'calm' ? 'sun' : 'moon', label: 'Тема: ' + n, sub: settings.theme === v ? 'сейчас' : '', keys: 'оформление цвет', run: () => setLayoutPrefs({ theme: v }) }));
+  return a;
+}
+
+// the picture tools are always in the list (audit 29.10: «фон» found nothing without a picture selected); with nothing
+// fitting selected they ask for one (pick.js) — with one selected, forSelection() has them first
+function pickTools() {
+  const ids = Array.from(S.sel), it = ids.length === 1 ? S.byId.get(ids[0]) : null;
+  const pickRun = (title, filter, open) => () => import('./pick.js').then((m) => m.pickItem({ title, filter, run: open, empty: 'В библиотеке пока нет картинок. Добавьте их как обычно — Ctrl+V или перетаскиванием.' }));
+  const a = [];
+  if (!(it && isPic(it))) {
+    a.push({ icon: 'scissors', label: 'Убрать фон — выберите картинку…', keys: 'вырезать объект фон прозрачный png remove background cutout маска', run: pickRun('Убрать фон', isPic, (x) => import('./cutout.js').then((m) => m.openCutout(x))) });
+    a.push({ icon: 'shield', label: 'Скрыть личные данные — выберите картинку…', keys: 'маскировка карта телефон фио размыть пд безопасность', run: pickRun('Скрыть личные данные', isPic, (x) => import('./mask.js').then((m) => m.openMask([x]))) });
+  }
+  if (!(it && isPic(it) && it.ext !== 'svg')) a.push({ icon: 'sparkle', label: 'Увеличить ×2 / ×4 — выберите картинку…', keys: 'апскейл upscale разрешение качество esrgan крупнее', run: pickRun('Увеличить', (i) => isPic(i) && i.ext !== 'svg', (x) => import('./upscale.js').then((m) => m.openUpscale(x))) });
   return a;
 }
 
@@ -62,8 +81,10 @@ function forSelection() {
   const a = [];
   if (it) {
     a.push({ icon: 'zoom', label: 'Просмотр: ' + it.name, hint: 'Пробел', keys: 'открыть смотреть', run: () => openFile(it.id) });
-    if (it.kind === 'model') a.push({ icon: 'cube', label: 'В Blender', keys: 'blender отправить сцена аддон', run: () => { const b = document.querySelector('.insp [data-act="toblender"], .insp [data-act="open"]'); if (b) b.click(); } });
+    if (it.kind === 'model') a.push({ icon: 'cube', label: 'В Blender', keys: 'blender отправить сцена аддон', run: () => { const b = document.querySelector('.insp [data-act="toblender"], .insp [data-act="blender"], .insp [data-act="open"]'); if (b) b.click(); } });
+    if (it.kind === 'model' && !isSplatItem(it)) a.push({ icon: 'splat', label: 'Сделать сплат из модели…', keys: 'гауссовы сплаты gaussian splat 3dgs spz ply облако точек', run: () => import('./splatmaker.js').then((m) => m.openSplatMaker(it)) });
     if (it.ext === 'svg') a.push({ icon: 'cube', label: 'Сделать 3D из SVG…', keys: 'модель blender', run: () => import('./svg3d.js').then((m) => m.openFromItem(it)) });
+    if (((it.kind === 'image' && it.ext !== 'gif') || (it.kind === 'psd' && it.preview))) a.push({ icon: 'scissors', label: 'Убрать фон…', keys: 'вырезать объект фон прозрачный png remove background cutout маска', run: () => import('./cutout.js').then((m) => m.openCutout(it)) });
     if (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview))) a.push({ icon: 'sparkle', label: 'Увеличить ×2 / ×4…', keys: 'апскейл upscale разрешение качество esrgan крупнее', run: () => import('./upscale.js').then((m) => m.openUpscale(it)) });
     a.push({ icon: 'edit', label: 'Переименовать', hint: 'F2', keys: 'имя', run: () => import('./rename.js').then((m) => m.openRename([it])) });
   }

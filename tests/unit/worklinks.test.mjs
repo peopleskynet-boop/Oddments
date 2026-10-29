@@ -14,8 +14,8 @@ test('links are named by what they are', () => {
 
 test('a collection as Markdown: links, a table, pipes escaped', () => {
   const md = collectionMd({ name: 'Перевод', links: [{ url: 'https://jira.example.com/browse/DES-1' }] }, [
-    { name: 'a|b.png', url: 'https://x.com/1', tags: ['конкуренты'], scr: { app: 'Т-Банк', type: 'Перевод' }, notes: [{ text: 'отступ' }] },
+    { name: 'a|b.png', url: 'https://x.com/1', tags: ['конкуренты'], scr: { app: 'Revolut', type: 'Перевод' }, notes: [{ text: 'отступ' }] },
   ]);
   assert.match(md, /\[DES-1\]\(https:\/\/jira\.example\.com\/browse\/DES-1\)/);
-  assert.match(md, /\| a\\\|b\.png \(Т-Банк · Перевод\) \| \[ссылка\]\(https:\/\/x\.com\/1\) \| конкуренты \| 1\. отступ \|/);
+  assert.match(md, /\| a\\\|b\.png \(Revolut · Перевод\) \| \[ссылка\]\(https:\/\/x\.com\/1\) \| конкуренты \| 1\. отступ \|/);
 });

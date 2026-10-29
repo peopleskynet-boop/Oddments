@@ -7,6 +7,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import { S } from '../state.js';
 import { absPath } from './library.js';
+import { t } from './i18n.js';
 
 const SEP = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform) ? '\\' : '/';
 const clean = (n) => (n || 'Файл').replace(/[\\/:*?"<>|\u0000-\u001f‪-‮⁦-⁩]+/g, '_').trim().replace(/^\.+/, '').slice(0, 120) || 'Файл';
@@ -73,7 +74,7 @@ export async function exportItems(items, title, asZip = false, onProgress = () =
   const list = items.filter((it) => it && it.file && !it.trashed);
   if (!list.length) throw new Error('Нечего экспортировать');
   // recursive: the chosen folder (and what goes into it) joins the app's file access, as other dialog paths do
-  const dir = await open({ directory: true, recursive: true, title: asZip ? 'Куда положить zip' : 'Куда скопировать' });
+  const dir = await open({ directory: true, recursive: true, title: t(asZip ? 'Куда положить zip' : 'Куда скопировать') });
   if (!dir) return null;
   const nm = names(list).map((n, i) => (masked.has(list[i].id) ? n.replace(/\.[^.]+$/, '') + '.png' : n)), base = clean(title);
   if (asZip) {

@@ -73,6 +73,19 @@ pub fn set_close_to_tray(state: tauri::State<'_, CloseToTray>, on: bool) {
     state.0.store(on, Ordering::Relaxed);
 }
 
+/// the menu in the interface's language: the window sends its words once it knows the language (Russian until then);
+/// the items keep their ids, so the handler above stays the same
+#[tauri::command]
+pub fn set_tray_labels(app: AppHandle, open: String, paste: String, quit: String) -> Result<(), String> {
+    let tray = app.tray_by_id("perch").ok_or("no tray icon")?;
+    let open = MenuItem::with_id(&app, "open", open, true, None::<&str>).map_err(|e| e.to_string())?;
+    let paste = MenuItem::with_id(&app, "paste", paste, true, None::<&str>).map_err(|e| e.to_string())?;
+    let sep = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let quit = MenuItem::with_id(&app, "quit", quit, true, None::<&str>).map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(&app, &[&open, &paste, &sep, &quit]).map_err(|e| e.to_string())?;
+    tray.set_menu(Some(menu)).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);

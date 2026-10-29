@@ -2,6 +2,7 @@
 // - recognising Figma's own clipboard (it carries layer data, not an image) to give a useful hint;
 // - Figma links saved as .url files with a drawn card as the thumbnail;
 // - .fig files: a ZIP with a ready thumbnail.png inside (older binary .fig files have none).
+import { t } from './i18n.js';
 
 const FIGMA_URL = /^https?:\/\/(?:www\.)?figma\.com\/(design|file|proto|board|slides|make|community\/file)\/([A-Za-z0-9]+)(?:\/([^?#\s]*))?/i;
 
@@ -112,7 +113,7 @@ export function linkCard(url, W = 640, H = 480) {
   wrap(x, title, f ? 210 : 56, f ? 120 : 200, W - (f ? 260 : 112), 54, 3);
   x.fillStyle = '#98989f';
   x.font = '500 24px "Golos Text Variable", "Segoe UI", sans-serif';
-  x.fillText(f ? `Figma · ${KIND_RU[f.kind] || 'Файл'}` : 'Ссылка', f ? 210 : 56, H - 56);
+  x.fillText(f ? `Figma · ${t(KIND_RU[f.kind] || 'Файл')}` : t('Ссылка'), f ? 210 : 56, H - 56);
   return c;
 }
 

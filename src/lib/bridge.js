@@ -33,6 +33,12 @@ export async function initBridge(importPaths, importLink) {
           try { const html = await fs.readTextFile(p); done = await (await import('../ui/news.js')).saveFromBrowser(html, g.ctx.url || ''); } catch (e) { done = null; }
           if (!done) { fs.remove(p.replace(/[\\/][^\\/]+$/, ''), { recursive: true }).catch(() => {}); continue; }
         }
+        // «Сплат (Cycles)» from the Blender add-on: renders + cameras + geometry → a splat in the library, not the zip
+        if (/\.oddsplatviews$/i.test(p)) {
+          done = !!(await (await import('./splatviews.js')).splatFromViews(p, g.ctx));
+          fs.remove(p.replace(/[\\/][^\\/]+$/, ''), { recursive: true }).catch(() => {});
+          continue;
+        }
         if (importLink && !done && /\.url$/i.test(p)) {
           try {
             const url = ((await fs.readTextFile(p)).match(/^URL=(.+)$/m) || [])[1];

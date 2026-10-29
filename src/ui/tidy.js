@@ -24,8 +24,8 @@ function build() {
   el = document.createElement('section');
   el.className = 'tidy';
   el.hidden = true;
-  el.setAttribute('aria-label', 'Разобрать');
-  el.innerHTML = `<div class="orb-bar glass"><span class="orb-t">Разобрать</span><span class="td-sum cap-sm" aria-live="polite"></span>` +
+  el.setAttribute('aria-label', 'Разложить по подборкам');
+  el.innerHTML = `<div class="orb-bar glass"><span class="orb-t">Разложить по подборкам</span><span class="td-sum cap-sm" aria-live="polite"></span>` +
     `<button type="button" class="ibtn pri" data-td="all" hidden></button>` +
     `<button type="button" class="ib" data-td="close" aria-label="Закрыть" title="Закрыть (Esc)">${ic('x')}</button></div>` +
     '<div class="td-list" tabindex="-1"></div>';
@@ -49,21 +49,46 @@ function build() {
 function voteFolder(it, pool) {
   const near = similarTo(it, pool, 12);
   const w = new Map();
-  near.forEach((x, i) => { for (const f of x.folders || []) w.set(f, (w.get(f) || 0) + (12 - i)); });
+  near.forEach((x, i) => { for (const f of x.folders || []) if (fits(it, f)) w.set(f, (w.get(f) || 0) + (12 - i)); });
   const best = [...w].sort((a, b) => b[1] - a[1])[0];
   if (!best) return null;
   const votes = near.filter((x) => (x.folders || []).includes(best[0])).length;
   return votes >= 2 ? { folder: best[0], score: Math.min(1, votes / 6) } : null;
 }
 
+// what a collection holds, by family: an SVG cloud does not go into «3D» because its colours match the renders there
+// (audit 29.10) — a suggestion needs a quarter of the collection to be of the file's family
+const family = (i) => i.ext === 'svg' ? 'vector' : i.kind === 'model' || i.kind === 'material' ? '3d' : ['image', 'gif', 'psd'].includes(i.kind) ? 'pic' : i.kind;
+let fam = null; // collection id → { all, by family }, counted once per round of suggestions
+function fits(it, fid) {
+  if (!fam) {
+    fam = new Map();
+    for (const x of S.items) {
+      if (x.trashed || !x.folders) continue;
+      for (const f of x.folders) {
+        const c = fam.get(f) || { all: 0 };
+        c.all++; c[family(x)] = (c[family(x)] || 0) + 1;
+        fam.set(f, c);
+      }
+    }
+  }
+  const c = fam.get(fid);
+  return !!c && (c[family(it)] || 0) / c.all >= 0.25;
+}
+
 async function suggestions(items) {
+  let m = null;
+  fam = null;
   try {
     const ai = await import('../lib/ai.js');
-    if (ai.aiReady()) { const m = ai.suggestFolders(items.map((x) => x.id)); if (m.size) return m; }
+    if (ai.aiReady()) { const r = ai.suggestFolders(items.map((x) => x.id)); if (r.size) m = r; }
   } catch (e) { /* no AI */ }
-  const pool = S.items.filter((x) => !x.trashed && x.folders && x.folders.length);
-  const m = new Map();
-  for (const it of items) { const s = voteFolder(it, pool); if (s) m.set(it.id, s); }
+  if (!m) {
+    const pool = S.items.filter((x) => !x.trashed && x.folders && x.folders.length);
+    m = new Map();
+    for (const it of items) { const s = voteFolder(it, pool); if (s) m.set(it.id, s); }
+  }
+  for (const [id, s] of m) { const it = S.byId.get(id); if (!it || !fits(it, s.folder)) m.delete(id); }
   return m;
 }
 

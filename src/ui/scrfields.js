@@ -18,14 +18,29 @@ export const isScreenish = (it) => pictureLike(it) && (it.scr || it.ar >= 1.6 ||
 
 const same = (items, f) => { const v = items.map(f); return v.every((x) => x === v[0]) ? v[0] : null; };
 
-let force = null; // «Это экран приложения…» pressed on a picture that does not look like one
+let force = null; // «+ Отметить как экран» pressed on a picture (or a selection) that does not look like screens
+
+// the date in the Russian way: WebView2 drew <input type=date> as mm/dd/yyyy in English (audit 29.10); stored ISO
+const ruDate = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split('-').reverse().join('.') : iso);
+function isoDate(v) {
+  let m = v.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (m) m = [m[3], m[2], m[1]];
+  else if ((m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) m = m.slice(1);
+  if (!m) return null;
+  const [y, mo, d] = m.map(Number), t = new Date(Date.UTC(y, mo - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d ? t.toISOString().slice(0, 10) : null;
+}
 
 export function scrBlock(items) {
   items = items.filter(pictureLike);
   if (!items.length) return '';
   const one = items.length === 1 ? items[0] : null;
-  // an illustration, an icon, a photo: one quiet link instead of six empty fields
-  if (one && !isScreenish(one) && force !== one.id) return `<button class="lnk scr-mark" data-scrmark="${esc(one.id)}">Это экран приложения…</button>`;
+  // an illustration, an icon, a photo: one quiet link instead of six empty fields — for several selected files too, unless
+  // they all look like screens (audit 29.10: the fields stood open for any mixed selection)
+  const key = items.map((i) => i.id).join(',');
+  if (one ? !isScreenish(one) : !items.every(isScreenish)) {
+    if (force !== key) return `<button class="lnk scr-mark" data-scrmark="${esc(key)}">+ ${one ? 'Отметить как экран' : `Отметить как экраны (${items.length})`}</button>`;
+  }
   const scr = (it) => it.scr || {};
   const g = one ? guessScreen(one) : {};
   // a colour alone says nothing about a picture that is not a screenshot
@@ -38,12 +53,12 @@ export function scrBlock(items) {
   const isOpen = open || (one && isScreenish(one) && !one.scr) || !one;
   const hist = one && one.scr && one.scr.app && one.scr.type ? S.items.filter((x) => x !== one && !x.trashed && x.scr && x.scr.app === one.scr.app && x.scr.type === one.scr.type).length : 0;
   return `<details class="scr-blk"${isOpen ? ' open' : ''}><summary><span>Экран приложения</span>${summary ? `<em>${esc(summary)}</em>` : ''}</summary>` +
-    `<div class="scr-f"><label class="scr-l">Приложение</label><div class="scr-v"><input type="text" data-scr="app" list="scrApps" value="${esc(app === null ? '' : app)}" placeholder="${app === null ? 'разное' : 'Т-Банк, Сбер…'}" autocomplete="off">${sug('app', g.app)}</div>` +
+    `<div class="scr-f"><label class="scr-l">Приложение</label><div class="scr-v"><input type="text" data-scr="app" list="scrApps" value="${esc(app === null ? '' : app)}" placeholder="${app === null ? 'разное' : 'Revolut, Monzo…'}" autocomplete="off">${sug('app', g.app)}</div>` +
     `<label class="scr-l">Платформа</label><div class="scr-v"><span class="scr-seg" role="group" aria-label="Платформа">${OSES.map(([k, n]) => `<button type="button" data-scros="${k}" aria-pressed="${os === k}">${n}</button>`).join('')}</span>${sug('os', g.os)}</div>` +
     `<label class="scr-l">Тип экрана</label><div class="scr-v"><input type="text" data-scr="type" list="scrTypes" value="${esc(type === null ? '' : type)}" placeholder="${type === null ? 'разное' : 'Перевод, онбординг…'}" autocomplete="off">${sug('type', g.type)}</div>` +
     `<label class="scr-l">Паттерны</label><div class="scr-v scr-pats">${pats.map((p) => `<span class="tag">${esc(p)}<button data-scrrm="${esc(p)}" aria-label="Убрать ${esc(p)}">${ic('x')}</button></span>`).join('')}` +
     `<input type="text" data-scr="pat" list="scrPats" placeholder="+ паттерн" autocomplete="off"></div>` +
-    `<label class="scr-l">Дата</label><div class="scr-v"><input type="date" data-scr="date" value="${esc(date)}"></div>` +
+    `<label class="scr-l">Дата</label><div class="scr-v"><input type="text" data-scr="date" value="${esc(ruDate(date))}" placeholder="ДД.ММ.ГГГГ" inputmode="numeric" autocomplete="off" aria-label="Дата экрана, ДД.ММ.ГГГГ"></div>` +
     `<label class="scr-l">Версия</label><div class="scr-v"><input type="text" data-scr="ver" value="${esc(ver)}" placeholder="напр. 7.42" autocomplete="off"></div></div>` +
     (hist ? `<button class="lnk" data-act="scrhist">Как менялся этот экран · ${hist + 1}</button>` : '') +
     `<button class="lnk" data-act="screens">Все экраны →</button>` +
@@ -76,8 +91,16 @@ export function bindScr(insp, selItems, rerender) {
   insp.addEventListener('change', (e) => {
     const t = e.target.closest && e.target.closest('[data-scr]');
     if (!t) return;
-    const k = t.dataset.scr, v = t.value.trim();
+    const k = t.dataset.scr;
+    let v = t.value.trim();
     if (k === 'pat' && !v) return;
+    if (k === 'date' && v) {
+      const iso = isoDate(v);
+      t.setAttribute('aria-invalid', String(!iso));
+      t.title = iso ? '' : 'Дата так: 29.10.2026';
+      if (!iso) return;
+      v = iso; t.value = ruDate(iso);
+    }
     setAll(items(), k, v);
     if (k === 'pat' || k === 'app' || k === 'type') rerender();
   });

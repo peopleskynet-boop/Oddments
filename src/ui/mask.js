@@ -128,7 +128,7 @@ function drawSide(state) {
   const n = regions.filter((r) => r.on).length;
   side.innerHTML = `<h3 class="msk-h">Скрыто: ${n}</h3>` +
     (rows || '<p class="msk-p">Личных данных в тексте не нашлось.</p>') +
-    `<label class="msk-sw"><input type="checkbox" data-mk="sums"${prefs.sums ? ' checked' : ''}> Скрывать суммы и балансы</label>` +
+    `<label class="msk-sw"><input type="checkbox" class="switch" role="switch" data-mk="sums"${prefs.sums ? ' checked' : ''}> Скрывать суммы и балансы</label>` +
     `<p class="msk-p">Тяните по картинке, чтобы скрыть своё: лицо, подпись, аватарку. Щелчок по месту показывает его снова.</p>` +
     `<p class="msk-p mut">Находится по тексту на картинке. Проверьте глазами: имена на фото и рукописное не читаются.</p>`;
   save.disabled = !n || busy;

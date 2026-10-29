@@ -7,13 +7,15 @@ import { brandRules, rulesSource } from '../lib/brandrules.js';
 
 // «Бренд»: the palette against the team's colours, a model against its limits (brand.js); folded, the summary says it
 // a reference from elsewhere is not on our brand by definition: the check shows by itself only for the team's own work
-// (a team file, or tagged «наше» / «бренд»); for the rest it is one link away
+// (a team file, or tagged «наше» / «бренд» / «brand»); for the rest it is in the file's menu (ctxmenu.js «Проверить по
+// бренду»), not a link under every file (audit 29.10)
 const OWN_TAGS = /^(наше|наш|бренд|brand)$/i;
 let brandFor = null;
 export const brandOpen = (id) => { brandFor = id; };
+export const brandAuto = (it) => !!it.team || it.tags.some((t) => OWN_TAGS.test(t));
 function brandBlock(it) {
   if (it.trashed || !(it.kind === 'image' || it.kind === 'psd' || it.kind === 'model')) return '';
-  if (!it.team && !it.tags.some((t) => OWN_TAGS.test(t)) && brandFor !== it.id) return `<button class="lnk brand-ask" data-act="brandcheck" title="Палитра и фирменный цвет по правилам команды; для своих работ — тег «наше»">Проверить по бренду</button>`;
+  if (!brandAuto(it) && brandFor !== it.id) return '';
   const r = brandRules();
   const list = it.kind === 'model' ? (it.tris ? checkModelRules({ tris: it.tris }, r.model) : []) : checkPalette(it.colors, it.shares, r);
   if (!list.length) return '';

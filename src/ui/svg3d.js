@@ -7,8 +7,8 @@
 // a new OBJ in the library, next to the source.
 import './svg3d.css';
 import { pushLayer, popLayer } from './layers.js';
-import { S, ui } from '../state.js';
-import { $, esc, isMac } from '../util.js';
+import { S, ui, isSplatItem } from '../state.js';
+import { $, esc, isMac, DEC } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
 import { sfx } from './sound.js';
@@ -19,6 +19,7 @@ import { showQuickFile } from './quickfile.js';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import * as fs from '@tauri-apps/plugin-fs';
 import { readPref, writePref } from '../lib/prefs.js';
+import { t } from '../lib/i18n.js';
 
 const PREFS_KEY = 'perch.svg3d';
 const DEF = { fix: true, round: 0, depth: 0.24, bevel: 0.04, bseg: 3, sseg: 1, dens: 18, corner: 32, inner: 12, loops: 3, cap: 'quad', engine: 'exact', quads: 1500, sharp: 60, adapt: 1, aniso: 1 };
@@ -145,7 +146,7 @@ function autoRun() {
 function markStale() { staleAr = true; status(null, inApp() ? 'Пересчитаю сетку, когда отпустите ползунок…' : 'Нажмите «Сделать сетку», чтобы пересчитать.'); el.querySelector('[data-s3="save"]').disabled = true; el.querySelector('[data-s3="obj"]').disabled = true; }
 
 // seconds keep a tenth (a 0.3 s run read as «0 секунд»); a string passes through as it is
-const secs = (v) => (v < 10 ? v.toFixed(1).replace('.', ',') : String(Math.round(v)));
+const secs = (v) => (v < 10 ? v.toFixed(1).replace('.', DEC) : String(Math.round(v)));
 function status(stats, note, level = 'ok') {
   $('#s3dStats').innerHTML = stats ? stats.map(([n, l]) => `<div><b>${typeof n === 'string' ? n : Math.round(n).toLocaleString('ru')}</b><span>${l}</span></div>`).join('') : '';
   const q = $('#s3dQ');
@@ -193,7 +194,7 @@ async function runRemesh() {
   const run = el.querySelector('[data-s3="run"]');
   run.disabled = true;
   const prog = $('#s3dProg'), bar = prog.querySelector('b'), txt = prog.querySelector('span');
-  prog.hidden = false; bar.style.width = '2%'; txt.textContent = 'Готовлю модель…';
+  prog.hidden = false; bar.style.transform = 'scaleX(.02)'; txt.textContent = 'Готовлю модель…';
   const t0 = performance.now();
   try {
     const R = await import('../lib/remesh.js');
@@ -202,7 +203,7 @@ async function runRemesh() {
     if (src.kind === 'svg') objText = lib.toOBJ({ ...(await exactMesh({ ...P, cap: 'tri', dens: Math.max(P.dens, 30), loops: 0 })), uv: null }, src.name); // geometry only for the remesher
     else objText = await modelToObj(src.item);
     const { text, stats } = await R.remesh(objText, { targetQuads: P.quads, sharpEdge: P.sharp, adaptivity: P.adapt, anisotropy: P.aniso, edgeScaling: 1 }, (pct, stage) => {
-      bar.style.width = Math.max(2, pct) + '%';
+      bar.style.transform = `scaleX(${Math.max(2, Math.min(100, pct)) / 100})`;
       txt.textContent = (R.STAGES[stage] || 'Строю сетку') + ` · ${pct}%`;
     });
     const mesh = lib.parseOBJ(text);
@@ -259,7 +260,7 @@ async function mountQueued(view) {
       if (!isSvg3dOpen()) break;
       const buf = v.text != null ? new TextEncoder().encode(v.text).buffer : v.buf;
       try {
-        const done = await mountViewer(holder, buf, v.ext, () => !isSvg3dOpen());
+        const done = await mountViewer(holder, buf, v.ext, () => !isSvg3dOpen(), { infoKey: 's3dInfo' });
         if (!isSvg3dOpen()) { if (done) done(); break; }
         cleanup = done; mountedExt = v.ext;
       } catch (e) {
@@ -277,7 +278,7 @@ async function show(objText) {
 }
 
 /* ---------- saving ---------- */
-const outName = () => (src.kind === 'svg' ? src.name : src.name + ' — ремеш');
+const outName = () => (src.kind === 'svg' ? src.name : `${src.name} — ${t('ремеш')}`);
 const currentText = () => (result.text || lib.toOBJ(result.mesh, src.name));
 
 async function saveToLibrary() {
@@ -453,7 +454,7 @@ function fillPicker(query) {
 async function fromDisk() {
   try {
     const { open } = await import('@tauri-apps/plugin-dialog');
-    const r = await open({ multiple: false, title: 'SVG для 3D', filters: [{ name: 'SVG', extensions: ['svg'] }] });
+    const r = await open({ multiple: false, title: t('SVG для 3D'), filters: [{ name: 'SVG', extensions: ['svg'] }] });
     const p = Array.isArray(r) ? r[0] : r;
     if (!p) return;
     const text = await fs.readTextFile(p);
@@ -464,10 +465,10 @@ async function fromDisk() {
 // «Ремеш» from the sidebar: the selected model; without one, the models view and a hint
 export async function remeshSelected() {
   const sel = Array.from(S.sel).map((id) => S.byId.get(id)).filter(Boolean);
-  if (sel.length === 1 && sel[0].kind === 'model' && !['blend', 'abc'].includes(sel[0].ext)) return openFromItem(sel[0]);
-  const { setView } = await import('../lib/filter.js');
-  setView('kind', 'model');
-  toast('Выберите модель и нажмите «Ремеш» ещё раз — или правый клик по модели › «Ремеш…»', 5000);
+  const ok = (i) => i.kind === 'model' && !['blend', 'abc'].includes(i.ext) && !isSplatItem(i);
+  if (sel.length === 1 && ok(sel[0])) return openFromItem(sel[0]);
+  // no model selected: pick one here, as «Сплат из модели» does (audit 29.10)
+  (await import('./pick.js')).pickItem({ title: 'Ремеш', filter: ok, run: openFromItem, empty: 'Моделей в библиотеке пока нет: перетащите GLB, OBJ, FBX или STL в окно.' });
 }
 
 // helpers for the entry points

@@ -1,4 +1,7 @@
-import { S, ui, KINDS, flatFolders, folderById, activeItems } from '../state.js';
+// The properties panel on the right: the selected file's preview, name, facts, tags, collections, palette, link and the
+// tools that fit its type (screens, brand check, AI tags…); several selected files — what they share. The heavier
+// blocks load on demand (inspextra.js).
+import { S, ui, KINDS, flatFolders, folderById, activeItems, isSplatItem } from '../state.js';
 import { $, esc, fmtSize, fmtDur, plural, dateFmt, hexRGB, toHex, inkOn, isMac, typeLabel } from '../util.js';
 import { ic } from './icons.js';
 import { enhanceAll } from './gselect.js';
@@ -147,7 +150,7 @@ function single(it) {
     `<p class="ov-s sub">${[esc(typeLabel(it)), it.w && it.kind !== 'model' && it.kind !== 'material' ? `${Math.round(it.w)} × ${Math.round(it.h)}` : '', it.pages ? `${it.pages} стр.` : '', it.duration ? fmtDur(it.duration) : '', fmtSize(it.size), esc(dateFmt.format(it.added))].filter(Boolean).join(' · ')}</p>` +
     (it.kind === 'model' && !it.trashed ? modelBlock(it) : '') +
     (it.ext === 'svg' && !it.trashed ? `<div class="m-blk"><button class="ibtn pri wide" data-act="s3d">${ic('cube')}Сделать 3D…</button></div>` : '') +
-    (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview)) && !it.trashed ? `<div class="m-blk"><button class="ibtn wide" data-act="upscale" title="ИИ увеличивает в 2 или 4 раза и дорисовывает детали — копия ляжет рядом">${ic('sparkle')}Увеличить ×2 / ×4…</button></div>` : '') +
+    (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview)) && !it.trashed ? `<div class="m-blk"><button class="ibtn wide" data-act="upscale" title="ИИ увеличивает в 2 или 4 раза и дорисовывает детали — копия ляжет рядом">${ic('sparkle')}Увеличить ×2 / ×4…</button><button class="ibtn wide" data-act="cutout" title="ИИ вырезает объект, край уточняется по фото — PNG с прозрачностью ляжет рядом">${ic('scissors')}Убрать фон…</button></div>` : '') +
     `<div class="fld"><span>Теги</span><div class="tags">${tags}<input id="tagIn" type="text" placeholder="Тег и Enter" list="taglist" autocomplete="off"></div><datalist id="taglist">${dl}</datalist></div>` +
     (it.aiDesc ? `<p class="ai-desc" title="Так эту картинку видит ИИ — по этим словам её найдёт поиск">✦ ${esc(it.aiDesc)}</p>` : '') +
     slot('scr') + piiBlock(it) + notesBlock(it) + ocrBlock(it) + slot('brand') +
@@ -166,6 +169,11 @@ const openLabel = (it) => (BLENDER_NATIVE.has(it.ext) ? 'Открыть в Blend
 // 3D comes first for a model: its topology right under the name, and the way into Blender as the main action.
 // .blend / .abc open in Blender itself; other formats go in through the add-on, which takes what is selected here.
 function modelBlock(it) {
+  if (isSplatItem(it)) { // Gaussian splats: no mesh to remesh or wear materials, Blender 5.3+ opens them
+    const stats = it.splats ? `<div class="m-stats"><div><b>${fmtNum(it.splats)}</b><span>${plural(it.splats, ['сплат', 'сплата', 'сплатов'])}</span></div></div>` : '';
+    return `<div class="m-blk">${stats}<div class="m-acts"><button class="ibtn pri" data-act="pv">${ic('splat')}Смотреть</button>` +
+      `<button class="ibtn" data-act="blender" title="Сплаты Blender открывает с версии 5.3">В Blender</button></div></div>`;
+  }
   const stats = it.verts
     ? `<div class="m-stats"><div><b>${fmtNum(it.verts)}</b><span>${plural(it.verts, ['вершина', 'вершины', 'вершин'])}</span></div><div><b>${fmtNum(it.tris || 0)}</b><span>${plural(it.tris || 0, ['треугольник', 'треугольника', 'треугольников'])}</span></div></div>`
     : '';
@@ -174,7 +182,9 @@ function modelBlock(it) {
     : `<div class="m-acts"><button class="ibtn pri" data-act="pv">${ic('cube')}Смотреть</button>` +
       `<button class="ibtn" data-act="toblender" title="Как вставить модель в сцену Blender">В Blender</button></div>` +
       (isMac ? '' : `<button class="ibtn wide flat" data-act="s3d" title="Квадовая сетка через AutoRemesher">Ремеш…</button>`);
-  return `<div class="m-blk">${stats}${go}</div>`;
+  const splat = !BLENDER_NATIVE.has(it.ext) || it.glb
+    ? `<button class="ibtn wide flat" data-act="splatmk" title="Модель — в облако гауссовых сплатов, свет из 3D-просмотра запекается">${ic('splat')}Сделать сплат…</button>` : '';
+  return `<div class="m-blk">${stats}${go}${splat}</div>`;
 }
 
 function afterSingle(it) { if (it.kind === 'font') ensureFont(it); }
@@ -236,6 +246,8 @@ export function initInspector() {
       else if (a === 'allsim' && items[0]) setView('similar', items[0].id);
       // other formats reach Blender through the add-on, which takes what is selected here: say how, once, on request
       else if (a === 's3d' && items[0]) import('./svg3d.js').then((m) => m.openFromItem(items[0]));
+      else if (a === 'splatmk' && items[0]) import('./splatmaker.js').then((m) => m.openSplatMaker(items[0]));
+      else if (a === 'blender' && items[0]) import('./toblender.js').then((m) => m.itemsToBlender(items));
       else if (a === 'toblender') toast('В Blender: N › Oddments › «Вставить из Oddments»', 7000, { label: 'Аддон', fn: () => import('./settings.js').then((m) => m.openSettings('int')) });
       else if (a === 'trash') { trashItems(items); S.sel.clear(); ui.refresh(); toast('В корзину: ' + items.length, 0, { fn: () => { restoreItems(items); ui.refresh(); } }); }
       else if (a === 'restore') { restoreItems(items); S.sel.clear(); ui.refresh(); toast('Возвращено: ' + items.length); }
@@ -243,8 +255,8 @@ export function initInspector() {
       else if (a === 'open' && items[0]) { try { await openPath(absPath(items[0].file)); } catch (err) { toast('Не удалось открыть файл. Попробуйте «В папке» и откройте его оттуда.'); } }
       else if (a === 'mask') import('./mask.js').then((m) => m.openMask(items));
       else if (a === 'upscale' && items[0]) import('./upscale.js').then((m) => m.openUpscale(items[0]));
+      else if (a === 'cutout' && items[0]) import('./cutout.js').then((m) => m.openCutout(items));
       else if (a === 'teamtake') import('./teamui.js').then((m) => m.takeFlow(items));
-      else if (a === 'brandcheck' && items[0]) import('./inspextra.js').then((m) => { m.brandOpen(items[0].id); renderInsp(); setTimeout(() => { const d = document.querySelector('.brand-blk'); if (d) d.open = true; }); });
       else if (a === 'brandset') import('./settings.js').then((m) => m.openSettings && m.openSettings('sBrand'));
       else if (a === 'notes' && items[0]) import('./notes.js').then((m) => m.openNotes(items[0]));
       else if (a === 'piino' && items[0]) { items[0].piiNo = true; delete items[0].pii; saveIndex(); renderInsp(); ui.refresh(); toast('Метка снята', 4000, { fn: () => { delete items[0].piiNo; import('../lib/ocr.js').then((m) => { m.markPii(items[0]); saveIndex(); ui.refresh(); }); } }); }

@@ -12,6 +12,9 @@ import { fetch as tfetch } from '@tauri-apps/plugin-http';
 import { absPath } from './library.js';
 import { SOURCES, readSource } from './feed.js';
 import { readPref, writePref } from './prefs.js';
+import { lang } from './i18n.js';
+import { DEC } from '../util.js';
+const OUT = () => (lang === 'en' ? 'по-английски' : 'по-русски'); // Claude writes the digest in the interface's language
 
 export const AI_SOURCES = [
   // popularity across Hacker News, GitHub, LessWrong, Lobsters, Replicate on one scale — Denis Trends by Denis Shiryaev
@@ -136,7 +139,7 @@ export async function makeDigest(onProgress = () => {}) {
 }
 
 const storyOf = (g) => ({
-  title: g.items[0].title, summary: g.items[0].text.replace(/Article URL:.*$/s, '').slice(0, 280), why: g.sites.size > 1 ? `пишут ${g.sites.size} издания` : g.refs && g.refs.length ? `есть в ${g.refs.join(' и ')}` : g.items[0].upvotes ? `${g.items[0].upvotes} голосов на Hugging Face` : g.points ? (g.items[0].source === 'trends' ? `в топе Denis Trends за день · ${g.points} очков` : `${g.points} голосов на Hacker News`) : g.hot > 1.3 ? `просмотров в ${String(g.hot).replace('.', ',')} раза больше обычного у канала` : '',
+  title: g.items[0].title, summary: g.items[0].text.replace(/Article URL:.*$/s, '').slice(0, 280), why: g.sites.size > 1 ? `пишут ${g.sites.size} издания` : g.refs && g.refs.length ? `есть в ${g.refs.join(' и ')}` : g.items[0].upvotes ? `${g.items[0].upvotes} голосов на Hugging Face` : g.points ? (g.items[0].source === 'trends' ? `в топе Denis Trends за день · ${g.points} очков` : `${g.points} голосов на Hacker News`) : g.hot > 1.3 ? `просмотров в ${String(g.hot).replace('.', DEC)} раза больше обычного у канала` : '',
   image: (g.items.find((x) => x.image) || {}).image || '', links: g.items.slice(0, 4).map((x) => ({ site: x.sourceName, url: x.link, title: x.title })),
 });
 function bySignals(groups) {
@@ -150,7 +153,7 @@ async function withClaude(groups, key) {
   const r = await tfetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify({
     model: digestPrefs().model, max_tokens: 4000,
     system: `Ты редактор утренней сводки для дизайнера (3D, интерфейсы, графика), который следит за ИИ. Из кандидатов за сутки выбери ЗАМЕТНОЕ: релизы и крупные обновления моделей и инструментов, важные исследования, громкие события индустрии; в дизайне — сильные проекты, новые инструменты, тренды, обсуждаемые кейсы. Мелочь, рекламу, повторы и общие IT-новости без связи с ИИ пропускай. «sites», «in_editors_digests» (упомянуто в редакторских ИИ-дайджестах TLDR AI / The Rundown), «points» (Denis Trends — популярность сразу на Hacker News, GitHub, LessWrong, Lobsters, Replicate; у статей Hugging Face — голоса сообщества ×4) и «views_vs_usual» (просмотры поста в Telegram-канале относительно обычных для канала) — сигналы популярности. Посты из Telegram-каналов — мнения практиков: бери их, если это заметное событие или сильная работа, а не личная заметка.
-Ответ — только JSON: {"ai":[{"i":номер,"title":"заголовок по-русски","summary":"2–3 предложения по-русски: что случилось и почему это важно","why":"коротко, почему заметно"}],"design":[...]} — по 5–7 историй в разделе, самые важные первыми.`,
+Ответ — только JSON: {"ai":[{"i":номер,"title":"заголовок ${OUT()}","summary":"2–3 предложения ${OUT()}: что случилось и почему это важно","why":"коротко, почему заметно"}],"design":[...]} — по 5–7 историй в разделе, самые важные первыми.`,
     messages: [{ role: 'user', content: JSON.stringify({ ai: brief(groups.ai), design: brief(groups.design) }) }],
   }) });
   const j = await r.json().catch(() => ({}));

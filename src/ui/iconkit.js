@@ -6,7 +6,7 @@
 // the rules check and every size in Fill and Outline come from ../lib/iconkit.js; AI variants from ../lib/iconai.js.
 import './iconkit.css';
 import { pushLayer, popLayer } from './layers.js';
-import { $, esc } from '../util.js';
+import { $, esc, DEC } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
 import { sfx } from './sound.js';
@@ -176,23 +176,33 @@ function build() {
 }
 
 /* ---------- camera ---------- */
-function fit() {
+// the part of the stage that is not under a side panel (from 861 to 1240 px the canvas runs under them, iconkit.css):
+// left edge and width in the stage's own pixels
+function viewBox() {
   const r = $('#ikStage').getBoundingClientRect();
-  cam.z = Math.max(4, Math.floor(Math.min(r.width - 120, r.height - 160) / 26));
-  cam.x = Math.round(r.width / 2 - 12 * cam.z);
-  cam.y = Math.round(r.height / 2 - 12 * cam.z + 10);
+  let l = 0, re = r.width;
+  const L = $('.ik-left').getBoundingClientRect(), R = $('.ik-right').getBoundingClientRect();
+  if (L.width && L.height > r.height / 2 && L.right > r.left && L.left <= r.left + 24) l = L.right - r.left + 12;
+  if (R.width && R.height > r.height / 2 && R.left < r.right && R.right >= r.right - 24) re = R.left - r.left - 12;
+  return { l, w: Math.max(200, re - l), h: r.height };
+}
+function fit() {
+  const v = viewBox();
+  cam.z = Math.max(4, Math.floor(Math.min(v.w - 120, v.h - 160) / 26));
+  cam.x = Math.round(v.l + v.w / 2 - 12 * cam.z);
+  cam.y = Math.round(v.h / 2 - 12 * cam.z + 10);
 }
 // Shift+2: the selection fills the view
 function fitTo(b) {
-  const r = $('#ikStage').getBoundingClientRect();
-  cam.z = Math.min(120, Math.max(1, Math.min((r.width - 160) / Math.max(b.w, 1), (r.height - 200) / Math.max(b.h, 1))));
-  cam.x = r.width / 2 - (b.x + b.w / 2) * cam.z;
-  cam.y = r.height / 2 - (b.y + b.h / 2) * cam.z + 10;
+  const v = viewBox();
+  cam.z = Math.min(120, Math.max(1, Math.min((v.w - 160) / Math.max(b.w, 1), (v.h - 200) / Math.max(b.h, 1))));
+  cam.x = v.l + v.w / 2 - (b.x + b.w / 2) * cam.z;
+  cam.y = v.h / 2 - (b.y + b.h / 2) * cam.z + 10;
 }
 // Shift+0: the 100 % of the zoom label (cam.z 20), about the middle of the view
 function zoomTo(z) {
-  const r = $('#ikStage').getBoundingClientRect();
-  zoomAt(z / cam.z, r.width / 2, r.height / 2);
+  const v = viewBox();
+  zoomAt(z / cam.z, v.l + v.w / 2, v.h / 2);
 }
 function zoomAt(f, sx, sy) {
   const z = Math.min(120, Math.max(1, cam.z * f));
@@ -400,7 +410,7 @@ function nudgePoints(dx, dy) {
   applyEdit(); keep(); draw();
 }
 
-const fmt = (n) => String(+(+n).toFixed(2)).replace('.', ',');
+const fmt = (n) => String(+(+n).toFixed(2)).replace('.', DEC);
 function corners(s) {
   const cx = s.x + s.w / 2, cy = s.y + s.h / 2, a = ((s.rot || 0) * Math.PI) / 180, co = Math.cos(a), si = Math.sin(a);
   return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => { const dx = (u * s.w) / 2, dy = (v * Math.max(s.h, 0)) / 2; return [cx + dx * co - dy * si, cy + dx * si + dy * co]; });
@@ -448,14 +458,16 @@ function drawRight() {
       <div class="ik-sec ik-row2"><button type="button" class="ibtn" data-ik="dup">Дублировать</button><button type="button" class="ibtn" data-ik="del">Удалить</button></div>${checksHtml()}`;
     return;
   }
-  // nothing selected: the icon itself — name, words, checks, every size, export
+  // nothing selected: the icon itself — name, words, checks, every size, export (nothing to export from an empty canvas:
+  // the buttons wait for a shape, audit 29.10)
+  const none = !doc.shapes.some((x) => !x.hidden) ? ' disabled title="Сначала нарисуйте фигуру — R, O, C на панели сверху"' : '';
   box.innerHTML = `<div class="ik-sec"><span class="ik-h">Иконка</span>
       <label class="ik-f wide"><span>Имя</span><input id="ikName" type="text" placeholder="Smart Lamp" value="${esc(doc.name || '')}" autocomplete="off"></label>
       <label class="ik-f wide"><span>Слова</span><input id="ikKeys" type="text" placeholder="Lamp, Light, Лампа" value="${esc(doc.keys || '')}" autocomplete="off"></label></div>
     ${checksHtml()}${sizesHtml()}
     <div class="ik-sec"><span class="ik-h">Экспорт</span>
-      <button type="button" class="ibtn pri wide" data-ik="save">Сохранить в библиотеку</button>
-      <div class="ik-row2"><button type="button" class="ibtn" data-ik="copy">Копировать SVG</button><button type="button" class="ibtn" data-ik="to3d">В 3D</button></div>
+      <button type="button" class="ibtn pri wide" data-ik="save"${none}>Сохранить в библиотеку</button>
+      <div class="ik-row2"><button type="button" class="ibtn" data-ik="copy"${none}>Копировать SVG</button><button type="button" class="ibtn" data-ik="to3d"${none}>В 3D</button></div>
       <button type="button" class="ibtn wide" data-ik="new">Новая иконка</button></div>
     <details class="ik-sec ik-guide"><summary class="ik-h">Правила хорошего тона</summary>${R.GUIDE.map(([t, d, src]) => `<p><b>${esc(t)}</b> ${esc(d)} <span>${esc(src)}</span></p>`).join('')}</details>`;
 }
@@ -565,7 +577,7 @@ function onClick(e) {
   else if (a === 'model') modelMenu(b);
   else if (a === 'trace') { const t = $('#ikTrace'); t.classList.toggle('open'); b.setAttribute('aria-expanded', String(t.classList.contains('open'))); }
   else if (a === 'fit') { fit(); drawCanvas(); }
-  else if (a === 'zin' || a === 'zout') { const r = $('#ikStage').getBoundingClientRect(); zoomAt(a === 'zin' ? 1.25 : 0.8, r.width / 2, r.height / 2); }
+  else if (a === 'zin' || a === 'zout') { const v = viewBox(); zoomAt(a === 'zin' ? 1.25 : 0.8, v.l + v.w / 2, v.h / 2); }
 }
 function dup() {
   const list = selected(); if (!list.length) return;
@@ -710,7 +722,7 @@ function onKey(e) {
   if (mod && e.code === 'KeyX') { if (sel.size) { stop(); copyShapes(true); } return; }
   if (mod && e.code === 'KeyV') { if (clip) { stop(); paste(e.shiftKey); } return; }
   if (e.code === 'Tab' && doc.shapes.length) { stop(); cycle(e.shiftKey ? -1 : 1); return; }
-  if (!mod && (e.key === '+' || e.key === '=' || e.key === '-')) { stop(); const r = $('#ikStage').getBoundingClientRect(); zoomAt(e.key === '-' ? 0.8 : 1.25, r.width / 2, r.height / 2); return; }
+  if (!mod && (e.key === '+' || e.key === '=' || e.key === '-')) { stop(); const v = viewBox(); zoomAt(e.key === '-' ? 0.8 : 1.25, v.l + v.w / 2, v.h / 2); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { if (sel.size) { stop(); del(); } return; }
   if (!mod && !e.altKey) {
     const keyTool = { KeyV: 'move', KeyR: 'squircle', KeyO: 'circle', KeyC: 'capsule' }[e.code];

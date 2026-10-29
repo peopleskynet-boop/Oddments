@@ -7,6 +7,8 @@
 .dock .cap-sm { color: var(--fg); }
 .dock .seg { display: flex; padding: 3px; border-radius: 99px; background: var(--glass-lo); }
 .dock .seg .ib { width: 34px; height: 34px; }
+/* the chosen layout is the accent, like every other active choice (audit 29.10: a white pill against lime elsewhere) */
+.dock .seg .ib.on { background: var(--acc); color: var(--acc-fg); }
 .zoom { display: flex; align-items: center; padding: 0 6px 0 10px; }
 .zoom input { -webkit-appearance: none; appearance: none; width: 150px; height: 6px; border-radius: 99px; background: var(--hover-2); outline: 0; cursor: pointer; }
 .zoom input::-webkit-slider-thumb {

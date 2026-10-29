@@ -10,6 +10,7 @@ import { toast } from './dialogs.js';
 import { sfx } from './sound.js';
 import { embedMedia, embedSrc } from './embedmedia.js';
 import { readPref, writePref } from '../lib/prefs.js';
+import { DEC } from '../util.js';
 
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 const PREFS = 'perch.player';
@@ -100,7 +101,7 @@ ${own ? `
     const p = $('[data-vp="play"]');
     p.innerHTML = ic(v.paused ? 'play' : 'pause');
     p.setAttribute('aria-label', v.paused ? 'Воспроизвести' : 'Пауза');
-    $('[data-vp="speed"]').textContent = String(v.playbackRate).replace('.', ',') + '×';
+    $('[data-vp="speed"]').textContent = String(v.playbackRate).replace('.', DEC) + '×';
     $('[data-vp="mute"]').classList.toggle('off', v.muted || v.volume === 0);
     const lp = $('[data-vp="loop"]');
     lp.querySelector('em').textContent = abStage === 1 ? 'A' : abStage === 2 ? 'A–B' : '';

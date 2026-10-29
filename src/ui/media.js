@@ -6,6 +6,7 @@ import { writeImage } from '@tauri-apps/plugin-clipboard-manager';
 import { absPath, addFromBlobs, saveIndex } from '../lib/library.js';
 import { MIME } from '../state.js';
 import { toHex } from '../util.js';
+import { t as tr } from '../lib/i18n.js'; // `t` is the frame's time here
 
 export async function fileBlob(it, rel = it.file) {
   return new Blob([await fs.readFile(absPath(rel))], { type: MIME[it.ext] || '' });
@@ -24,7 +25,7 @@ function pngOf(src, w, h) {
   return new Promise((r, j) => c.toBlob((b) => (b ? r(b) : j(new Error('png'))), 'image/png'));
 }
 
-async function toClipboard(png) {
+export async function toClipboard(png) {
   // the web clipboard keeps the PNG as is; the plugin is the fallback (it needs the bytes)
   try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); return; } catch (e) { /* fall through */ }
   await writeImage(new Uint8Array(await png.arrayBuffer()));
@@ -59,7 +60,7 @@ export async function saveFrame(it, time, src) {
     v.currentTime = Math.min(time, Math.max(0, (v.duration || time) - 0.01));
     await new Promise((r) => { v.onseeked = r; });
     const png = await pngOf(v, v.videoWidth, v.videoHeight);
-    const t = Math.floor(time), name = `${it.name} · кадр ${Math.floor(t / 60)}-${String(t % 60).padStart(2, '0')}.png`;
+    const t = Math.floor(time), name = `${it.name} · ${tr('кадр')} ${Math.floor(t / 60)}-${String(t % 60).padStart(2, '0')}.png`;
     const out = await addFromBlobs([{ blob: png, name, source: it.url || '' }], { folder: it.folders[0] });
     out.forEach((n) => { n.tags = it.tags.slice(); n.folders = it.folders.slice(); });
     if (out.length) saveIndex();

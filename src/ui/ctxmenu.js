@@ -2,7 +2,7 @@
 // empty wall (adding, the view) and in the full-screen preview (copy the picture, the colour under the cursor,
 // keep a video frame). The webview's own menu (Back / Refresh / Print / Save image as) never shows, except in
 // text fields. Glass, v3 style; arrows move, → / Enter open a submenu, ← / Esc go back, click outside closes.
-import { S, ui, flatFolders, folderById } from '../state.js';
+import { S, ui, flatFolders, folderById, isSplatItem, isPic } from '../state.js';
 import { esc, isMac } from '../util.js';
 import { ic } from './icons.js';
 import { saveIndex, trashItems, restoreItems, absPath } from '../lib/library.js';
@@ -14,6 +14,7 @@ import { openRename } from './lazy.js';
 import { revealItemInDir, openPath, openUrl } from '@tauri-apps/plugin-opener';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { sfx } from './sound.js';
+import { t } from '../lib/i18n.js';
 
 let menu = null, sub = null, back = null, onSel = () => {};
 // mode: 'card' (the selection), 'space' (the empty wall), 'preview' (the open file, forced); at: where in the
@@ -141,39 +142,48 @@ function previewRows() {
   return r.concat(card);
 }
 
+// the rows of the «Копировать» and «Ещё» submenus, filled by cardRows
+let lists = { copy: [], more: [] };
+
 function cardRows() {
   const items = selItems(), one = items.length === 1 ? items[0] : null;
   const trash = items.every((i) => i.trashed);
   const allFav = items.every((i) => i.fav);
-  // in groups with lines between them (audit 24.10: twelve rows in one list): open · organise · make · name and export · delete
-  const open = [], keep = [], make = [], out = [];
+  // in groups with lines between them: open · organise · make · copy, the rest, name · delete. What is used rarely sits
+  // in «Ещё», the copies in «Копировать» (audit 29.10: one picture's menu had 18 rows)
+  const open = [], keep = [], make = [], out = [], more = [], copy = [];
   if (one) open.push({ id: 'open', icon: 'zoom', label: 'Просмотр', key: 'Пробел' });
   if (one) open.push({ id: 'app', icon: 'external', label: appLabel(one), key: 'Ctrl Enter' });
   if (one) open.push({ id: 'reveal', icon: 'folder', label: 'Показать в папке' });
   if (trash) return [...open, ...(open.length ? [{ sep: true }] : []), { id: 'restore', icon: 'restore', label: items.length > 1 ? `Вернуть (${items.length})` : 'Вернуть' }];
   keep.push({ id: 'fav', icon: allFav ? 'heartOn' : 'heart', label: allFav ? 'Убрать из избранного' : 'В избранное', key: 'F' });
   keep.push({ id: 'folder', icon: 'folderplus', label: 'В подборку', sub: true });
-  const cols = one ? one.colors : [];
-  if (cols.length) keep.push({ id: 'color', icon: 'palette', label: 'Копировать цвет', sub: true });
   if (one) keep.push({ id: 'similar', icon: 'scan', label: 'Похожие' });
-  if (one && (one.kind === 'image' || one.kind === 'psd' || one.kind === 'gif' || one.thumb)) keep.push({ id: 'notes', icon: 'chat', label: one.notes && one.notes.length ? `Комментарии (${one.notes.length})…` : 'Комментировать…' });
-  if (one && one.ocr) keep.push({ id: 'ocrcopy', icon: 'copy', label: 'Копировать текст с картинки' });
-  if (one && one.ext === 'svg') make.push({ id: 's3d', icon: 'cube', label: 'Сделать 3D…' }, { id: 'ik', icon: 'grid', label: 'Открыть в конструкторе иконок' });
-  if (one && one.kind === 'model' && !['blend', 'abc'].includes(one.ext) && !isMac) make.push({ id: 's3d', icon: 'cube', label: 'Ремеш…' }); // AutoRemesher: Windows only
+  const pics = items.filter(isPic);
+  if (pics.length) make.push({ id: 'cutout', icon: 'scissors', label: pics.length > 1 ? `Убрать фон (${pics.length})…` : 'Убрать фон…', key: 'B' });
+  if (one && isPic(one) && one.ext !== 'svg') make.push({ id: 'upscale', icon: 'sparkle', label: 'Увеличить ×2 / ×4…', key: 'U' });
+  if (one && one.ext === 'svg') { make.push({ id: 's3d', icon: 'cube', label: 'Сделать 3D…' }); more.push({ id: 'ik', icon: 'grid', label: 'Открыть в конструкторе иконок' }); }
+  if (one && one.kind === 'model' && !['blend', 'abc'].includes(one.ext) && !isSplatItem(one) && !isMac) make.push({ id: 's3d', icon: 'cube', label: 'Ремеш…' }); // AutoRemesher: Windows only
+  if (one && one.kind === 'model' && !isSplatItem(one) && (!['blend', 'abc'].includes(one.ext) || one.glb)) make.push({ id: 'splatmk', icon: 'splat', label: 'Сделать сплат…' });
   if (one && one.kind === 'video') make.push({ id: 'flow', icon: 'flow', label: 'Нарезать на экраны…' });
-  if (one && !one.trashed && ((one.kind === 'image' && one.ext !== 'gif' && one.ext !== 'svg') || (one.kind === 'psd' && one.preview))) make.push({ id: 'upscale', icon: 'sparkle', label: 'Увеличить ×2 / ×4…' });
-  // the team library (team.js): one's files go to the team; a team file comes into one's own library
-  if (items.every((i) => i.team)) make.push({ id: 'teamtake', icon: 'download', label: 'В мою библиотеку' });
-  else if (items.every((i) => !i.team)) make.push({ id: 'toteam', icon: 'team', label: (S.teams || []).length ? 'В команду…' : 'В команду: подключить папку…' });
-  if (items.length > 1) make.push({ id: 'show', icon: 'present', label: `Показ: ${items.length}` });
-  const maskable = items.filter((i) => (i.kind === 'image' && i.ext !== 'gif') || (i.kind === 'psd' && i.preview));
-  if (maskable.length) make.push({ id: 'mask', icon: 'shield', label: maskable.length > 1 ? `Скрыть личные данные (${maskable.length})…` : 'Скрыть личные данные…' });
   const svgs = items.filter((i) => i.ext === 'svg');
   if (svgs.length) make.push({ id: 'svgfix', icon: 'bezier', label: svgs.length > 1 ? `Исправить SVG (${svgs.length})…` : 'Исправить SVG…' });
   if (svgs.length > 1) make.push({ id: 's3dset', icon: 'cube', label: `Набор в 3D → Blender (${svgs.length})` });
   if (items.some((i) => i.kind === 'model' || i.kind === 'material')) make.push({ id: 'blender', icon: 'external', label: items.length > 1 ? `В Blender (${items.length})` : 'В Blender' });
+  if (one && one.ocr) copy.push({ id: 'ocrcopy', icon: 'copy', label: 'Текст с картинки' });
+  if (one && (one.kind === 'image' || one.kind === 'psd' || one.kind === 'gif' || one.thumb)) more.push({ id: 'notes', icon: 'chat', label: one.notes && one.notes.length ? `Комментарии (${one.notes.length})…` : 'Комментировать…' });
+  if (pics.length) more.push({ id: 'mask', icon: 'shield', label: pics.length > 1 ? `Скрыть личные данные (${pics.length})…` : 'Скрыть личные данные…' });
+  // the team's own work is checked by itself in the panel; anything else on request (it was a link under every file)
+  if (one && !one.team && ['image', 'psd', 'model'].includes(one.kind) && !one.tags.some((t) => /^(наше|наш|бренд|brand)$/i.test(t))) more.push({ id: 'brand', icon: 'palette', label: 'Проверить по бренду' });
+  // the team library (team.js): one's files go to the team; a team file comes into one's own library
+  if (items.every((i) => i.team)) more.push({ id: 'teamtake', icon: 'download', label: 'В мою библиотеку' });
+  else if (items.every((i) => !i.team)) more.push({ id: 'toteam', icon: 'team', label: (S.teams || []).length ? 'В команду…' : 'В команду: подключить папку…' });
+  if (items.length > 1) more.push({ id: 'show', icon: 'present', label: `Показ: ${items.length}` });
+  more.push({ id: 'export', icon: 'download', label: items.length > 1 ? `Экспорт в папку (${items.length})…` : 'Экспорт в папку…' }, { id: 'exportzip', icon: 'download', label: 'Экспорт в zip…' });
+  lists = { copy, more };
+  if (copy.length || (one && one.colors.length)) out.push({ id: 'copy', icon: 'copy', label: 'Копировать', sub: true });
+  out.push({ id: 'more', icon: 'more', label: 'Ещё', sub: true });
   out.push({ id: 'rename', icon: 'edit', label: items.length > 1 ? `Переименовать (${items.length})…` : 'Переименовать…', key: 'F2' });
-  out.push({ id: 'export', icon: 'download', label: items.length > 1 ? `Экспорт в папку (${items.length})…` : 'Экспорт в папку…' }, { id: 'exportzip', icon: 'download', label: 'Экспорт в zip…' });
   const del = [{ id: 'trash', icon: 'trash', label: items.length > 1 ? `В корзину (${items.length})` : 'В корзину', key: 'Del', danger: true }];
   return [open, keep, make, out, del].filter((g) => g.length).flatMap((g, k) => (k ? [{ sep: true }, ...g] : g));
 }
@@ -241,8 +251,11 @@ function subRows(kind) {
       return `<button type="button" class="mi" role="menuitemcheckbox" aria-checked="${on}" data-fid="${x.f.id}" style="padding-left:${12 + x.d * 14}px"><span>${esc(x.f.name)}</span>${on ? '✓' : ''}</button>`;
     }).join('');
   }
-  const it = selItems()[0];
-  return (it ? it.colors : []).map((c) => `<button type="button" class="mi" role="menuitem" data-hex="${c}"><i class="ctx-sw" style="background:${c}"></i><span class="hex">${c.toUpperCase()}</span></button>`).join('');
+  if (kind === 'more') return lists.more.map(rowHTML).join('');
+  // «Копировать»: the text on the picture, then its colours as HEX
+  const it = selItems().length === 1 ? selItems()[0] : null;
+  const cols = (it ? it.colors : []).map((c) => `<button type="button" class="mi" role="menuitem" data-hex="${c}"><i class="ctx-sw" style="background:${c}"></i><span class="hex">${c.toUpperCase()}</span></button>`);
+  return lists.copy.map(rowHTML).concat(lists.copy.length && cols.length ? [rowHTML({ sep: true })] : [], cols).join('');
 }
 
 function openSub(btn, focus) {
@@ -313,23 +326,30 @@ export async function cardAction(a, items = selItems()) {
   else if (a === 'ocrcopy' && items[0]) { try { await writeText(items[0].ocr); toast('Текст скопирован'); } catch (err) { toast('Не удалось скопировать текст.'); } }
   else if (a === 'rename') openRename(items);
   else if (a === 'mask') import('./mask.js').then((m) => m.openMask(items));
+  else if (a === 'brand' && items[0]) {
+    const id = items[0].id;
+    if (!(S.sel.size === 1 && S.sel.has(id))) { S.sel.clear(); S.sel.add(id); S.last = id; ui.refresh(); }
+    import('./inspextra.js').then((m) => { m.brandOpen(id); ui.renderInsp(); setTimeout(() => { const d = document.querySelector('.brand-blk'); if (d) { d.open = true; d.scrollIntoView({ block: 'nearest' }); } }); });
+  }
   else if (a === 'upscale' && items[0]) import('./upscale.js').then((m) => m.openUpscale(items[0]));
+  else if (a === 'cutout') import('./cutout.js').then((m) => m.openCutout(items));
   else if (a === 'notes' && items[0]) import('./notes.js').then((m) => m.openNotes(items[0]));
   else if (a === 'show') import('./show.js').then((m) => m.openShow(S.vis.filter((i) => items.includes(i)).concat(items.filter((i) => !S.vis.includes(i))), 'Выбранное'));
   else if (a === 'toteam') import('./teamui.js').then((m) => m.sendFlow(items));
   else if (a === 'teamtake') import('./teamui.js').then((m) => m.takeFlow(items));
   else if (a === 'export' || a === 'exportzip') {
     const f = S.view.type === 'folder' && S.folders.find((x) => x.id === S.view.id);
-    import('../lib/exporter.js').then((m) => m.runExport(items, f ? f.name : (items.length === 1 ? items[0].name : `Oddments · ${items.length} файлов`), a === 'exportzip'));
+    import('../lib/exporter.js').then((m) => m.runExport(items, f ? f.name : (items.length === 1 ? items[0].name : `Oddments · ${t(`${items.length} файлов`)}`), a === 'exportzip'));
   }
   else if (a === 'blender') {
     const send = items.filter((i) => i.kind === 'model' || i.kind === 'material');
-    import('./toblender.js').then((m) => m.toBlender(send.map((i) => absPath(i.file)), send.length === 1 ? send[0].name : 'Файлы: ' + send.length));
+    import('./toblender.js').then((m) => m.itemsToBlender(send));
   } else if (a === 's3dset') {
     const f = S.view.type === 'folder' && S.folders.find((x) => x.id === S.view.id);
     import('./toblender.js').then((m) => m.iconSetToBlender(items, f ? f.name : null));
   } else if (a === 'svgfix') import('./svgfix.js').then((m) => m.openSvgFix(items));
   else if (a === 's3d' && items[0]) import('./svg3d.js').then((m) => m.openFromItem(items[0]));
+  else if (a === 'splatmk' && items[0]) import('./splatmaker.js').then((m) => m.openSplatMaker(items[0]));
   else if (a === 'flow' && items[0]) {
     import('./preview.js').then((pv) => { if (pv.isPreviewOpen()) pv.closePreview(true); });
     import('./flows.js').then((m) => m.flowFromItem(items[0]));

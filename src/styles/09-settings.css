@@ -52,12 +52,23 @@ body.tauri.layer-up :is(.pv, .feed, .news, .flw, .ik, .plg, .sb-layer, .s3d) { t
 .sgrp { font-size: 12px; font-weight: 500; color: var(--mut); padding: 20px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
 .srow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; }
 .srow.col { flex-direction: column; align-items: stretch; }
+.srow .s-list { margin: 0; padding-left: 18px; color: var(--mut); font-size: 12.5px; line-height: 1.5; } /* «Приватность»: what goes out */
 .srow > span { flex: 1; }
 .srow b { font-weight: 500; color: var(--mut); }
 .srow select, .srow input[type=range] { width: 200px; background: var(--field); border: 0; border-radius: 10px; padding: 7px 9px; box-shadow: inset 0 0 0 1px var(--line); }
 .srow select option { background: var(--panel); }
 .srow input[type=range] { padding: 0; accent-color: var(--fg); box-shadow: none; background: none; }
 .srow input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--fg); }
+/* on / off settings are pill switches, like every other toggle of the app (audit 29.10: square system ticks); the class
+   `switch` gives the same look to a checkbox elsewhere (the flow's «Скрыть личные данные», the 3D light) */
+:is(.srow input[type=checkbox], input.switch) { flex: none; appearance: none; -webkit-appearance: none; position: relative; width: 40px; height: 24px; margin: 0; border-radius: 99px; cursor: pointer;
+  background: var(--hover-2); box-shadow: inset 0 0 0 1px var(--line-2); transition: background .2s, box-shadow .2s; }
+:is(.srow input[type=checkbox], input.switch)::before { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--mut); transition: transform .25s var(--ease), background .2s; }
+:is(.srow input[type=checkbox], input.switch):checked { background: var(--acc); box-shadow: none; }
+:is(.srow input[type=checkbox], input.switch):checked::before { transform: translateX(16px); background: var(--acc-fg, var(--bg)); }
+:is(.srow input[type=checkbox], input.switch):focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--acc); }
+:is(.srow input[type=checkbox], input.switch):disabled { opacity: .45; cursor: default; }
+body:not(.motion) :is(.srow input[type=checkbox], input.switch), body:not(.motion) :is(.srow input[type=checkbox], input.switch)::before { transition: none; }
 .accs { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; max-width: 210px; }
 .accs button { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .3); transition: transform .18s var(--ease); }
 .accs button:hover { transform: scale(1.12); }

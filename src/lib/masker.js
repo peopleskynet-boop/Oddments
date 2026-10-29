@@ -7,6 +7,7 @@ import { S } from '../state.js';
 import { absPath, addFromBlobs, saveIndex } from './library.js';
 import * as fs from '@tauri-apps/plugin-fs';
 import { piiRegions, snapToGaps } from './pii.js';
+import { t } from './i18n.js';
 
 // the file the mask works on: the original picture, the PSD's full render
 export function maskSource(it) {
@@ -136,7 +137,7 @@ export async function maskToBlob(url, regions, mode = 'pixel') {
 
 export async function saveMaskedCopy(it, blob) {
   const base = it.name.replace(/\.[^.]+$/, '');
-  const [copy] = await addFromBlobs([{ blob, name: base + ' — без личных данных.png', source: it.url || '' }], { folder: (it.folders || [])[0] || null });
+  const [copy] = await addFromBlobs([{ blob, name: `${base} — ${t('без личных данных')}.png`, source: it.url || '' }], { folder: (it.folders || [])[0] || null });
   if (!copy) return null;
   copy.folders = [...new Set([...(copy.folders || []), ...(it.folders || [])])];
   copy.tags = [...new Set([...(copy.tags || []), ...(it.tags || [])])];

@@ -120,9 +120,11 @@ function render() {
   } else {
     if (open && el.matches(':hover')) { drawSteps(); return; } // the person is reading the steps
     el.classList.remove('on');
+    el.inert = true; // faded out, it is not a Tab stop either (audit 29.10)
     return;
   }
   if (kind === 'run') wasBusy = true;
+  el.inert = false; // before the text changes: the status is read out
   iconKind = setIcon(icon, kind, iconKind);
   txt.textContent = body;
   txt.className = kind === 'run' ? 'ai-txt shim' : 'ai-txt';
@@ -149,6 +151,7 @@ function toggle(v = !open) {
 export function initAiBar() {
   el = document.createElement('div');
   el.className = 'aibar glass';
+  el.inert = true; // until it has something to say
   el.setAttribute('role', 'status');
   el.innerHTML = `<div class="ai-steps" hidden></div>
     <div class="ai-row"><span class="ai-ic"></span><span class="ai-txt"></span><span class="ai-act"></span><button type="button" class="ai-chev" aria-expanded="false" aria-label="Что делает ИИ" title="Что делает ИИ">${ic('caretD')}</button></div>

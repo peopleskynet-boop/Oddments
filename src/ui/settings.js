@@ -1,6 +1,6 @@
 // Appearance settings. Everything is a CSS variable or a body class, so the whole look
 // can be changed live — and "Свой CSS" lets you override anything.
-import { $, esc, isDarkColor } from '../util.js';
+import { $, esc, isDarkColor, DEC } from '../util.js';
 import { ui } from '../state.js';
 import { ic } from './icons.js';
 import { enhanceAll, syncSelect } from './gselect.js';
@@ -17,7 +17,10 @@ const VERSION = 3;
 export const DEFAULTS = {
   theme: 'marathon', accent: 'mono', radius: 16, gap: 14, density: 'cozy', fontSize: 13, font: 'golos',
   captions: false, hover: true, vplay: 'hover', glass: true, anim: 'smooth', wall: 'ambient', css: '',
-  layout: 'masonry', zoom: 220, sideOff: false, inspOff: false, clean: false, facts: true, // clean: a first run starts in the normal view — the panels, «Добавить» and «Знакомство» in sight (newbie pass 25.10); the clean screen is one key away (\) blenderPath: '', blenderAuto: true, overlay: true,
+  layout: 'masonry', zoom: 220, sideOff: false, inspOff: false, facts: true, blenderPath: '', blenderAuto: true, overlay: true,
+  // clean: a first run starts in the normal view — the panels, «Добавить» and «Знакомство» in sight (newbie pass 25.10);
+  // the clean screen is one key away (\). (Until 29.10 this comment sat mid-line and swallowed the three keys before it.)
+  clean: false,
   aiAutoName: false, // AI through the API: files named like «IMG_2034» get Claude's English name
   sound: 40, // interface sounds, 0–100; 0 = off
   tray: true, // the window's close button hides Oddments to the tray (the receiver keeps working)
@@ -104,16 +107,18 @@ export function applySettings() {
 }
 
 function row(label, control) {
-  return `<label class="srow"><span>${label}</span>${control}</label>`;
+  // an on / off setting reads as a switch (it looks like one — 09-settings.css)
+  return `<label class="srow"><span>${label}</span>${control.replace('<input type="checkbox"', '<input type="checkbox" role="switch"')}</label>`;
 }
 
 // The drawer in pages (it used to be one long scroll): tabs under the title, a search over every setting. The groups
 // of the markup above are sorted into pages by their titles; a search shows matching rows from all pages at once.
 const PAGES = [
-  ['look', 'Вид', ['Цвета', 'Форма', 'Эффекты', 'Файлы']],
+  ['look', 'Вид', ['Язык · Language', 'Цвета', 'Форма', 'Эффекты', 'Файлы']],
   ['lib', 'Библиотека', ['Библиотека', 'Правила бренда', 'Словарь тегов']],
   ['ai', 'ИИ', ['ИИ', 'Текст на картинках', 'Ключ Anthropic', 'ИИ для иконок']],
   ['apps', 'Blender и плагины', ['Blender', 'Интеграции']],
+  ['about', 'О программе', ['Обновления', 'Приватность', 'Отчёт о сбоях', 'Лицензии']],
 ];
 const PAGE_KEY = 'perch.settingsPage';
 function paginate(el) {
@@ -211,8 +216,9 @@ export function openSettings(section) {
       <code class="path" id="sIntSt">проверяю…</code>
       <div class="int-acts"><button class="ibtn pri" id="sPlug">Плагины…</button><button class="ibtn" id="sTok">Скопировать токен</button></div>
     </div>
+    <div class="sgrp">Язык · Language</div>
+    ${row('Интерфейс · Interface', `<select id="sLang" aria-label="Язык интерфейса · Interface language">${LANGS.map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>`)}
     <div class="sgrp">Цвета</div>
-    ${row('Язык · Language', `<select id="sLang" aria-label="Язык интерфейса · Interface language">${LANGS.map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>`)}
     ${row('Тема', `<select id="sTheme"><option value="system">Как в Windows</option><option value="light">Светлая</option><option value="dark">Тёмная</option><option value="marathon">Марафон</option><option value="calm">Тишина</option></select>`)}
     <div class="srow"><span>Акцент</span><div class="accs">${ACCENTS.map((c) => `<button data-acc="${c}" style="background:${c === 'mono' ? 'var(--fg)' : c}" class="${c === s.accent ? 'on' : ''}" aria-label="${c === 'mono' ? 'Монохром' : c}" title="${c === 'mono' ? 'Монохром' : c}"></button>`).join('')}<label class="own${ACCENTS.includes(s.accent) ? '' : ' on'}" title="Свой цвет"><input type="color" id="sAcc" value="${esc(s.accent === 'mono' ? '#ededed' : s.accent)}" aria-label="Свой цвет акцента"></label></div></div>
     <div class="sgrp">Форма</div>
@@ -254,6 +260,32 @@ export function openSettings(section) {
       <div class="gl-list"></div>
       <form class="gl-add"><input type="text" placeholder="Слово, например «онбординг»" aria-label="Слово словаря"><input type="text" placeholder="синонимы через запятую" aria-label="Синонимы"><button class="ibtn" type="submit">Добавить</button></form>
       <div class="int-acts"><button class="ibtn" id="sGlFind">Найти похожие теги</button><button class="ibtn" id="sGlTeam" hidden>Сделать словарём команды</button></div><div class="gl-merge"></div></div>
+    <div class="sgrp" id="sgUpd">Обновления</div>
+    <div class="srow col" id="sUpd"><span>Oddments <b id="sVer">…</b></span><small class="hint">Новые версии приходят с GitHub подписанными: файл с чужой подписью не установится. Проверка — один запрос к github.com, без данных о вас и библиотеке.</small>
+      <code class="path" id="sUpdSt">…</code>
+      <div class="int-acts"><button class="ibtn" id="sUpdNow">Проверить сейчас</button><button class="ibtn pri" id="sUpdGo" hidden>Установить</button><button class="ibtn flat" id="sUpdNotes">Что нового</button></div></div>
+    ${row('Проверять обновления раз в день', '<input type="checkbox" id="sUpdAuto">')}
+    <div class="sgrp">Приватность</div>
+    <div class="srow col" id="sPriv"><span>Библиотека, оригиналы, теги, заметки и отчёты о сбоях не покидают компьютер. В сеть Oddments ходит только за тем, что вы включили сами:</span>
+      <ul class="s-list">
+        <li>модели ИИ-поиска, текста на картинках, увеличения и удаления фона — один раз с Hugging Face, когда вы их включаете;</li>
+        <li>освещение HDRI для 3D — с Poly Haven, при первом выборе;</li>
+        <li>лента, сводка дня, статьи и каналы Telegram — с сайтов, на которые вы подписаны, когда открываете ленту;</li>
+        <li>обложки и названия ссылок YouTube, Vimeo, Pinterest и Figma — когда вы добавляете ссылку;</li>
+        <li>ИИ через API — Anthropic и Voyage по вашему ключу: запросы и уменьшенные копии картинок;</li>
+        <li>проверка обновлений — github.com, если она включена.</li>
+      </ul>
+      <small class="hint">Плагины Blender и Figma, расширение браузера и Claude (MCP) говорят с Oddments только внутри компьютера (127.0.0.1).</small>
+      <button class="ibtn flat" id="sPrivDoc">Подробно о приватности</button></div>
+    ${row('Без сети: ничего не скачивать и не отправлять', '<input type="checkbox" id="sOffline">')}
+    <small class="hint" id="sOffNote">Лента, скачивание моделей, обложки ссылок, ИИ через API и обновления останутся выключенными, пока не снимете галку. Всё, что уже на компьютере, работает.</small>
+    <div class="sgrp">Отчёт о сбоях</div>
+    <div class="srow col" id="sCrash"><span>Ошибки окна и сбои программы записываются в файл на этом компьютере и никуда не отправляются. Если что-то сломалось, скопируйте отчёт и пришлите его сами — на почту, в Telegram или в Issues на GitHub. Имя пользователя и путь к библиотеке в отчёт не попадают.</span>
+      <code class="path" id="sCrashSt">…</code>
+      <div class="int-acts"><button class="ibtn" id="sCrashCopy">Скопировать отчёт</button><button class="ibtn" id="sCrashOpen">Открыть папку</button><button class="ibtn flat" id="sCrashClear">Очистить</button></div></div>
+    <div class="sgrp">Лицензии</div>
+    <div class="srow col"><span>Oddments — свободная программа под лицензией MIT. Внутри — библиотеки, шрифты и модели других авторов под их лицензиями: three.js, Spark, onnxruntime, SigLIP 2, PaddleOCR, Real-ESRGAN, BEN2, AutoRemesher и другие.</span>
+      <div class="int-acts"><button class="ibtn" id="sLic">Лицензии и авторы</button></div></div>
     <details class="adv"${s.css ? ' open' : ''}><summary>Для продвинутых: свой CSS</summary>
       <p>Правила CSS поверх оформления Oddments — для того, чего нет в настройках. Например, <code>--acc</code> меняет акцент, <code>.card .ph</code> — карточки.</p>
       <textarea id="sCss" rows="6" spellcheck="false" aria-label="Свой CSS" placeholder=":root { --acc: #ff5a5f; }\n.card .ph { border-radius: 0; }">${esc(s.css)}</textarea>
@@ -313,6 +345,8 @@ export function openSettings(section) {
   $('#sTray').onchange = (e) => upd({ tray: e.target.checked });
   // team libraries, the tag dictionary, brand rules: their code loads with the drawer (settingsteam.js), not at start
   import('./settingsteam.js').then((m) => m.bindTeamSettings());
+  // «О программе»: updates, privacy and «Без сети», the crash report, licences (settingsabout.js)
+  import('./settingsabout.js').then((m) => m.bindAbout());
   // watch folders (watch.js): the list, add, remove
   const drawWatch = () => import('../lib/watch.js').then((m) => {
     const box = $('#sWatch .watch-list');
@@ -401,7 +435,7 @@ export function openSettings(section) {
         `Изучено: ${r.done} из ${r.total} (векторов: ${r.vectors})${r.failed ? ` · не изучилось: ${r.failed}` : ''}`,
         `ИИ-теги есть у ${r.tagged}${r.engine === 'api' ? ` · описаний: ${r.described}` : ''}`,
       ];
-      if (r.ms) lines.push(`Тестовый запрос «предмет на фоне»: ${r.ms} мс · ближе всего «${r.bestName}» (${String(r.best).replace('.', ',')}; у этой модели подходящие картинки обычно 0,05–0,18 — важно не само число, а насколько картинка выделяется среди остальных)`);
+      if (r.ms) lines.push(`Тестовый запрос «предмет на фоне»: ${r.ms} мс · ближе всего «${r.bestName}» (${String(r.best).replace('.', DEC)}; у этой модели подходящие картинки обычно 0,05–0,18 — важно не само число, а насколько картинка выделяется среди остальных)`);
       else if (r.status === 'ready' && r.engine === 'api') lines.push('Поиск идёт по описаниям Claude (ключа Voyage нет)');
       if (r.error) lines.push('Последняя ошибка: ' + r.error);
       rep.textContent = lines.join('\n');

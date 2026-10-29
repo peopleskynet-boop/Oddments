@@ -1,7 +1,8 @@
 name: Сборка для Mac
 
-# A .dmg for Apple Silicon and Intel at once (universal). Unsigned: the first start is right click › «Открыть»
-# (docs/install-mac.md). AutoRemesher has no macOS build — the Mac version goes without it (tauri.macos.conf.json).
+# A .dmg for Apple Silicon and Intel at once (universal). Signed with a Developer ID and notarized when the Apple secrets
+# are there (docs/signing.md); without them unsigned — the first start is right click › «Открыть» (docs/install.md).
+# AutoRemesher has no macOS build — the Mac version goes without it (tauri.macos.conf.json).
 on:
   workflow_dispatch:
     inputs:
@@ -47,7 +48,34 @@ jobs:
           (cd src-tauri/resources/safari && ditto -c -k --keepParent "Oddments for Safari.app" ../../../build-safari/oddments-safari.zip)
       - name: Safari placeholder
         run: mkdir -p src-tauri/resources/safari && [ -e src-tauri/resources/safari/README.txt ] || echo "Safari extension container app (built in CI)" > src-tauri/resources/safari/README.txt
-      - run: npm run tauri build -- --target universal-apple-darwin
+      # the Rust crates of this build and their licence texts go into THIRD_PARTY_NOTICES.md (shown in Settings › О
+      # программе › Лицензии and put next to the program)
+      - name: Лицензии Rust
+        shell: bash
+        run: |
+          cargo metadata --format-version 1 --manifest-path src-tauri/Cargo.toml --filter-platform aarch64-apple-darwin > "$RUNNER_TEMP/cargo-meta.json"
+          node tools/notices.mjs --rust "$RUNNER_TEMP/cargo-meta.json"
+      # the updater key as on Windows: Oddments.app.tar.gz and its .sig are what installed copies update from. With the
+      # Apple secrets Tauri signs the app with the Developer ID (its own temporary keychain) and has Apple notarize it;
+      # a secret that is not set is left out, so the build goes on without that step.
+      - name: Сборка
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for v in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          if [ -z "$APPLE_CERTIFICATE" ]; then unset APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; fi
+          CONF=(--target universal-apple-darwin)
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then CONF+=(--config src-tauri/tauri.updater.conf.json); fi
+          npm run tauri build -- "${CONF[@]}"
       - uses: actions/upload-artifact@v6
         with:
           name: oddments-mac-dmg
@@ -66,4 +94,6 @@ jobs:
           draft: true
           files: |
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
             build-safari/oddments-safari.zip

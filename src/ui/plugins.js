@@ -147,7 +147,9 @@ function draw(i, seenMap) {
   el.querySelector('.plg-st').textContent = head;
   el.querySelector('.plg-st').classList.toggle('ok', !!(i && i.running));
   el.querySelector('[data-pl="token"]').disabled = !i;
-  el.querySelector('.plg-grid').innerHTML = CARDS.map((c) => {
+  // one lime button on the screen: the first plugin not connected yet (audit 29.10: five lime buttons in a row)
+  const next = CARDS.findIndex((c) => !seenMap[c.seen] && !c.acts[0].off);
+  el.querySelector('.plg-grid').innerHTML = CARDS.map((c, k) => {
     const t = seenMap[c.seen];
     const live = t && Date.now() - t < 15000;
     const status = t ? ago(t) : 'ещё не подключался';
@@ -155,7 +157,7 @@ function draw(i, seenMap) {
       <div class="plg-h"><span class="plg-i">${ic(c.icon)}</span><div><h3>${esc(c.title)}</h3><span class="plg-v">${esc(c.ver)}</span>
         <span class="plg-s${live ? ' on' : t ? ' was' : ''}"><i></i>${esc(status)}</span></div></div>
       <p class="plg-w">${esc(c.what)}</p>
-      <div class="plg-a">${c.acts.map((a) => `<button type="button" class="ibtn${a.pri ? ' pri' : ''}" data-pl="${a.a}"${a.off || (!i && a.a !== 'mcp-desktop' && a.a !== 'mcp-code') ? ' disabled' : ''}>${esc(a.label)}</button>`).join('')}
+      <div class="plg-a">${c.acts.map((a) => `<button type="button" class="ibtn${a.pri && k === next ? ' pri' : ''}" data-pl="${a.a}"${a.off || (!i && a.a !== 'mcp-desktop' && a.a !== 'mcp-code') ? ' disabled' : ''}>${esc(a.label)}</button>`).join('')}
         <button type="button" class="ibtn ghost" data-pl="steps" aria-expanded="false">Как установить</button></div>
       <ol class="plg-steps" hidden>${c.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
     </article>`;

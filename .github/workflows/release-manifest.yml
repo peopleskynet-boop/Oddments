@@ -1,0 +1,48 @@
+name: Файлы выпуска — latest.json и расширение Blender
+
+# When a release is published, two things are attached to it:
+# - latest.json, written from the installers' .sig files: installed copies of Oddments read
+#   github.com/<repo>/releases/latest/download/latest.json (tauri.conf.json, updater);
+# - the Blender add-on as an extension package (oddments-<version>.zip) and its repository's index.json
+#   (tools/blender-repo.mjs, no Blender needed): github.com/<repo>/releases/latest/download/index.json is a remote
+#   repository for Blender › Preferences › Get Extensions, with installs and updates.
+# By hand (Actions › Run workflow) — for a release published before this file existed, or to write them again.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег выпуска, например v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      # the add-on as it is in that release
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: latest.json
+        run: |
+          mkdir -p rel
+          gh release download "$TAG" --dir rel --pattern '*.sig'
+          gh release view "$TAG" --json tagName,body,publishedAt > rel/release.json
+          node tools/latest-json.mjs rel/release.json rel > latest.json
+          cat latest.json
+          gh release upload "$TAG" latest.json --clobber
+      - name: Расширение Blender
+        run: |
+          node tools/blender-repo.mjs blender-repo
+          cat blender-repo/index.json
+          gh release upload "$TAG" blender-repo/*.zip blender-repo/index.json --clobber

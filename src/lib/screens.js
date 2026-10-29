@@ -3,22 +3,19 @@
 // from what is already known about the picture: the text on it (ocr.js), its size (phone resolutions) and its
 // colours (brand colours); the person confirms them with a click. Pure: no DOM, no I/O.
 
-// banks and wallets a product designer at a Russian bank compares against; `words` — how they show up in a
-// screenshot's text, `rgb` — the brand colour (a weak hint only: half the internet is yellow or red)
+// apps a product designer often compares against — a starting point to extend; `words` — how they show up in a
+// screenshot's text, `rgb` — the brand colour (a weak hint only: half the internet is green or blue)
 export const APPS = [
-  { name: 'Т-Банк', words: ['т-банк', 'т банк', 'тинькофф', 'tinkoff', 't-bank', 'tbank'], rgb: [255, 221, 45] },
-  { name: 'Сбер', words: ['сбербанк', 'сбер ', 'сбер\n', 'sberbank', 'сберпэй', 'sberpay', 'сбол'], rgb: [33, 160, 56] },
-  { name: 'Альфа-Банк', words: ['альфа-банк', 'альфа банк', 'alfa-bank', 'alfa bank', 'альфа-'], rgb: [239, 49, 36] },
-  { name: 'ВТБ', words: ['втб', 'vtb'], rgb: [10, 40, 150] },
-  { name: 'Озон Банк', words: ['озон банк', 'ozon банк', 'ozon bank', 'озон карта', 'ozon карта'], rgb: [0, 91, 255] },
-  { name: 'Яндекс Пэй', words: ['яндекс пэй', 'yandex pay', 'яндекс pay', 'яндекс сплит', 'сплит'], rgb: [255, 204, 0] },
-  { name: 'Газпромбанк', words: ['газпромбанк', 'gazprombank'], rgb: [0, 70, 160] },
-  { name: 'Райффайзен', words: ['райффайзен', 'raiffeisen'], rgb: [254, 230, 0] },
-  { name: 'Совкомбанк', words: ['совкомбанк', 'халва'], rgb: [0, 45, 130] },
-  { name: 'Почта Банк', words: ['почта банк'], rgb: [0, 50, 160] },
-  { name: 'ЮMoney', words: ['юmoney', 'yoomoney', 'юмани'], rgb: [130, 50, 255] },
   { name: 'Revolut', words: ['revolut'], rgb: [25, 28, 31] },
   { name: 'Monzo', words: ['monzo'], rgb: [255, 77, 86] },
+  { name: 'Wise', words: ['wise', 'transferwise'], rgb: [159, 232, 112] },
+  { name: 'PayPal', words: ['paypal'], rgb: [0, 48, 135] },
+  { name: 'Cash App', words: ['cash app', 'cashapp'], rgb: [0, 214, 50] },
+  { name: 'Spotify', words: ['spotify'], rgb: [30, 215, 96] },
+  { name: 'Airbnb', words: ['airbnb'], rgb: [255, 56, 92] },
+  { name: 'Uber', words: ['uber'], rgb: [0, 0, 0] },
+  { name: 'Duolingo', words: ['duolingo'], rgb: [88, 204, 2] },
+  { name: 'Telegram', words: ['telegram', 'телеграм'], rgb: [36, 161, 222] },
 ];
 
 // kinds of screens, by the words such a screen nearly always carries
@@ -49,7 +46,7 @@ export { OSES, screenWords };
 const IOS = ['750x1334', '828x1792', '1125x2436', '1242x2688', '1170x2532', '1179x2556', '1284x2778', '1290x2796', '1080x2340', '1206x2622', '1320x2868', '640x1136', '1242x2208'];
 const ANDROID = ['1080x2400', '1080x2340', '1080x2412', '1080x2408', '1440x3200', '1440x3088', '1080x2460', '720x1600', '1220x2712', '1260x2800', '1080x2280', '1440x3120'];
 
-// letters that look alike in Latin and Cyrillic fold to one form on both sides: the text reader reads «Т-Банк» as
+// letters that look alike in Latin and Cyrillic fold to one form on both sides: the text reader reads «Тelegram» (a Cyrillic Т) as
 // «T-Банк» now and then (a lone capital has no neighbours to tell its alphabet by)
 const FOLD = { a: 'а', b: 'в', c: 'с', e: 'е', h: 'н', k: 'к', m: 'м', o: 'о', p: 'р', t: 'т', x: 'х', y: 'у', ё: 'е' };
 const lc = (s) => String(s || '').toLowerCase().replace(/[abcehkmoptxyё]/g, (ch) => FOLD[ch]);

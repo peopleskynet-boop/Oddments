@@ -4,6 +4,13 @@
 .head h1 { margin: 0 -.12em 0 0; padding: 0 .12em .06em 0; font-size: 52px; line-height: 1; font-weight: 650; letter-spacing: -.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .head .count { font-size: 48px; line-height: .9; color: var(--mut); letter-spacing: -.02em; }
 .stats { margin: 0 0 4px auto; display: flex; gap: 32px; }
+/* invisible until the header is hovered, so it must not take a line of its own: empty — gone; a header too narrow for it
+   beside the title — gone too (audit 29.10: a hidden band of 70 px under the title at 1100 px) */
+.stats:empty { display: none; }
+.head { container-type: inline-size; }
+/* …and below 960 px they would squeeze the title to «ИЗОБРА…» while they are not even shown (audit 29.10, 1380 px with a
+   file selected) */
+@container (max-width: 960px) { .stats { display: none; } }
 .stats div { display: grid; gap: 4px; }
 .stats dt { font-size: 28px; font-weight: 650; letter-spacing: -.045em; line-height: 1; }
 .stats dd { margin: 0; color: var(--mut); font-size: 13px; }
@@ -33,6 +40,17 @@
 .tr-t b { font-weight: 650; letter-spacing: -.02em; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-t span { color: var(--mut); font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
 body.head-gone .tr-t { display: inline-flex; }
+/* the stuck tab row sits on the same glass strip as in the clean screen (17-clean.css): the wall scrolled up under the
+   toolbar no longer peeks out between the search and the tabs (audit 29.10: «16 новых» showed there) */
+body.head-gone:not(.clean) .tabrow::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  left: calc(-4px - var(--pl)); right: -100vw; top: -140px; bottom: -30px;
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-mask: linear-gradient(#000 calc(100% - 46px), rgba(0, 0, 0, .55) calc(100% - 22px), transparent);
+  mask: linear-gradient(#000 calc(100% - 46px), rgba(0, 0, 0, .55) calc(100% - 22px), transparent);
+}
+:root:is([data-theme="light"], [data-theme="calm"]) body.head-gone:not(.clean) .tabrow::before { background: color-mix(in srgb, var(--bg) 66%, transparent); }
 .tabs { display: flex; gap: 3px; padding: 5px; border-radius: 99px; min-width: 0; overflow: auto hidden; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 /* more tabs hidden past an edge: that edge fades out */
@@ -64,6 +82,8 @@ body.head-gone .tr-t { display: inline-flex; }
 .gsel-t { overflow: hidden; text-overflow: ellipsis; }
 .sortcap .gsel { background: none; box-shadow: none; padding: 0 8px 0 12px; }
 .srow .gsel { width: 200px; }
+/* a list on its own line (the AI engine, the model for tags) takes the row: «На компьютере — бес…» was cut (audit 29.10) */
+.srow.col .gsel { width: 100%; }
 .insp .gsel { width: 100%; }
 .gsel-list { position: fixed; z-index: 150; right: auto; max-height: 320px; overflow: auto; animation: rise .18s var(--ease); }
 .gsel-list .mi { justify-content: space-between; height: 38px; }

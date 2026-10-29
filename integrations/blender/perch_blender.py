@@ -5,7 +5,7 @@
 bl_info = {
     "name": "Oddments",
     "author": "Oddments",
-    "version": (1, 19, 0),
+    "version": (1, 22, 0),
     "blender": (4, 2, 0),
     "location": "3D Viewport › Sidebar (N) › Oddments · Ctrl+Shift+P",
     "description": "Отправить в Oddments и вставить из Oddments",
@@ -34,9 +34,32 @@ from mathutils import Matrix, Vector
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".gif"}
 
+# The add-on's id: its package when installed as a Blender extension (bl_ext.<repository>.oddments), the module's name
+# when installed as a single .py file. Preferences and translations are registered under it.
+ADDON = __package__ or __name__
+# As an extension it follows Blender's «Allow Online Access»: when that is off, no connection at all — not even to
+# Oddments on this computer (127.0.0.1). A plain .py install keeps working as before.
+_EXTENSION = ADDON.startswith("bl_ext.")
+OFFLINE_HINT = "В Blender выключен доступ к сети (Preferences › System › Network › Allow Online Access). Аддон связывается только с Oddments на этом компьютере (127.0.0.1) — включите доступ, чтобы работать с библиотекой"
+
+
+class OfflineError(urllib.error.URLError):
+    """Blender's «Allow Online Access» is off (an extension install)"""
+
+
+def _offline():
+    return _EXTENSION and not getattr(bpy.app, "online_access", True)
+
+
+def _open(req, timeout):
+    """Every request to Oddments goes through here (urllib.request.urlopen, after the online-access check)"""
+    if _offline():
+        raise OfflineError("online access is off")
+    return urllib.request.urlopen(req, timeout=timeout)
+
 
 def _prefs():
-    return bpy.context.preferences.addons[__name__].preferences
+    return bpy.context.preferences.addons[ADDON].preferences
 
 
 def _url(path, **query):
@@ -47,7 +70,7 @@ def _url(path, **query):
 
 def _ping():
     try:
-        with urllib.request.urlopen("http://127.0.0.1:%d/ping" % _prefs().port, timeout=1.5) as r:
+        with _open("http://127.0.0.1:%d/ping" % _prefs().port, timeout=1.5) as r:
             return json.loads(r.read().decode()).get("app") == "perch"
     except Exception:
         return False
@@ -58,7 +81,7 @@ def _send(filepath, name):
         data = f.read()
     req = urllib.request.Request(_url("/import", name=name, source="blender"), data=data, method="POST",
                                  headers={"Content-Type": "application/octet-stream"})
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with _open(req, timeout=120) as r:
         return json.loads(r.read().decode()).get("ok", False)
 
 
@@ -68,6 +91,7 @@ def _send(filepath, name):
 # dictionary registered below; messages and the browser's own drawing call _t().
 _EN_ON = False
 EN = {
+    OFFLINE_HINT: "Online access is off in Blender (Preferences › System › Network › Allow Online Access). The add-on only talks to Oddments on this computer (127.0.0.1) — turn it on to use the library",
     "Отправить в Oddments и вставить из Oddments": "Send to Oddments and insert from Oddments",
     "Oddments › Настройки › Интеграции › «Скопировать токен», затем Edit › Preferences › Add-ons › Oddments": "Oddments › Settings › Integrations › «Copy the token», then Edit › Preferences › Add-ons › Oddments",
     "Сначала вставьте токен: ": "Paste the token first: ",
@@ -285,6 +309,16 @@ EN = {
     "Язык аддона": "Add-on language",
     "Как в Blender": "As in Blender",
     "Язык аддона · Add-on language": "Add-on language",
+    "Сплаты Blender открывает с версии 5.3 — у вас %s. Обновите Blender или откройте сплат аддоном KIRI 3DGS Render.": "Blender opens splats from version 5.3 — you have %s. Update Blender or open the splat with the KIRI 3DGS Render add-on.",
+    "Этот Blender не умеет открывать SPZ — отправьте сплат из Oddments ещё раз (он придёт как PLY).": "This Blender cannot open SPZ — send the splat from Oddments again (it comes as PLY).",
+    "Oddments: сплат не открылся": "Oddments: the splat did not open",
+    "Сплат в Oddments (Cycles)": "Splat to Oddments (Cycles)",
+    "Выделенное — в гауссов сплат с качеством Cycles: 64 рендера со всех сторон с материалами и светом сцены, Oddments раскладывает их цвет по поверхности. Несколько минут; Esc — остановить": "The selection as a Gaussian splat in Cycles quality: 64 renders from all sides with the scene's materials and light, Oddments lays their colour over the surface. A few minutes; Esc stops it",
+    "Ракурсов": "Views", "Размер рендера": "Render size", "Сэмплов": "Samples",
+    "Сплат остановлен": "The splat was stopped",
+    "Oddments: сплат (Cycles) · ракурс %d из %d · Esc — остановить": "Oddments: splat (Cycles) · view %d of %d · Esc to stop",
+    "Сплат «%s» собирается в Oddments": "The splat «%s» is being built in Oddments",
+    "СПЛАТ (CYCLES)": "SPLAT (CYCLES)",
 }
 
 
@@ -301,7 +335,7 @@ def _apply_lang():
         choice = "AUTO"
     on = choice == "EN" or (choice == "AUTO" and not tr.locale.startswith("ru"))
     try:
-        tr.unregister(__name__)
+        tr.unregister(ADDON)
     except Exception:
         pass
     if on:
@@ -309,7 +343,7 @@ def _apply_lang():
         for k, v in EN.items():
             table[("*", k)] = v
             table[("Operator", k)] = v
-        tr.register(__name__, {loc: table for loc in set(tr.locales) | {tr.locale, "en_US"}})
+        tr.register(ADDON, {loc: table for loc in set(tr.locales) | {tr.locale, "en_US"}})
     _EN_ON = on
     for win in getattr(bpy.context.window_manager, "windows", []):
         for area in win.screen.areas:
@@ -329,7 +363,9 @@ def _no_token(op):
 
 def _explain(op, err):
     reason = getattr(err, "reason", None)
-    if isinstance(err, urllib.error.HTTPError) and err.code == 401:
+    if isinstance(err, OfflineError):
+        op.report({"ERROR"}, _t(OFFLINE_HINT))
+    elif isinstance(err, urllib.error.HTTPError) and err.code == 401:
         op.report({"ERROR"}, _t("Oddments не принял токен — скопируйте его заново: ") + _t(TOKEN_HINT))
     elif isinstance(err, urllib.error.HTTPError) and err.code == 413:
         op.report({"ERROR"}, _t("Файл больше 1 ГБ — Oddments такие не принимает"))
@@ -343,7 +379,7 @@ def _explain(op, err):
 
 
 class PERCH_Prefs(bpy.types.AddonPreferences):
-    bl_idname = __name__
+    bl_idname = ADDON
     lang: bpy.props.EnumProperty(name="Язык аддона · Add-on language", default="AUTO",
                                  items=[("AUTO", "Как в Blender", ""), ("RU", "Русский", ""), ("EN", "English", "")],
                                  update=lambda self, ctx: _apply_lang())
@@ -1400,7 +1436,7 @@ class PERCH_OT_apply_material(bpy.types.Operator):
         if _no_token(self):
             return {"CANCELLED"}
         try:
-            with urllib.request.urlopen(_url("/selection"), timeout=5) as r:
+            with _open(_url("/selection"), timeout=5) as r:
                 paths = [p for p in json.loads(r.read().decode()) if p.lower().endswith(".perchmat")]
         except Exception as e:
             _explain(self, e)
@@ -1532,8 +1568,72 @@ def smooth_imported(before, angle_tag=None):
 MODEL_IMPORT = (".glb", ".gltf", ".fbx", ".obj", ".stl", ".ply", ".abc", ".usd", ".usdz", ".usdc")
 
 
+# ---------- Gaussian splats ----------
+# Blender 5.3 reads 3DGS splats itself: a PLY with the splat fields (its PLY importer sees them) and SPZ, into a point cloud
+# of splats rendered by Workbench, EEVEE and Cycles. Oddments sends splats as PLY (other formats are converted there).
+SPLAT_EXT = {".spz", ".splat", ".ksplat", ".sog"}
+
+
+class SplatError(RuntimeError):
+    """A splat the running Blender cannot open: said to the person in a popup, not only printed."""
+
+
+def _is_splat_ply(path):
+    try:
+        with open(path, "rb") as f:
+            head = f.read(8192)
+    except OSError:
+        return False
+    end = head.find(b"end_header")
+    if not head.startswith(b"ply") or end < 0:
+        return False
+    h = head[:end].decode("ascii", "replace")
+
+    def has(p):
+        return any(ln.split()[:1] == ["property"] and ln.split()[-1:] == [p] for ln in h.splitlines())
+    return (has("opacity") and (has("f_dc_0") or has("scale_0"))) or has("packed_position")
+
+
+def _import_splat(path, ext):
+    if bpy.app.version < (5, 3, 0):
+        raise SplatError(_t("Сплаты Blender открывает с версии 5.3 — у вас %s. Обновите Blender или откройте сплат аддоном KIRI 3DGS Render.") % bpy.app.version_string)
+    before = set(bpy.data.objects)
+    if ext == ".ply":
+        bpy.ops.wm.ply_import(filepath=path)
+    else:
+        try:
+            bpy.ops.wm.spz_import.get_rna_type()
+        except Exception:
+            raise SplatError(_t("Этот Blender не умеет открывать SPZ — отправьте сплат из Oddments ещё раз (он придёт как PLY)."))
+        bpy.ops.wm.spz_import(filepath=path)
+    # a PLY from a trainer or from Oddments is in the camera's frame (y down, z forward): stood up for Blender's Z up.
+    # SPZ is turned by Blender's own importer.
+    if ext == ".ply":
+        for ob in set(bpy.data.objects) - before:
+            ob.rotation_euler.x -= math.pi / 2
+    return True
+
+
+def _say(title, text):
+    """A popup for something the person must know (an import that did not happen), from a timer too."""
+    if bpy.app.background:  # no window: a popup there crashes Blender
+        print(title + ":", text)
+        return
+
+    def draw(self, context):
+        for line in text.splitlines():
+            self.layout.label(text=line)
+    try:
+        with bpy.context.temp_override(**_ui_context()):
+            bpy.context.window_manager.popup_menu(draw, title=title, icon="ERROR")
+    except Exception:
+        print(title + ":", text)
+
+
 def import_path(path, assign=True):
     ext = os.path.splitext(path)[1].lower()
+    if ext in SPLAT_EXT or (ext == ".ply" and _is_splat_ply(path)):
+        return _import_splat(path, ext)
     before = set(bpy.data.objects) if ext in MODEL_IMPORT else None
     if ext in (".glb", ".gltf"):
         bpy.ops.import_scene.gltf(filepath=path)
@@ -1575,7 +1675,7 @@ class PERCH_OT_insert(bpy.types.Operator):
         if _no_token(self):
             return {"CANCELLED"}
         try:
-            with urllib.request.urlopen(_url("/selection"), timeout=5) as r:
+            with _open(_url("/selection"), timeout=5) as r:
                 paths = json.loads(r.read().decode())
         except Exception as e:
             _explain(self, e)
@@ -1590,6 +1690,9 @@ class PERCH_OT_insert(bpy.types.Operator):
                     done += 1
                 else:
                     skipped += 1
+            except SplatError as e:
+                self.report({"WARNING"}, str(e))
+                skipped += 1
             except Exception as e:
                 print("Oddments: не удалось вставить", p, e)
                 skipped += 1
@@ -1603,13 +1706,16 @@ class PERCH_OT_check(bpy.types.Operator):
     bl_description = "Найти Oddments на этом компьютере и проверить токен"
 
     def execute(self, context):
+        if _offline():
+            self.report({"ERROR"}, _t(OFFLINE_HINT))
+            return {"CANCELLED"}
         if not _ping():
             self.report({"ERROR"}, _t("Oddments не отвечает: откройте приложение Oddments (порт %d)") % _prefs().port)
             return {"CANCELLED"}
         if _no_token(self):
             return {"CANCELLED"}
         try:
-            with urllib.request.urlopen(_url("/selection"), timeout=5) as r:
+            with _open(_url("/selection"), timeout=5) as r:
                 n = len(json.loads(r.read().decode()))
         except Exception as e:
             _explain(self, e)
@@ -1637,8 +1743,10 @@ def _poll_outbox():
         return None
     if not p.receive or not p.token.strip():
         return 3.0
+    if _offline():
+        return 10.0  # online access is off: no polling, quietly
     try:
-        with urllib.request.urlopen(_url("/outbox"), timeout=0.4) as r:
+        with _open(_url("/outbox"), timeout=0.4) as r:
             paths = json.loads(r.read().decode())
     except Exception:
         return 3.0  # Oddments is not running (or a wrong token): look again a bit later
@@ -1651,6 +1759,8 @@ def _poll_outbox():
             with bpy.context.temp_override(**_ui_context()):
                 if import_path(path, assign=not many):
                     done += 1
+        except SplatError as e:
+            _say(_t("Oddments: сплат не открылся"), str(e))
         except Exception as e:
             print("Oddments: не удалось вставить", path, e)
     if done:
@@ -2226,6 +2336,7 @@ def swap_object(old, new_objs, name, fit=False, keep_materials=False, scene=None
             ch.matrix_world = mw
     meshes = [o for o in tree if o.type == "MESH"]
     main = max(meshes, key=lambda o: len(o.data.vertices)) if meshes else root
+    # every object in the file, not only this scene's: a modifier or constraint in another scene may point at the old one
     for o in bpy.data.objects:
         if o is old or o in tree:
             continue
@@ -2276,7 +2387,7 @@ def _select_only(context, objs):
 
 
 def _first_selected_model():
-    with urllib.request.urlopen(_url("/selection"), timeout=5) as r:
+    with _open(_url("/selection"), timeout=5) as r:
         paths = json.loads(r.read().decode())
     return next((p for p in paths if os.path.splitext(p)[1].lower() in MODEL_EXT), None)
 
@@ -2523,7 +2634,7 @@ class _Fetcher:
                 if not (os.path.exists(dest) and os.path.getsize(dest) > 0):
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     q = urllib.parse.urlencode({"token": self.token, "path": rel})
-                    with urllib.request.urlopen("%s/file?%s" % (self.base, q), timeout=120) as r, open(dest + ".part", "wb") as f:
+                    with _open("%s/file?%s" % (self.base, q), timeout=120) as r, open(dest + ".part", "wb") as f:
                         shutil.copyfileobj(r, f, 1 << 20)
                     os.replace(dest + ".part", dest)
                 self.done.put((kind, key, dest, None))
@@ -2798,12 +2909,12 @@ class _IconJobs:
             try:
                 if svg is None:
                     q = urllib.parse.urlencode({"token": self.token, "path": meta["file"]})
-                    with urllib.request.urlopen("%s/file?%s" % (self.base, q), timeout=30) as r:
+                    with _open("%s/file?%s" % (self.base, q), timeout=30) as r:
                         svg = r.read().decode("utf-8", "replace")
                 body = json.dumps({"svg": svg, "name": meta.get("name"), "style": {k: style[k] for k in ICON_STYLE_DEF if k != "mats"}}).encode()
                 req = urllib.request.Request("%s/mesh?%s" % (self.base, urllib.parse.urlencode({"token": self.token})), data=body,
                                              method="POST", headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(req, timeout=90) as r:
+                with _open(req, timeout=90) as r:
                     res = json.loads(r.read().decode())
                 self.done.put((meta, style, res, None if res.get("mesh") else res.get("error") or "?"))
             except Exception as e:
@@ -2899,6 +3010,220 @@ class PERCH_OT_render_icons(bpy.types.Operator):
         else:
             self.report({"INFO"}, _t("Рендеры иконок в Oddments: %d") % sent)
         return {"FINISHED"}
+
+
+# ---------- Gaussian splat in Cycles quality ----------
+# Oddments makes a splat from a model without training: its points lie on the surface and their colours come from views
+# of it. Here the views are Cycles renders of the selection — the scene's own materials (procedural too) and light,
+# reflections and shadows included. The same 64 cameras as in the app (a Fibonacci sphere, 35°, square), one render per
+# timer tick so Blender stays alive (Esc stops). The geometry goes as GLB (world transforms applied), the cameras in glTF's
+# frame (Y up) in cameras.json, everything zipped into «<name>.oddsplatviews» and sent to Oddments, which builds the splat.
+SPLAT_FOV = 35.0
+SPLAT_TYPES = {"MESH", "CURVE", "SURFACE", "META", "FONT"}
+_SPLAT_PACK = {"path": ""}
+
+
+def _fib_dirs(k):
+    """Directions evenly over a sphere, in glTF's frame — exactly the app's sphereDirs()."""
+    ga = math.pi * (3 - math.sqrt(5))
+    out = []
+    for i in range(k):
+        y = 1 - ((i + 0.5) / k) * 2
+        r = math.sqrt(max(0.0, 1 - y * y))
+        out.append((math.cos(i * ga) * r, y, math.sin(i * ga) * r))
+    return out
+
+
+def _gl_to_bl(v):
+    """glTF (Y up) → Blender (Z up): (x, y, z) → (x, −z, y), the same turn the glTF exporter makes the other way."""
+    return Vector((v[0], -v[2], v[1]))
+
+
+def _bl_to_gl(v):
+    return [v.x, v.z, -v.y]
+
+
+class PERCH_OT_splat_cycles(bpy.types.Operator):
+    bl_idname = "perch.splat_cycles"
+    bl_label = "Сплат в Oddments (Cycles)"
+    bl_description = ("Выделенное — в гауссов сплат с качеством Cycles: 64 рендера со всех сторон с материалами и светом "
+                      "сцены, Oddments раскладывает их цвет по поверхности. Несколько минут; Esc — остановить")
+    views: bpy.props.IntProperty(name="Ракурсов", default=64, min=16, max=256)
+    size: bpy.props.IntProperty(name="Размер рендера", default=768, min=256, max=2048)
+    samples: bpy.props.IntProperty(name="Сэмплов", default=64, min=4, max=4096)
+    # tests: only build the zip (its path in _SPLAT_PACK), send nothing, keep the folder
+    pack_only: bpy.props.BoolProperty(default=False, options={"HIDDEN", "SKIP_SAVE"})
+
+    @classmethod
+    def poll(cls, context):
+        return any(o.type in SPLAT_TYPES for o in context.selected_objects)
+
+    def invoke(self, context, event):
+        if _no_token(self):
+            return {"CANCELLED"}
+        if not self.prepare(context):
+            return {"CANCELLED"}
+        wm = context.window_manager
+        self.timer = wm.event_timer_add(0.05, window=context.window)
+        wm.modal_handler_add(self)
+        wm.progress_begin(0, self.views)
+        return {"RUNNING_MODAL"}
+
+    def execute(self, context):
+        """Without a window (a script, a test): all views in one go."""
+        if not self.prepare(context):
+            return {"CANCELLED"}
+        try:
+            while self.i < self.views:
+                self.render_next(context)
+            self.send(context)
+        except Exception as e:
+            _explain(self, e)
+            return {"CANCELLED"}
+        finally:
+            self.finish(context)
+        self.report({"INFO"}, _t("Сплат «%s» собирается в Oddments") % self.title)
+        return {"FINISHED"}
+
+    def prepare(self, context):
+        sc, r = context.scene, context.scene.render
+        self.timer = None
+        self.objs = [o for o in context.selected_objects if o.type in SPLAT_TYPES]
+        if not self.objs:
+            return False
+        self.title = (context.active_object if context.active_object in self.objs else self.objs[0]).name
+        dg = context.evaluated_depsgraph_get()
+        pts = [o.matrix_world @ Vector(c) for o in self.objs for c in o.evaluated_get(dg).bound_box]
+        lo = Vector([min(p[i] for p in pts) for i in range(3)])
+        hi = Vector([max(p[i] for p in pts) for i in range(3)])
+        self.center = (lo + hi) / 2
+        self.radius = max((p - self.center).length for p in pts) or 1.0
+        self.dist = self.radius * 1.08 / math.sin(math.radians(SPLAT_FOV) / 2)
+        self.dir = tempfile.mkdtemp(prefix="oddments-splat-")
+        try:
+            known = bpy.ops.export_scene.gltf.get_rna_type().properties.keys()
+            opts = dict(export_format="GLB", use_selection=True, export_apply=True, export_cameras=False, export_lights=False,
+                        export_materials="NONE", export_texcoords=False, export_normals=True)
+            with _Keep():
+                for o in context.view_layer.objects:
+                    o.select_set(o in self.objs)
+                bpy.ops.export_scene.gltf(filepath=os.path.join(self.dir, "model.glb"), **{k: v for k, v in opts.items() if k in known})
+        except Exception as e:
+            shutil.rmtree(self.dir, ignore_errors=True)
+            _explain(self, e)
+            return False
+        cy = getattr(sc, "cycles", None)
+        self.keep = (sc.camera, r.engine, r.film_transparent, r.resolution_x, r.resolution_y, r.resolution_percentage, r.filepath,
+                     r.image_settings.file_format, r.image_settings.color_mode, r.image_settings.color_depth)
+        self.keep_cy = (cy.samples, cy.use_denoising) if cy else None
+        self.hide = {o: o.hide_render for o in sc.objects}
+        for o in sc.objects:
+            if o.type not in {"LIGHT", "CAMERA"} and o not in self.objs:
+                o.hide_render = True  # only the selection is seen; the scene's lights and world stay
+        cam = bpy.data.objects.new(".oddments-splat-cam", bpy.data.cameras.new(".oddments-splat-cam"))
+        cam.data.lens_unit = "FOV"
+        cam.data.angle = math.radians(SPLAT_FOV)
+        cam.data.sensor_fit = "AUTO"
+        cam.data.clip_start = max(1e-4, self.dist - self.radius * 1.3)
+        cam.data.clip_end = self.dist + self.radius * 1.3
+        sc.collection.objects.link(cam)
+        self.cam = cam
+        sc.camera = cam
+        r.engine = "CYCLES"
+        r.film_transparent = True
+        r.resolution_x = r.resolution_y = self.size
+        r.resolution_percentage = 100
+        r.image_settings.file_format = "PNG"
+        r.image_settings.color_mode = "RGBA"
+        r.image_settings.color_depth = "8"
+        if cy:
+            cy.samples = self.samples
+            cy.use_denoising = True
+        self.dirs, self.cams, self.i = _fib_dirs(self.views), [], 0
+        return True
+
+    def render_next(self, context):
+        d = self.dirs[self.i]
+        # the camera as three.js's lookAt makes it: z back from the target, x = up × z, y = z × x
+        up_gl = (1.0, 0.0, 0.0) if abs(d[1]) > 0.99 else (0.0, 1.0, 0.0)
+        pos = self.center + _gl_to_bl(d) * self.dist
+        z = (pos - self.center).normalized()
+        x = _gl_to_bl(up_gl).cross(z).normalized()
+        y = z.cross(x)
+        m = Matrix((x, y, z)).transposed().to_4x4()
+        m.translation = pos
+        self.cam.matrix_world = m
+        png = os.path.join(self.dir, "v%03d.png" % self.i)
+        context.scene.render.filepath = png
+        bpy.ops.render.render(write_still=True)
+        self.cams.append({"pos": _bl_to_gl(pos), "target": _bl_to_gl(self.center), "up": list(up_gl), "file": os.path.basename(png)})
+        self.i += 1
+
+    def _status(self, context, text):
+        try:
+            context.workspace.status_text_set(text)
+        except Exception:
+            pass
+
+    def modal(self, context, event):
+        if event.type == "ESC":
+            self.finish(context)
+            self.report({"WARNING"}, _t("Сплат остановлен"))
+            return {"CANCELLED"}
+        if event.type != "TIMER":
+            return {"PASS_THROUGH"}
+        if self.i < self.views:
+            self.render_next(context)
+            context.window_manager.progress_update(self.i)
+            self._status(context, _t("Oddments: сплат (Cycles) · ракурс %d из %d · Esc — остановить") % (self.i, self.views))
+            return {"RUNNING_MODAL"}
+        try:
+            self.send(context)
+        except Exception as e:
+            self.finish(context)
+            _explain(self, e)
+            return {"CANCELLED"}
+        self.finish(context)
+        self.report({"INFO"}, _t("Сплат «%s» собирается в Oddments") % self.title)
+        return {"FINISHED"}
+
+    def send(self, context):
+        meta = {"oddsplatviews": 1, "name": self.title, "fov": SPLAT_FOV, "size": self.size, "samples": self.samples,
+                "engine": "CYCLES", "blender": bpy.app.version_string,
+                "sphere": {"center": _bl_to_gl(self.center), "radius": self.radius}, "views": self.cams}
+        with open(os.path.join(self.dir, "cameras.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+        pack = os.path.join(self.dir, _file_name(self.title) + ".oddsplatviews")
+        with zipfile.ZipFile(pack, "w", zipfile.ZIP_STORED) as z:  # PNGs are compressed already
+            for fn in ["cameras.json", "model.glb"] + [c["file"] for c in self.cams]:
+                z.write(os.path.join(self.dir, fn), fn)
+        if self.pack_only:
+            _SPLAT_PACK["path"] = pack
+            return
+        _send(pack, self.title + ".oddsplatviews")
+
+    def finish(self, context):
+        wm = context.window_manager
+        if self.timer:
+            wm.event_timer_remove(self.timer)
+            self.timer = None
+            wm.progress_end()
+            self._status(context, None)
+        sc, r = context.scene, context.scene.render
+        for o, h in self.hide.items():
+            try:
+                o.hide_render = h
+            except ReferenceError:
+                pass
+        (sc.camera, r.engine, r.film_transparent, r.resolution_x, r.resolution_y, r.resolution_percentage, r.filepath,
+         r.image_settings.file_format, r.image_settings.color_mode, r.image_settings.color_depth) = self.keep
+        if self.keep_cy:
+            sc.cycles.samples, sc.cycles.use_denoising = self.keep_cy
+        data = self.cam.data
+        bpy.data.objects.remove(self.cam)
+        bpy.data.cameras.remove(data)
+        if not self.pack_only:
+            shutil.rmtree(self.dir, ignore_errors=True)
 
 
 class PERCH_OT_icon_style_save(bpy.types.Operator):
@@ -3049,7 +3374,7 @@ class PERCH_OT_browser(bpy.types.Operator):
             note = _t("НЕТ ТОКЕНА ODDMENTS — ТОЛЬКО БИБЛИОТЕКА МАТЕРИАЛОВ")
         else:
             try:
-                with urllib.request.urlopen(_url("/items"), timeout=4) as r:
+                with _open(_url("/items"), timeout=4) as r:
                     items = json.loads(r.read().decode())
             except Exception:
                 note = _t("ODDMENTS НЕ ОТВЕЧАЕТ — ТОЛЬКО БИБЛИОТЕКА МАТЕРИАЛОВ")
@@ -3468,7 +3793,7 @@ class PERCH_OT_browser(bpy.types.Operator):
         return [
             (_t("В ODDMENTS"), [("op:send_selected", _t("ВЫДЕЛЕННОЕ"), False), ("op:send_file", _t("ФАЙЛ .BLEND"), False),
                                 ("op:send_snapshot", _t("СНИМОК ВЬЮПОРТА"), False), ("op:send_material", _t("МАТЕРИАЛ"), False),
-                                ("op:send_scene_materials", _t("ВСЕ МАТЕРИАЛЫ СЦЕНЫ"), False)]),
+                                ("op:send_scene_materials", _t("ВСЕ МАТЕРИАЛЫ СЦЕНЫ"), False), ("op:splat_cycles", _t("СПЛАТ (CYCLES)"), False)]),
             (_t("ИЗ ODDMENTS"), [("op:insert", _t("ВСТАВИТЬ ВЫДЕЛЕННОЕ"), False), ("op:apply_material", _t("ПРИМЕНИТЬ МАТЕРИАЛ"), False),
                                  ("op:sync_models", _t("СИНХРОНИЗАЦИЯ…") if _SYNC["busy"] else _t("В ASSET BROWSER"), _SYNC["busy"])]),
             (_t("В БИБЛИОТЕКУ АДДОНА"), [("op:save_material_lib", _t("АКТИВНЫЙ МАТЕРИАЛ"), False),
@@ -3666,7 +3991,7 @@ class PERCH_OT_browser(bpy.types.Operator):
         if event.type in {"MOUSEMOVE", "INBETWEEN_MOUSEMOVE"}:
             return {"PASS_THROUGH"}
         if event.type in {"WHEELDOWNMOUSE", "WHEELUPMOUSE"} and hv and hv[0].startswith("st-"):
-            self.act(context, "step:%s:%d" % (hv[0][3:].rstrip("-+"), 1 if event.type == "WHEELUPMOUSE" else -1))
+            self.act(context, "step:%s:%d" % (hv[0][3:-1], 1 if event.type == "WHEELUPMOUSE" else -1))
             return {"RUNNING_MODAL"}
         if event.type in {"WHEELDOWNMOUSE", "WHEELUPMOUSE"}:
             step = self.row_h * (1 if event.type == "WHEELDOWNMOUSE" else -1) * 0.6
@@ -3764,7 +4089,7 @@ class PERCH_OT_browser(bpy.types.Operator):
             p.bake_size = sizes[(sizes.index(p.bake_size) + 1) % len(sizes)]
         elif action == "prefs":
             with context.temp_override(window=self.window, area=self.area, region=self.region):
-                bpy.ops.preferences.addon_show(module=__name__)
+                bpy.ops.preferences.addon_show(module=ADDON)
         elif action.startswith("light:"):
             try:
                 context.window_manager.perch_light = action[6:]
@@ -4098,7 +4423,7 @@ tmp = tempfile.mkdtemp(prefix="oddments-sync-")
 def get(rel, name):
     dest = os.path.join(tmp, name)
     q = urllib.parse.urlencode({"token": tok, "path": rel})
-    with urllib.request.urlopen("%s/file?%s" % (base, q), timeout=300) as r, open(dest, "wb") as f:
+    with _open("%s/file?%s" % (base, q), timeout=300) as r, open(dest, "wb") as f:
         shutil.copyfileobj(r, f, 1 << 20)
     return dest
 def imp(path):
@@ -4189,10 +4514,10 @@ def _models_lib_path():
 
 def _sync_items():
     """Oddments' models (the receiver's /items) as the background script wants them."""
-    with urllib.request.urlopen(_url("/items"), timeout=6) as r:
+    with _open(_url("/items"), timeout=6) as r:
         items = json.loads(r.read().decode())
     try:
-        with urllib.request.urlopen(_url("/library"), timeout=6) as r:
+        with _open(_url("/library"), timeout=6) as r:
             folders = {f["id"]: f["name"] for f in json.loads(r.read().decode()).get("folders", [])}
     except Exception:
         folders = {}
@@ -4392,7 +4717,11 @@ class PERCH_OT_check_model(bpy.types.Operator):
                     col.label(text=text, icon={"err": "ERROR", "warn": "INFO", "ok": "CHECKMARK"}[lv])
             col.separator()
             col.operator(PERCH_OT_fix_model.bl_idname, icon="TOOL_SETTINGS")
-        context.window_manager.popup_menu(draw, title=_t("Проверка: замечаний %d") % bad if bad else _t("Проверка: всё в порядке"), icon="VIEWZOOM")
+        title = _t("Проверка: замечаний %d") % bad if bad else _t("Проверка: всё в порядке")
+        if bpy.app.background:  # no window to pop up in (a popup there crashes Blender): the console
+            print(title, *(text for _lv, text in _CHECK["lines"]), sep="\n")
+            return {"FINISHED"}
+        context.window_manager.popup_menu(draw, title=title, icon="VIEWZOOM")
         return {"FINISHED"}
 
 
@@ -5683,7 +6012,7 @@ class PERCH_PT_panel(bpy.types.Panel):
         col = self.layout.column(align=True)
         if not _prefs().token.strip():
             col.label(text=_t("Нужен токен из Oddments"), icon="ERROR")
-            col.operator("preferences.addon_show", text=_t("Вставить токен…"), icon="PREFERENCES").module = __name__
+            col.operator("preferences.addon_show", text=_t("Вставить токен…"), icon="PREFERENCES").module = ADDON
             col.separator()
         big = col.row(align=True)
         big.scale_y = 2.0
@@ -5711,6 +6040,7 @@ class PERCH_PT_all(bpy.types.Panel):
         col.operator(PERCH_OT_send_selected.bl_idname, icon="EXPORT")
         col.operator(PERCH_OT_send_file.bl_idname, icon="FILE_BLEND")
         col.operator(PERCH_OT_send_snapshot.bl_idname, icon="RESTRICT_RENDER_OFF")
+        col.operator(PERCH_OT_splat_cycles.bl_idname, icon="POINTCLOUD_DATA")
         col.separator()
         col.operator(PERCH_OT_save_material_lib.bl_idname, text=_t("Материал в библиотеку"), icon="ASSET_MANAGER")
         col.operator(PERCH_OT_save_material_lib.bl_idname, text=_t("Все материалы сцены в библиотеку"), icon="MATERIAL_DATA").all_scene = True
@@ -5752,7 +6082,7 @@ class PERCH_PT_all(bpy.types.Panel):
 CLASSES = (PERCH_Prefs, PERCH_OT_send_selected, PERCH_OT_send_file, PERCH_OT_send_snapshot, PERCH_OT_send_material, PERCH_OT_send_scene_materials,
            PERCH_OT_apply_material, PERCH_OT_insert, PERCH_OT_check, PERCH_OT_swap, PERCH_OT_place, PERCH_OT_save_material_lib, PERCH_OT_browser,
            PERCH_OT_browser_close, PERCH_OT_sync_models, PERCH_OT_check_model, PERCH_OT_fix_model, PERCH_OT_smart_uv, PERCH_OT_light_save,
-           PERCH_OT_light_apply, PERCH_OT_render_icons, PERCH_OT_icon_style_save, PERCH_PT_panel, PERCH_PT_all)
+           PERCH_OT_light_apply, PERCH_OT_render_icons, PERCH_OT_icon_style_save, PERCH_OT_splat_cycles, PERCH_PT_panel, PERCH_PT_all)
 # the panel's «ЕЩЁ» tab runs these by name (perch.<name>) and shows their own label and description as the hint
 _OPS = {c.bl_idname.split(".", 1)[1]: c for c in CLASSES if getattr(c, "bl_idname", "").startswith("perch.")}
 
@@ -5786,6 +6116,6 @@ def unregister():
     for c in reversed(CLASSES):
         bpy.utils.unregister_class(c)
     try:
-        bpy.app.translations.unregister(__name__)
+        bpy.app.translations.unregister(ADDON)
     except Exception:
         pass

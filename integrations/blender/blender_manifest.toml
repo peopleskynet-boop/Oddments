@@ -1,0 +1,26 @@
+# The add-on as a Blender extension (extensions.blender.org or a self-hosted repository).
+# tools/blender_extension.py builds the package: perch_blender.py becomes __init__.py next to this file, and the
+# version below is kept equal to bl_info["version"] in perch_blender.py (the script rewrites it when they differ).
+schema_version = "1.0.0"
+
+id = "oddments"
+version = "1.22.0"
+name = "Oddments"
+tagline = "Material library, smart UV and a bridge to the Oddments app"
+maintainer = "Oddments <peopleskynet@gmail.com>"
+type = "add-on"
+website = "https://github.com/peopleskynet-boop/Oddments"
+tags = ["Import-Export", "Material", "Pipeline", "UV"]
+
+blender_version_min = "5.2.0"  # tested in 5.2; lower it after a check in 4.5 LTS
+
+# Extensions on the platform must be GPL; the add-on's own code is MIT in the repository, which allows this.
+license = ["SPDX:GPL-3.0-or-later"]
+copyright = ["2026 Oddments"]
+
+[permissions]
+network = "Talks to the Oddments app on this computer only (127.0.0.1)"
+files = "Imports and exports models, keeps a material library on disk"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "/.git/", "*.zip", "*.py.bak"]

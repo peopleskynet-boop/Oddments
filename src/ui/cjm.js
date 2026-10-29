@@ -6,19 +6,20 @@
 import './cjm.css';
 import { studyFlows } from './studyview.js';
 import { aggregate, studyHints } from '../lib/study.js';
-import { esc } from '../util.js';
+import { esc, DEC } from '../util.js';
 import { ic } from './icons.js';
 import { toast } from './dialogs.js';
 import { sfx } from './sound.js';
 import { folderById } from '../state.js';
 import { assetUrl, saveIndex } from '../lib/library.js';
 import * as C from '../lib/cjm.js';
+import { t } from '../lib/i18n.js';
 
 const COL = 240;
 let box = null, fid = null, steps = [], map = null, saveT = null;
 const pic = (it) => assetUrl(it.kind === 'image' ? it.file : it.thumb || it.file);
 const fmtT = (t) => (t == null ? '' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`);
-const sec = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+const sec = (v) => String(Math.round(v * 10) / 10).replace('.', DEC);
 
 function keep() {
   clearTimeout(saveT);
@@ -116,7 +117,7 @@ async function savePng() {
   const file = `${name} — CJM.png`.replace(/[\\/:*?"<>|]+/g, '_');
   if (window.__TAURI_INTERNALS__) {
     try {
-      const path = await (await import('@tauri-apps/plugin-dialog')).save({ title: 'Сохранить CJM', defaultPath: file, filters: [{ name: 'PNG', extensions: ['png'] }] });
+      const path = await (await import('@tauri-apps/plugin-dialog')).save({ title: t('Сохранить CJM'), defaultPath: file, filters: [{ name: 'PNG', extensions: ['png'] }] });
       if (!path) return;
       await (await import('@tauri-apps/plugin-fs')).writeFile(path, new Uint8Array(await blob.arrayBuffer()));
       toast('CJM сохранена'); sfx('done');

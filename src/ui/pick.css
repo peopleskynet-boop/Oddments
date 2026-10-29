@@ -1,0 +1,23 @@
+/* «Выберите картинку» (pick.js): the tools' file picker, the look of the «SVG в 3D» one */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.pk { position: fixed; z-index: 170; /* over the palette's backdrop, which it is opened from */ left: 50%; top: 50%; translate: -50% -50%; width: min(600px, calc(100vw - 32px)); max-height: min(660px, calc(100vh - 64px));
+  display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 28px; animation: rise .22s var(--ease); }
+.pk.glass { --glass-fill: color-mix(in srgb, var(--panel) 94%, transparent); background: var(--glass-fill); }
+.pk[hidden] { display: none; }
+.pk-h { display: flex; align-items: center; justify-content: space-between; }
+.pk-h h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
+.pk-q { flex: none; height: 40px; border: 0; border-radius: 99px; padding: 0 16px; background: var(--field); color: var(--fg); font: inherit; box-shadow: inset 0 0 0 1px var(--field-line); outline: none; }
+.pk-q:focus-visible { box-shadow: inset 0 0 0 1.5px var(--acc), 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent); }
+.pk-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; overflow: auto; min-height: 120px; scrollbar-width: none; padding: 2px; }
+.pk-grid::-webkit-scrollbar { display: none; }
+.pk-t { display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: 16px; text-align: left; transition: background .15s; }
+.pk-t:hover, .pk-t:focus-visible { background: var(--hover); outline: none; }
+.pk-t:focus-visible { box-shadow: 0 0 0 2px var(--acc); }
+.pk-img { aspect-ratio: 1; border-radius: 12px; background: var(--card); overflow: hidden; }
+.pk-img img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pk-n { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+.pk-empty { grid-column: 1 / -1; margin: 18px 4px; color: var(--mut); font-size: 13px; line-height: 1.45; text-align: center; }
+@media (max-width: 520px) { .pk-grid { grid-template-columns: repeat(3, 1fr); } }
+body:not(.motion) .pk { animation: none; }
+}

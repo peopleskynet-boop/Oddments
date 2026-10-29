@@ -31,10 +31,13 @@
 body.marqueeing, body.marqueeing * { user-select: none; cursor: crosshair; }
 .ctx { position: fixed; z-index: 140; min-width: 232px; max-width: 300px; padding: 6px; border-radius: 18px; animation: rise .16s var(--ease); font-size: 14px; }
 /* denser than the other glass: whatever is under a menu (cards, the properties panel) never reads through */
-.ctx.glass, .menu.glass, .side-menu.glass, .gsel-list.glass { background: color-mix(in srgb, var(--panel) 96%, transparent); } /* menus read on their own, nothing shows through (audit 24.10) */
+/* --glass-fill: the «Марафон» glass (12-motion.css) takes it instead of its thin --glass, so text layers stay dense there too (audit 29.10) */
+.ctx.glass, .menu.glass, .side-menu.glass, .gsel-list.glass { --glass-fill: color-mix(in srgb, var(--panel) 96%, transparent); background: var(--glass-fill); } /* menus read on their own, nothing shows through (audit 24.10) */
 .ctx .mi { height: 36px; border-radius: 12px; gap: 10px; padding: 0 10px; outline: 0; }
 .ctx .mi:hover, .ctx .mi:focus-visible, .ctx .mi[aria-expanded="true"] { background: var(--hover-2); }
-.ctx .mi svg.i { width: 16px; height: 16px; flex: none; }
+/* from the keyboard the item in focus also gets a ring: the tinted fill alone was hard to find (audit 29.10) */
+body.kbd :is(.ctx, .menu, .side-menu, .gsel-list) .mi:focus-visible { box-shadow: inset 0 0 0 2px var(--acc); }
+.ctx .mi svg.i { width: 16px; height: 16px; flex: none; color: color-mix(in srgb, var(--fg) 78%, transparent); } /* the muted grey read as disabled on a bright picture (user, 28.10) */
 .ctx .mi kbd { font-size: 11px; }
 .ctx .mi.danger, .ctx .mi.danger svg.i { color: var(--warn); }
 .ctx-chev { display: grid; color: var(--mut); }
@@ -67,7 +70,7 @@ body.tidy-on .scroll *, body.dupes-on .scroll * { visibility: hidden !important;
 .cmdk { position: fixed; inset: 0; z-index: 160; display: none; justify-content: center; align-items: flex-start; padding: max(12vh, 60px) 16px 16px; background: rgba(5, 5, 6, .32); }
 .cmdk.on { display: flex; }
 /* denser than the other glass: its small group headings must read over bright pictures too */
-.cmdk-p.glass { background: color-mix(in srgb, var(--panel) 93%, transparent); }
+.cmdk-p.glass { --glass-fill: color-mix(in srgb, var(--panel) 94%, transparent); background: var(--glass-fill); }
 .cmdk-p { position: relative; width: min(620px, 100%); border-radius: 26px; overflow: hidden; box-shadow: var(--shadow); transform-origin: 50% 0; }
 .cmdk-in { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 8px 14px 8px 20px; border-bottom: 1px solid var(--line); }
 .cmdk-in svg.i { width: 19px; height: 19px; color: var(--mut); flex: none; }

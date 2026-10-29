@@ -1,6 +1,8 @@
 /* ——— shortcut sheet («?») ——— */
 .keys { position: fixed; z-index: 130; left: 50%; top: 50%; translate: -50% -50%; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow: auto;
   border-radius: 26px; padding: 18px 22px 22px; animation: rise .25s var(--ease); outline: none; }
+/* dense: the sheet opens over pictures and its small grey keys must read (audit 29.10) */
+.keys.glass { --glass-fill: color-mix(in srgb, var(--panel) 94%, transparent); background: var(--glass-fill); }
 .keys-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .keys-h h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
 .keys-g { columns: 2 300px; column-gap: 28px; }

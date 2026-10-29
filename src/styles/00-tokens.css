@@ -22,6 +22,10 @@
   --pl: calc(var(--sw) + var(--gap) + 20px);   /* content inset left / right of the panels */
   --pr: calc(var(--iw) + var(--gap) + 20px);
   color-scheme: dark;
+  /* the stage: the preview, the 3D viewer and their bars are always dark, whatever the theme — their own colours, kept
+     here and not as literals in 08-preview.css (audit 29.10: 161 colours in that file) */
+  --stage-fg: #f5f5f7; --stage-fg-2: #c7c7cc; --stage-mut: #98989f; --stage-ink: #0c0c0d;
+  --stage-line: rgba(255, 255, 255, .08); --stage-hi: rgba(255, 255, 255, .14); --stage-glass: rgba(28, 28, 32, .72);
 }
 :root[data-theme="light"] {
   --bg: #efefed; --fg: #0c0c0d; --mut: #5d5d62; /* 4.5:1 on --card */
@@ -49,7 +53,7 @@
 /* every lime tint comes from the accent: «Монохром» keeps the lime, any other accent recolours the whole HUD
    (lines, hovers, crosses, rims, the selection) */
 :root[data-theme="marathon"] {
-  --bg: #0b0c10; --fg: #eceaf2; --mut: #8a8b9c;
+  --bg: #0b0c10; --fg: #eceaf2; --mut: #9a9bab; /* 6:1 on --card, 6.7:1 on --panel (audit 29.10) */
   --line: color-mix(in srgb, var(--acc) 10%, transparent); --line-2: color-mix(in srgb, var(--acc) 22%, transparent);
   --hover: color-mix(in srgb, var(--acc) 7%, transparent); --hover-2: color-mix(in srgb, var(--acc) 12%, transparent);
   --card: #181d2a; --field: rgba(236, 234, 242, .05); --panel: #12141b;

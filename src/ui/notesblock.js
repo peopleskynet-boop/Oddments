@@ -1,8 +1,8 @@
 // The comments of a picture in the properties panel (notes.js is the «Разметка» layer itself — loaded when opened).
-import { esc } from '../util.js';
+import { esc, LOC } from '../util.js';
 
 export const notesOf = (x) => (Array.isArray(x && x.notes) ? x.notes : []);
-const when = (t) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+const when = (t) => new Date(t).toLocaleDateString(LOC, { day: 'numeric', month: 'short' });
 
 // a short list, «Разметка» opens the layer
 export function notesBlock(item) {

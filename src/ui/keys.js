@@ -1,8 +1,9 @@
 // Shortcut sheet: «?» shows every key Oddments knows, grouped by where it works. Esc, «?» again or a click
-// outside closes it. It is a reference, not a step in a task, so it never takes over the window.
+// outside closes it. A layer of its own (layers.js): Esc reaches it after Tab took the focus out (audit 29.10).
 import { $ } from '../util.js';
 import { ic } from './icons.js';
 import { HOTKEYS } from './hotkeys.js';
+import { pushLayer, popLayer } from './layers.js';
 
 // the wall's keys come from the table main.js runs (hotkeys.js); the layers' own keys are listed here
 const LAYER_KEYS = [
@@ -47,6 +48,12 @@ export function toggleKeys(on = !isKeysOpen()) {
   if (!el) build();
   if (on === isKeysOpen()) return;
   el.hidden = !on;
-  if (on) { back = document.activeElement; el.focus({ preventScroll: true }); }
-  else if (back && back.isConnected) back.focus({ preventScroll: true });
+  if (on) {
+    back = document.activeElement;
+    pushLayer({ el, title: 'Клавиши', close: () => toggleKeys(false), onKey: (e) => { if (e.key === '?') { e.preventDefault(); toggleKeys(false); } } });
+    el.focus({ preventScroll: true });
+  } else {
+    popLayer(el);
+    if (back && back.isConnected) back.focus({ preventScroll: true });
+  }
 }

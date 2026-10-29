@@ -5,7 +5,7 @@
 import './notes.css';
 import { pushLayer, popLayer } from './layers.js';
 import { S, ui } from '../state.js';
-import { esc, uid } from '../util.js';
+import { esc, uid, LOC } from '../util.js';
 import { ic } from './icons.js';
 import { assetUrl, saveIndex } from '../lib/library.js';
 import { sfx } from './sound.js';
@@ -16,7 +16,7 @@ import { notesOf } from './notesblock.js';
 let el = null, it = null, tool = 'pin', drag = null, editing = null;
 export const isNotesOpen = () => !!(el && !el.hidden);
 const who = () => readPref('perch.teams', { me: '' }).me || readPref('perch.notesBy', { name: '' }).name || '';
-const when = (t) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+const when = (t) => new Date(t).toLocaleDateString(LOC, { day: 'numeric', month: 'short' });
 
 function build() {
   el = document.createElement('section');
@@ -147,6 +147,7 @@ export async function openNotes(item) {
   const img = el.querySelector('.nts-pic img');
   const pic = it.kind === 'image' && it.file && !/\.(psd|psb|tiff?)$/i.test(it.file) ? it.file : it.preview || it.thumb;
   img.src = assetUrl(pic);
+  img.alt = it.name; // the picture the comments are about, named for the screen reader (audit 29.10)
   // fitted to the stage: a small picture (a model's render, an icon) is drawn large enough to point at its details
   img.decode().then(() => fit()).catch(() => {});
   el.querySelector('.nts-name').textContent = it.name;

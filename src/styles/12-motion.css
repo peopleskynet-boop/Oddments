@@ -31,7 +31,7 @@ body.motion .cover:active .m { transform: scale(.95); }
 @property --glow { syntax: '<number>'; inherits: true; initial-value: 0; }
 :root[data-theme="marathon"] body.glass-on .glass:not(.pill) { /* pills keep their own fill and text (bug #94) */
   --glow: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .012) 40%, rgba(255, 255, 255, .025)), var(--glass);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .012) 40%, rgba(255, 255, 255, .025)), var(--glass-fill, var(--glass));
   box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo),
     -5px -5px 18px -12px color-mix(in srgb, var(--rim-a) calc(var(--glow) * 60%), transparent),
     5px 5px 18px -12px color-mix(in srgb, var(--rim-c) calc(var(--glow) * 50%), transparent), var(--shadow);
@@ -88,6 +88,12 @@ body.motion .card.enter { animation: cardin .55s var(--ease) both; animation-del
     opacity .24s cubic-bezier(.22, 1, .36, 1), background-color .16s;
 }
 .glide[data-press] { background: color-mix(in oklab, var(--fg) 15%, transparent); scale: .965; transition-duration: var(--sp-morph-t, .4s), var(--sp-morph-t, .4s), var(--sp-morph-t, .4s), .2s, var(--sp-snappy-t, .3s), .24s, .12s; }
+/* vertical lists: a short slide that never overshoots — the morph spring trailed the pointer and swung back on fast
+   moves down the left panel (user, 28.10) */
+:is(.side-scroll, .menu, .ctx, .gsel-list) > .glide {
+  transition: translate .14s cubic-bezier(.2, .8, .2, 1), width .14s cubic-bezier(.2, .8, .2, 1), height .14s cubic-bezier(.2, .8, .2, 1),
+    border-radius .2s, scale .18s cubic-bezier(.2, .8, .2, 1), opacity .16s cubic-bezier(.22, 1, .36, 1), background-color .16s;
+}
 .dock, .capg, .menu, .ctx, .gsel-list, .tabs, .side-scroll { isolation: isolate; }
 :is(.dock, .capg, .menu, .ctx, .gsel-list) :is(.ib, .mi) { position: relative; z-index: 1; }
 .tabs .chip, .side-scroll .nav { z-index: 2; }

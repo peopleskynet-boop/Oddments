@@ -7,10 +7,16 @@
 .bar:has(.menu.open, .gsel-list, .kmenu) { z-index: 25; }
 .bar > * { pointer-events: auto; }
 .capg { height: 48px; border-radius: 99px; display: flex; align-items: center; padding: 0 5px; gap: 2px; flex: none; }
+/* one «hide the panel» button at a time: while the left panel is out its own header has it (#sidePin); this one in the
+   top bar is how to bring the panel back (audit 29.10: two buttons side by side did the same) */
+body:not(.side-off):not(.clean) #sideTog { display: none; }
 .search { flex: 1; min-width: 0; height: 48px; border-radius: 99px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 16px; color: var(--mut); cursor: text; }
-.search input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; font-size: 14px; color: var(--fg); }
+.search input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; font-size: 14px; color: var(--fg); text-overflow: ellipsis; }
+/* a squeezed search keeps its field: the «/» hint goes first (audit 29.10: the field was 4 px wide at 1100 px) */
+.search { container-type: inline-size; }
+@container (max-width: 340px) { .search kbd { display: none; } }
 .search input::placeholder, input::placeholder, textarea::placeholder { color: var(--mut); }
-.search:focus-within { box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 1px var(--line-2), 0 0 0 4px var(--hover), var(--shadow); }
+.search:focus-within { box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 1.5px var(--acc), 0 0 0 4px color-mix(in srgb, var(--acc) 18%, transparent), var(--shadow); } /* the field in use is plain to see (audit 29.10) */
 .search:focus-within kbd { display: none; }
 .search .ib { width: 36px; height: 36px; }
 .rainbow { width: 18px; height: 18px; border-radius: 50%; display: block; background: conic-gradient(#ff453a, #ff9f0a, #ffd60a, #30d158, #64d2ff, #5e5ce6, #bf5af2, #ff453a); transition: transform .4s var(--ease); }
@@ -27,7 +33,10 @@
 .sb.more { padding: 0 13px 0 10px; border-radius: 0 99px 99px 0; }
 .sb:hover { background: color-mix(in srgb, var(--acc-fg) 7%, transparent); }
 .sb:active { background: color-mix(in srgb, var(--acc-fg) 12%, transparent); }
-.sb:focus-visible { outline: 2px solid var(--acc-fg); outline-offset: -4px; }
+/* the keyboard ring goes round the whole pill, the focused half is tinted (audit 29.10: an outline inside a half-pill
+   drew a dark square in the button) */
+.sb:focus-visible { outline: none; background: color-mix(in srgb, var(--acc-fg) 14%, transparent); }
+.split:has(.sb:focus-visible) { outline: 2px solid var(--acc); outline-offset: 3px; }
 .split .sep { width: 1px; height: 22px; background: color-mix(in srgb, var(--acc-fg) 18%, transparent); }
 .sb.more svg.i { width: 12px; height: 12px; transform: rotate(90deg); transition: transform .2s var(--ease); }
 .split:has(.menu.open) .more svg.i { transform: rotate(-90deg); }
@@ -50,8 +59,8 @@
 .busy-ic svg.i { width: 16px; height: 16px; }
 #busyT { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .busy > i { position: absolute; left: 14px; right: 14px; bottom: 6px; height: 3px; border-radius: 99px; background: var(--hover-2); overflow: hidden; }
-.busy > i > b { display: block; height: 100%; width: 3%; border-radius: inherit; background: var(--fg); transition: width .3s var(--ease); }
-.busy.indet > i > b { width: 35%; animation: indet 1.2s ease-in-out infinite; }
+.busy > i > b { display: block; height: 100%; width: 100%; transform: scaleX(.03); transform-origin: left; background: var(--fg); transition: transform .3s var(--ease); }
+.busy.indet > i > b { width: 35%; transform: none; animation: indet 1.2s ease-in-out infinite; }
 @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--hover-2); border-top-color: var(--fg); animation: spin .8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -203,6 +203,7 @@ async function finalize(it, src) {
   const g = await generate(it, src);
   it.w = g.w; it.h = g.h; it.ar = g.ar; it.duration = g.duration; it.pages = g.pages; it.colors = g.colors; if (g.shares) { it.shares = g.shares; it.palV = g.palV; }
   if (g.verts) { it.verts = g.verts; it.tris = g.tris; } // optional, 3D only
+  if (g.splats) it.splats = g.splats; // optional: how many splats a splat file holds
   if (g.thumb) {
     await fs.writeFile(absPath(`files/${it.id}/thumb.webp`), new Uint8Array(await g.thumb.arrayBuffer()));
     it.thumb = `files/${it.id}/thumb.webp`;
@@ -257,6 +258,8 @@ export async function addFromPaths(paths, ctx) {
   const progress = progressFor(files.map((f) => baseName(f.p)));
   const tasks = files.map((f) => async () => {
     const it = newItem(baseName(f.p), f.size, ctx);
+    // an importer's own fields for this file (Eagle: name, tags, collections, note, link, date — importers.js)
+    if (ctx && ctx.meta) Object.assign(it, ctx.meta(f.p));
     await fs.mkdir(absPath(`files/${it.id}`), { recursive: true });
     await fs.copyFile(f.p, absPath(it.file));
     const mime = MIME[it.ext] || '';

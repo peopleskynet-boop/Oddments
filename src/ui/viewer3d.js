@@ -4,13 +4,14 @@
 // Orbit: drag · zoom: wheel · pan: right drag. Returns a cleanup function.
 import { loadThree, parseModel, frameObject, disposeObject, modelInfo, objEdges } from '../lib/model3d.js';
 import { ic } from './icons.js';
-import { esc } from '../util.js';
+import { esc, DEC, LOC } from '../util.js';
 import { toast } from './dialogs.js';
 import { readPref, writePref } from '../lib/prefs.js';
+import { t } from '../lib/i18n.js';
 
-const BG = { dark: 0x1c1c1f, light: 0xe6e6e8 };
-const prefs = readPref('perch.viewer3d', {});
-const savePrefs = () => writePref('perch.viewer3d', prefs);
+export const BG = { dark: 0x1c1c1f, light: 0xe6e6e8 };
+export const prefs = readPref('perch.viewer3d', {});
+export const savePrefs = () => writePref('perch.viewer3d', prefs);
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 
 // Render modes. Matcaps are painted procedurally (a lit sphere), so no image files ship with the app.
@@ -68,26 +69,30 @@ const LIGHTS = [
   { id: 'empty_warehouse_01', label: 'Склад', css: 'linear-gradient(#6f6a62, #d8d2c6 40%, #8e877c 55%, #3b3731)' },
   { id: 'moonless_golf', label: 'Ночь', css: 'linear-gradient(#05070d, #1b2233 46%, #39415a 50%, #0b0d10)' },
 ];
+// a prefiltered environment for `renderer` (each WebGL context needs its own); «Сплат из модели» bakes with it too
+export async function envTexture(T, renderer, id) {
+  const { THREE } = T, pm = new THREE.PMREMGenerator(renderer);
+  try {
+    if (id === 'room') return pm.fromScene(new T.RoomEnvironment(), 0.04).texture;
+    const { HDRLoader } = await import('three/examples/jsm/loaders/HDRLoader.js');
+    const hdr = await new HDRLoader().loadAsync(await hdrUrl(id));
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    const t = pm.fromEquirectangular(hdr).texture;
+    hdr.dispose();
+    return t;
+  } finally { pm.dispose(); }
+}
 function getEnv(T, renderer, id) {
   const envs = shared.envs || (shared.envs = {});
   if (!envs[id]) {
-    envs[id] = (async () => {
-      const { THREE } = T, pm = new THREE.PMREMGenerator(renderer);
-      try {
-        if (id === 'room') return pm.fromScene(new T.RoomEnvironment(), 0.04).texture;
-        const { HDRLoader } = await import('three/examples/jsm/loaders/HDRLoader.js');
-        const hdr = await new HDRLoader().loadAsync(await hdrUrl(id));
-        hdr.mapping = THREE.EquirectangularReflectionMapping;
-        const t = pm.fromEquirectangular(hdr).texture;
-        hdr.dispose();
-        return t;
-      } finally { pm.dispose(); }
-    })();
+    envs[id] = envTexture(T, renderer, id);
     envs[id].catch(() => { delete envs[id]; });
   }
   return envs[id];
 }
-const evText = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1).replace('.', ',');
+// the lighting the 3D view shows now (its own settings): what «Сплат из модели» bakes into the splats
+export const viewLight = () => ({ id: LIGHTS.some((l) => l.id === prefs.light) ? prefs.light : 'room', rot: prefs.lightRot || 0, ev: prefs.ev || 0, label: (LIGHTS.find((l) => l.id === prefs.light) || LIGHTS[0]).label });
+const evText = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1).replace('.', DEC);
 
 // Matcaps are shaded per pixel on a sphere (normal from x/y), so they look like real ones:
 // 'lit' — diffuse + Blinn highlight + fresnel rim; 'chrome' — reflection of a sky/horizon/ground studio;
@@ -149,7 +154,7 @@ function paintChecker(THREE) {
 // One canvas and WebGL context for the whole app, reused by every preview. Creating and
 // dropping a context on each open made the browser flash the stage white on quick toggling.
 let shared = null;
-function sharedRenderer(THREE) {
+export function sharedRenderer(THREE) {
   if (!shared) {
     const canvas = document.createElement('canvas');
     canvas.className = 'm3d-c';
@@ -164,8 +169,8 @@ function sharedRenderer(THREE) {
   return shared;
 }
 
-const fmt = (n) => (n == null ? '—' : Math.round(n).toLocaleString('ru-RU'));
-const fmtLen = (v) => (v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toPrecision(2)).replace('.', ',');
+const fmt = (n) => (n == null ? '—' : Math.round(n).toLocaleString(LOC));
+const fmtLen = (v) => (v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toPrecision(2)).replace('.', DEC);
 
 // opts (from the preview): { lib: { libraryMaterials, readItem, saveFromViewer }, itemId, name } — the library side of
 // materials: a model can try on a library material and be saved with it; a material can be edited and saved as new.
@@ -202,7 +207,10 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   const isMat = ext === 'perchmat';
   const M = isMat || opts.lib ? await import('../lib/material.js') : null;
   const matSel = isMat ? obj.userData.material : null; // { data: { json, files }, mat, mesh }
-  const infoKey = isMat ? 'matInfo' : 'info'; // the material editor is open by default, apart from the model stats
+  // the material editor is open by default, apart from the model stats; a screen with its own stats (SVG в 3D) keeps
+  // the panel apart and closed until asked for (audit 29.10: the counts were shown twice)
+  const infoKey = opts.infoKey || (isMat ? 'matInfo' : 'info');
+  if (opts.infoKey && prefs[infoKey] === undefined) prefs[infoKey] = false;
   let matDirty = false;
   const mapUrls = [];
   const overrides = new Set();
@@ -351,9 +359,12 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
       btn('grid', ic('gridfloor'), 'Пол-сетка (G)', !!prefs.grid) +
       (!isMat && opts.lib ? btn('mat', ic('sphere'), 'Материал из библиотеки (M)', mpOpen) : '') +
       btn('light', ic('bulb'), 'Освещение (L)', lpOpen) +
-      btn('bg', ic(prefs.bg === 'light' ? 'moon' : 'sun'), prefs.bg === 'light' ? 'Тёмный фон' : 'Светлый фон') +
+      // the background as a half-filled circle: a sun next to the light bulb read as one more light (audit 29.10)
+      btn('bg', ic('contrast'), prefs.bg === 'light' ? 'Фон: светлый — сделать тёмным' : 'Фон: тёмный — сделать светлым') +
       btn('reset', ic('restore'), 'Сбросить вид (F)') +
-      btn('info', ic(isMat ? 'sphere' : 'info'), isMat ? 'Настройки материала (I)' : 'Информация о модели (I)', prefs[infoKey] !== false);
+      btn('info', ic(isMat ? 'sphere' : 'info'), isMat ? 'Настройки материала (I)' : 'Информация о модели (I)', prefs[infoKey] !== false) +
+      // a file of the library goes on to Blender from here, not only from its menu (audit 29.10)
+      (opts.lib && opts.itemId ? '<span class="m3d-sep"></span>' + btn('blender', ic('external') + '<span>В Blender</span>', 'Отправить в Blender — аддон Oddments примет', null, 'm3d-tob') : '');
   };
   drawBar();
   holder.appendChild(bar);
@@ -374,7 +385,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     ${row('Меши', fmt(info.meshes))}${row('Материалы', fmt(info.materials))}${row('Текстуры', fmt(info.textures))}
     ${row('Габариты', sz, 'X × Y × Z в единицах файла')}${info.uvless ? row('Без UV', fmt(info.uvless) + ' меш.') : ''}</dl>` + checkHtml() +
     (info.animations.length ? `<b class="m3d-h">Анимации</b><div class="m3d-anims">${info.animations.map((a, i) =>
-      `<button type="button" data-anim="${i}" class="${i === 0 ? 'on' : ''}">${esc(a.name)}<span>${a.duration.toFixed(1).replace('.', ',')} с</span></button>`).join('')}
+      `<button type="button" data-anim="${i}" class="${i === 0 ? 'on' : ''}">${esc(a.name)}<span>${a.duration.toFixed(1).replace('.', DEC)} с</span></button>`).join('')}
       <button type="button" data-anim="pause" class="pz">${ic('pause')}<span>Пауза</span></button></div>` : '');
   };
   fillPanel();
@@ -415,7 +426,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
         const fs = await import('@tauri-apps/plugin-fs');
         const { absPath } = await import('../lib/library.js');
         const u8 = await fs.readFile(absPath(r.rel));
-        const name = (opts.name || it.name || 'Модель') + ' — UV';
+        const name = (opts.name || it.name || t('Модель')) + ' — UV';
         const added = await opts.lib.saveFromViewer(new Blob([u8], { type: 'model/gltf-binary' }), name + '.glb', opts.itemId);
         fs.remove(absPath(r.rel)).catch(() => {});
         if (added && added.length) toast(`Готово: «${name}» в библиотеке${r.counts.seams ? ` · швов ${fmt(r.counts.seams)}` : ''}`, 5000);
@@ -440,7 +451,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     mode = 'final'; applyMode();
     try {
       const glb = await new GLTFExporter().parseAsync(obj, { binary: true, animations: obj.animations || [] });
-      const name = (opts.name || 'Модель') + ' — UV';
+      const name = (opts.name || t('Модель')) + ' — UV';
       const added = await opts.lib.saveFromViewer(new Blob([glb], { type: 'model/gltf-binary' }), name + '.glb', opts.itemId);
       if (added && added.length) { toast('Сохранено в библиотеку: ' + name + '.glb'); uvDirty = false; }
     } catch (e) { console.warn(e); toast('Не удалось сохранить модель с UV'); }
@@ -464,7 +475,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     }
     const sl = (k, label, min, max, step, v, fmtv) =>
       `<label class="m3d-ms"><span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" data-mp="${k}"><output>${fmtv(v)}</output></label>`;
-    const f2 = (v) => (+v).toFixed(2).replace('.', ',');
+    const f2 = (v) => (+v).toFixed(2).replace('.', DEC);
     const shape = prefs.matShape || 'sphere';
     panel.innerHTML = `<b class="m3d-h">${esc(j.name || 'Материал')}</b>
       <div class="m3d-shapes" role="radiogroup" aria-label="Форма">${M.SHAPES.map((x) =>
@@ -486,7 +497,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   const saveMat = async () => {
     const j = matSel.data.json, files = {};
     for (const [n, d] of Object.entries(matSel.data.files)) if (n !== 'material.json') files[n] = d;
-    const name = (opts.name || j.name || 'Материал') + ' — правка';
+    const name = `${opts.name || j.name || t('Материал')} — ${t('правка')}`;
     const blob = M.pack({ json: { ...j, name }, files });
     const added = await opts.lib.saveFromViewer(blob, name + '.perchmat', opts.itemId);
     if (added && added.length) { matDirty = false; toast('Сохранено в библиотеку: ' + name); fillPanel(); }
@@ -562,7 +573,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
           ${list.map((x) => tile(x.id, `<i${x.thumb ? ` style="background-image:url('${x.thumb}')"` : ''}></i>`, x.name)).join('')}
         </div>
         <div class="m3d-sls">
-          <label class="m3d-sl"><span>Масштаб текстуры</span><input type="range" min="0.25" max="16" step="0.25" value="${prefs.texScale || 1}" data-mpk="scale"><output>×${String(prefs.texScale || 1).replace('.', ',')}</output></label>
+          <label class="m3d-sl"><span>Масштаб текстуры</span><input type="range" min="0.25" max="16" step="0.25" value="${prefs.texScale || 1}" data-mpk="scale"><output>×${String(prefs.texScale || 1).replace('.', DEC)}</output></label>
           ${info.uvless ? '<span class="m3d-note">У части мешей нет UV — текстура ляжет одним цветом</span>' : ''}
           <button type="button" class="m3d-save" data-mpk="save"${changed ? '' : ' disabled'}>Сохранить как новую модель</button>
         </div>`
@@ -578,7 +589,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   mp.addEventListener('input', (e) => {
     if (e.target.dataset.mpk !== 'scale') return;
     prefs.texScale = +e.target.value; savePrefs();
-    e.target.nextElementSibling.textContent = '×' + String(prefs.texScale).replace('.', ',');
+    e.target.nextElementSibling.textContent = '×' + String(prefs.texScale).replace('.', DEC);
     texScale(prefs.texScale);
   });
   // a click (not a drag) on the model while the panel is open picks that part; on empty space — the whole model
@@ -638,7 +649,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
       <div class="m3d-sls">
         <label class="m3d-sl"><span>Поворот</span><input type="range" min="0" max="360" step="1" value="${prefs.lightRot || 0}" data-lp="rot"><output>${prefs.lightRot || 0}°</output></label>
         <label class="m3d-sl"><span>Экспозиция</span><input type="range" min="-3" max="3" step="0.1" value="${prefs.ev || 0}" data-lp="ev"><output>${evText(prefs.ev || 0)}</output></label>
-        <label class="m3d-ck"><input type="checkbox" data-lp="bg"${prefs.hdrBg ? ' checked' : ''}> Окружение как фон</label>
+        <label class="m3d-ck"><input type="checkbox" class="switch" role="switch" data-lp="bg"${prefs.hdrBg ? ' checked' : ''}> Окружение как фон</label>
       </div>`;
   };
   const placeLp = () => { lp.style.bottom = (40 + bar.offsetHeight + 10) + 'px'; };
@@ -710,6 +721,10 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     else if (k === 'reset') reset();
     else if (k === 'light') { setLp(!lpOpen); return; }
     else if (k === 'mat') { setMp(!mpOpen); return; }
+    else if (k === 'blender') {
+      import('../state.js').then(({ S }) => { const it = S.byId.get(opts.itemId); if (it) return import('./toblender.js').then((m) => m.itemsToBlender([it])); }).catch(() => toast('Не удалось отправить в Blender: раздел не загрузился. Попробуйте ещё раз.'));
+      return;
+    }
     savePrefs(); drawBar();
     if (lpOpen) placeLp();
     if (mpOpen) mp.style.bottom = (40 + bar.offsetHeight + 10) + 'px';
@@ -731,7 +746,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     const j = matSel.data.json;
     j[k] = k === 'color' ? e.target.value : +e.target.value;
     const out = e.target.nextElementSibling;
-    if (out && out.tagName === 'OUTPUT') out.textContent = (k === 'uvScale' ? '×' : '') + (+e.target.value).toFixed(2).replace('.', ',');
+    if (out && out.tagName === 'OUTPUT') out.textContent = (k === 'uvScale' ? '×' : '') + (+e.target.value).toFixed(2).replace('.', DEC);
     M.applyParams(THREE, matSel.mat, j);
     if (!matDirty) { matDirty = true; const sv = panel.querySelector('[data-mp="save"]'); if (sv) sv.disabled = false; }
   });

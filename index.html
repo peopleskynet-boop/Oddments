@@ -28,18 +28,22 @@
           <button class="ib only-wide" id="sideTog" aria-label="Боковая панель" title="Боковая панель ( [ )"></button>
           <button class="ib" id="backBtn" aria-label="Назад ко всем файлам" title="Ко всем файлам"></button>
         </div>
-        <label class="search glass"><span id="icSearch"></span><input id="q" type="text" placeholder="Найти: название, #тег или что на картинке…" autocomplete="off" /><button type="button" class="ib q-x" id="qX" aria-label="Очистить поиск" title="Очистить поиск (Esc)" hidden></button><kbd>/</kbd><button type="button" class="ai-chip" id="aiChip" hidden></button><button type="button" class="ib" id="simBtn" aria-label="Похожие на выбранную" title="Похожие на выбранную картинку"></button><button type="button" class="ib" id="filtBtn" aria-label="Поиск по цвету" title="Поиск по цвету"></button></label>
+        <label class="search glass"><span id="icSearch"></span><input id="q" type="text" placeholder="Найти: название, #тег или что на картинке…" aria-label="Поиск по библиотеке" title="Поиск ( / )" autocomplete="off" /><button type="button" class="ib q-x" id="qX" aria-label="Очистить поиск" title="Очистить поиск (Esc)" hidden></button><kbd aria-hidden="true">/</kbd><button type="button" class="ai-chip" id="aiChip" hidden></button><button type="button" class="ib" id="simBtn" aria-label="Похожие на выбранную" title="Похожие на выбранную картинку"></button><button type="button" class="ib" id="filtBtn" aria-label="Поиск по цвету" title="Поиск по цвету"></button></label>
         <div class="split">
           <button class="sb" id="addBtn"></button><span class="sep" aria-hidden="true"></span><button class="sb more" id="addMore" aria-label="Другие способы добавить" aria-haspopup="menu" title="Другие способы добавить"></button>
           <div class="menu glass" id="addMenu">
             <button class="mi" id="pasteBtn"></button>
             <button class="mi" id="addDirBtn"></button>
+            <button class="mi" id="eagleBtn"></button>
+            <button class="mi" id="purBtn"></button>
             <button class="mi" id="flowBtn"></button>
             <button class="mi" id="matBtn"></button>
           </div>
         </div>
         <div class="capg glass only-wide"><button class="ib" id="sndBtn" aria-pressed="true"></button><button class="ib" id="inspTog" aria-label="Панель свойств" title="Панель свойств ( ] )"></button></div>
-        <div class="capg glass wctl" id="wctl" hidden><button class="ib" id="wMin" aria-label="Свернуть окно" title="Свернуть окно"></button><button class="ib" id="wMax" aria-label="Развернуть" title="Развернуть"></button><button class="ib" id="wClose" aria-label="Закрыть" title="Закрыть"></button></div>
+        <!-- the window buttons are not Tab stops (like the title bar of VS Code): Tab goes from the toolbar to the files, the
+             window keys are the system's (Alt+F4, Win+↑ / ↓) -->
+        <div class="capg glass wctl" id="wctl" hidden><button class="ib" id="wMin" tabindex="-1" aria-label="Свернуть окно" title="Свернуть окно"></button><button class="ib" id="wMax" tabindex="-1" aria-label="Развернуть" title="Развернуть"></button><button class="ib" id="wClose" tabindex="-1" aria-label="Закрыть" title="Закрыть"></button></div>
       </div>
       <div class="cpop glass" id="pop" role="dialog" aria-label="Поиск по цвету" hidden></div>
       <div class="busy glass" id="busy" role="status" aria-live="polite" hidden><span class="busy-ic" id="busyI" aria-hidden="true"></span><span id="busyT"></span><span class="pxl-t" id="busyS"></span><i aria-hidden="true"><b id="busyP"></b></i></div>

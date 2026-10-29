@@ -27,7 +27,7 @@ function build() {
   el.innerHTML = `<div class="flw-bar glass"><span class="orb-t">Сценарий</span>` +
     `<input class="flw-name" type="text" placeholder="Название сценария" aria-label="Название сценария" spellcheck="false">` +
     `<span class="flw-sum cap-sm" aria-live="polite"></span>` +
-    `<label class="flw-pii" title="Номера карт, телефоны, имена и суммы на экранах — пикселями, в сохранённых файлах"><input type="checkbox" data-fl="pii"${prefs.pii ? ' checked' : ''}> Скрыть личные данные</label>` +
+    `<label class="flw-pii" title="Номера карт, телефоны, имена и суммы на экранах — пикселями, в сохранённых файлах"><input type="checkbox" class="switch" role="switch" data-fl="pii"${prefs.pii ? ' checked' : ''}> Скрыть личные данные</label>` +
     `<button type="button" class="ibtn pri" data-fl="save" disabled>Сохранить</button>` +
     `<button type="button" class="ib" data-fl="close" aria-label="Закрыть" title="Закрыть (Esc)">${ic('x')}</button></div>` +
     '<div class="flw-body"></div>';

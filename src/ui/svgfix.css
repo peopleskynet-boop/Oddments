@@ -1,7 +1,7 @@
 /* «Исправить SVG» (svgfix.js): before and after side by side, the points over the shapes */
 @layer tokens, base, components, screens, themes;
 @layer screens {
-.sfx { outline: none; position: fixed; inset: 0; z-index: 70; background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px); animation: fade .25s; }
+.sfx { outline: none; position: fixed; inset: 0; z-index: 110; /* above the preview (100): opened from its menu too */ background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px); animation: fade .25s; }
 .sfx[hidden] { display: none; }
 .sfx-bar { position: absolute; z-index: 2; top: 16px; left: 50%; translate: -50% 0; height: 50px; max-width: calc(100% - 32px); border-radius: 99px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; white-space: nowrap; }
 .sfx-bar .ib { width: 38px; height: 38px; }

@@ -39,44 +39,62 @@ const hasGpu = () => (gpuChecked ||= (async () => {
 })());
 
 // the model file: in the app downloaded once (with progress, resumed if cut off), in the browser build a web address
+const modelFile = async () => {
+  const dir = await join(await appLocalDataDir(), 'ai', UPSCALE_MODEL.id);
+  return { dir, p: await join(dir, UPSCALE_MODEL.file.path.split('/').pop()) };
+};
+// the download goes on when the window is closed (it is the model's, not the window's): opening again joins it — two
+// downloads wrote the same .part at once before — and the newest window gets the progress
+let fetching = null, fetchGot = 0, fetchTo = null;
 async function modelUrl(onProgress) {
   if (!inApp()) return hfUrl();
   const { convertFileSrc } = await import('@tauri-apps/api/core');
-  const dir = await join(await appLocalDataDir(), 'ai', UPSCALE_MODEL.id);
-  const p = await join(dir, UPSCALE_MODEL.file.path.split('/').pop());
+  const { dir, p } = await modelFile();
   const f = UPSCALE_MODEL.file;
+  fetchTo = onProgress;
   const have = await fs.stat(p).then((st) => st.size === f.size).catch(() => false);
   if (!have) {
-    await fs.mkdir(dir, { recursive: true });
-    let got = 0;
-    await downloadFile(hfUrl(), p, { size: f.size, what: 'модель увеличения', onBytes: (n) => { got += n; onProgress && onProgress({ phase: 'download', got, total: f.size }); } });
+    fetching ||= (async () => {
+      await fs.mkdir(dir, { recursive: true });
+      fetchGot = 0;
+      await downloadFile(hfUrl(), p, { size: f.size, what: 'модель увеличения', onBytes: (n) => { fetchGot += n; if (fetchTo) fetchTo({ phase: 'download', got: fetchGot, total: f.size }); } });
+    })().finally(() => { fetching = null; });
+    await fetching;
   }
   return convertFileSrc(p);
 }
+// before a run the window asks once: 'ready' — on this computer (or a local copy for the browser build), 'fetching' —
+// still downloading from an earlier open, 'missing' — the first use, the size to ask about (audit 29.10)
+export async function upscaleModelState() {
+  if (!inApp()) return base() ? 'ready' : 'missing';
+  if (fetching) return 'fetching';
+  const { p } = await modelFile();
+  return (await fs.stat(p).then((st) => st.size === UPSCALE_MODEL.file.size).catch(() => false)) ? 'ready' : 'missing';
+}
+// how far a download is (null — none): the window says so when it is closed in the middle
+export const upscaleFetching = () => (fetching ? { got: fetchGot, total: UPSCALE_MODEL.file.size } : null);
 
 let worker = null, ready = null, onTile = null;
-function start() {
-  worker = workerRpc(() => {
-    const w = new Worker(new URL('./upscale.worker.js', import.meta.url), { type: 'module' });
-    w.addEventListener('message', ({ data: m }) => { if (m && m.type === 'progress' && onTile) onTile(m); });
-    return w;
-  }, () => { worker = null; ready = null; });
-}
 async function boot(onProgress) {
   if (worker && ready) return ready;
-  start();
-  ready = (async () => {
+  const w = worker = workerRpc(() => {
+    const x = new Worker(new URL('./upscale.worker.js', import.meta.url), { type: 'module' });
+    x.addEventListener('message', ({ data: m }) => { if (m && m.type === 'progress' && onTile) onTile(m); });
+    return x;
+  }, () => { if (worker === w) { worker = null; ready = null; } });
+  const r = ready = (async () => {
     const url = await modelUrl(onProgress);
+    if (worker !== w) throw new Error('увеличение остановлено'); // closed while the model was downloading
     onProgress && onProgress({ phase: 'loading' });
-    return worker.call({ type: 'init', url, gpu: await hasGpu() });
+    return w.call({ type: 'init', url, gpu: await hasGpu() });
   })();
-  ready.catch(() => { stopUpscale(); });
-  return ready;
+  r.catch(() => { if (worker === w) stopUpscale(); });
+  return r;
 }
 // stops a run in progress (the window closed); the next call starts the worker again
 export function stopUpscale() {
   if (worker) worker.terminate('увеличение остановлено');
-  worker = null; ready = null; onTile = null;
+  worker = null; ready = null; onTile = null; fetchTo = null;
 }
 
 export async function upscaleItem(it, scale, onProgress) {

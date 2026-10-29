@@ -1,15 +1,15 @@
 // «Проверка по бренду»: an illustration or a 3D render against the team's palette (the share of the brand colour,
 // colours that are not the brand's, forbidden ones), and a 3D model against the team's rules (polygons, size, UV,
 // names). Like the icon rules — soft where taste decides, firm where the team decided. Rules are the team's own
-// (Настройки › Правила бренда): what is here is a starting point — red and graphite — not the brand book.
+// (Настройки › Правила бренда): what is here is a starting point — Oddments' own lime and void — not a brand book.
 // Pure: palettes (item.colors + item.shares, palette.js) and model facts in, findings out.
 import { okDist } from './palette.js';
 
 export const DEFAULT_RULES = {
-  colors: ['#ff0032', '#1d2023', '#ffffff', '#f2f3f7', '#8d969f'], // red, graphite, white, light and mid greys
-  accent: '#ff0032',
+  colors: ['#d7ff63', '#0b0c10', '#ffffff', '#a7c7ff', '#d6b4ff'], // lime, void, white, sky, lavender (Oddments)
+  accent: '#d7ff63',
   accentMin: 3, // % of the picture the brand colour takes at least…
-  accentMax: 45, // …and at most (a red wall is not on-brand either)
+  accentMax: 45, // …and at most (a lime wall is not on-brand either)
   forbid: [], // colours that must not appear (a competitor's, an old palette's)
   near: 0.09, // OKLab distance at which a colour counts as one of the palette's
   model: { maxTris: 150000, needUV: true, minSize: 0.01, maxSize: 50, maxMaterials: 6, names: true },

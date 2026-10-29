@@ -1,4 +1,9 @@
+// Small helpers used everywhere: DOM shortcuts ($, $$), escaping (esc), ids, sizes and dates in the interface's
+// language, plural forms, colour conversions (hexRGB, inkOn — black or white text on a colour), platform checks (isMac).
 import { lang } from './lib/i18n.js';
+// numbers as the interface's language writes them: «2,5» and «7 172» in Russian, «2.5» and «7,172» in English
+export const DEC = lang === 'en' ? '.' : ',';
+export const LOC = lang === 'en' ? 'en-GB' : 'ru-RU';
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
@@ -15,8 +20,8 @@ export function fmtSize(n) {
   if (n < 1024) return n + ' Б';
   // Russian decimal comma: 3,8 МБ
   if (n < 1048576) return (n / 1024).toFixed(0) + ' КБ';
-  if (n < 1073741824) return (n / 1048576).toFixed(1).replace('.', ',') + ' МБ';
-  return (n / 1073741824).toFixed(2).replace('.', ',') + ' ГБ';
+  if (n < 1073741824) return (n / 1048576).toFixed(1).replace('.', DEC) + ' МБ';
+  return (n / 1073741824).toFixed(2).replace('.', DEC) + ' ГБ';
 }
 
 export function fmtDur(sec) {

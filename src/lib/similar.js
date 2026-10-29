@@ -19,8 +19,8 @@ export function similarity(a, b) {
   return s;
 }
 
-export function similarTo(it, items, n = 8) {
+export function similarTo(it, items, n = 8, min = SIM_MIN) {
   return items.filter((x) => x !== it && !x.trashed)
-    .map((x) => [x, similarity(it, x)]).filter((p) => p[1] > SIM_MIN)
+    .map((x) => [x, similarity(it, x)]).filter((p) => p[1] > min)
     .sort((p, q) => q[1] - p[1]).slice(0, n).map((p) => p[0]);
 }

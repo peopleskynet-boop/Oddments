@@ -5,6 +5,7 @@
 // ones into soft hints next to the rule check; GUIDE is the short list shown in the constructor and given to the AI.
 import * as K from './iconkit.js';
 import { EXAMPLES } from './iconai-examples.js';
+import { DEC } from '../util.js';
 
 export const GUIDE = [
   ['Силуэт узнаётся с первого взгляда', 'Оставляйте только черты, по которым предмет узнают; мелочь при 16 px сливается.', 'Lucide, Material'],
@@ -73,7 +74,7 @@ export function advice(shapes, style = 'outline') {
   else out.push({ ok: true, text: 'Вес как у библиотеки' });
   const off = Math.hypot(m.cx - 12, m.cy - 12);
   out.push(off > 1.5
-    ? { ok: false, text: `Центр тяжести смещён на ${String(off.toFixed(1)).replace('.', ',')} px — проверьте оптический центр`, how: 'Иконка «съезжает» в сторону, где больше краски. «Привести к правилам» сдвинет её к середине; несимметричным иконкам (стрелка, колокольчик) так и надо — смотрите глазами.' }
+    ? { ok: false, text: `Центр тяжести смещён на ${String(off.toFixed(1)).replace('.', DEC)} px — проверьте оптический центр`, how: 'Иконка «съезжает» в сторону, где больше краски. «Привести к правилам» сдвинет её к середине; несимметричным иконкам (стрелка, колокольчик) так и надо — смотрите глазами.' }
     : { ok: true, text: 'Оптически по центру' });
   if (m.dense > Math.max(ref.dense, 0.85) + 0.05) out.push({ ok: false, text: 'Есть слишком плотное место — деталей больше, чем видно при 16 px', how: 'В одном месте сошлось много краски: на маленьком размере оно станет пятном. Уберите мелкую деталь или раздвиньте части.' });
   // straight edges off 45° steps

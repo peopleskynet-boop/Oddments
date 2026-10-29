@@ -11,6 +11,8 @@ body.s3d-on { overflow: hidden; }
 .s3d-bar .cap-sm { padding: 0 6px; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .s3d-panel { position: absolute; z-index: 5; top: 12px; right: 12px; bottom: 12px; width: 320px; overflow: auto; scrollbar-width: none; padding: 16px; border-radius: 26px; display: flex; flex-direction: column; gap: 10px; outline: none; }
 .s3d-panel::-webkit-scrollbar { display: none; }
+/* the column scrolls, it never squeezes: buttons with a set height used to shrink to their text (18.8 px, audit 29.10) */
+.s3d-panel > * { flex-shrink: 0; }
 .s3d-panel .seg { display: flex; padding: 3px; border-radius: 99px; background: var(--hover); gap: 2px; }
 .s3d-panel .seg button { flex: 1; height: 32px; border-radius: 99px; color: var(--mut); font-weight: 500; font-size: 13px; }
 .s3d-panel .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
@@ -34,7 +36,7 @@ body.s3d-on { overflow: hidden; }
 .s3d-note:empty { display: none; }
 .s3d-prog { display: grid; gap: 6px; font-size: 12px; color: var(--mut); }
 .s3d-prog i { display: block; height: 4px; border-radius: 4px; background: var(--hover-2); overflow: hidden; }
-.s3d-prog b { display: block; height: 100%; width: 2%; background: var(--fg); border-radius: inherit; transition: width .2s ease-out; }
+.s3d-prog b { display: block; height: 100%; width: 100%; transform: scaleX(.02); transform-origin: left; background: var(--fg); transition: transform .2s ease-out; }
 @media (max-width: 860px) { .s3d-view { inset: 0 0 46vh 0; } .s3d-panel { top: auto; left: 12px; width: auto; height: calc(46vh - 24px); } .s3d-bar { left: 50%; } }
 
 /* ——— «SVG в 3D»: picking an SVG from the library (or the disk) ——— */

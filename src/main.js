@@ -1,10 +1,13 @@
+// The app's entry point: starts the library, the panels and the grid, wires the events — paste (Ctrl+V), drag and drop,
+// the wall's keys (one table with the «?» sheet, ui/hotkeys.js), the window and tray — and owns ui.refresh(), the one
+// redraw of the sidebar, header, grid and inspector after anything changes. Screens load lazily (ui/lazy.js).
 import '@fontsource-variable/golos-text';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 import '@fontsource-variable/onest';
 import './styles.css';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { S, ui } from './state.js';
+import { S, ui, isPic } from './state.js';
 import { $, $$, esc, plural, debounce, hexRGB, isMac } from './util.js';
 import { ic } from './ui/icons.js';
 import { toast, isAskOpen, arm, trapTab } from './ui/dialogs.js';
@@ -41,8 +44,10 @@ import { initOnboard, markStep } from './ui/onboard.js';
 import { initFrame } from './ui/frame.js';
 import { initPixel } from './ui/pixel.js';
 import { bootIntro, bootDone } from './ui/boot.js';
-import { initI18n } from './lib/i18n.js';
+import { initI18n, lang, t } from './lib/i18n.js';
 import { initClean, cleanOn, toggleCleanSide, setClean, updateHud } from './ui/clean.js';
+import { lockWindow } from './lib/net.js';
+import { initCrashLog } from './lib/crashlog.js';
 
 const isTyping = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 const selItems = () => Array.from(S.sel).map((id) => S.byId.get(id)).filter(Boolean);
@@ -262,6 +267,8 @@ function bind() {
   $('#simBtn').innerHTML = ic('scan'); $('#backBtn').innerHTML = ic('left');
   $('#addBtn').innerHTML = ic('plus') + '<span>Добавить</span>';
   $('#addDirBtn').innerHTML = ic('folderplus') + '<span>Импортировать папку</span>';
+  $('#eagleBtn').innerHTML = ic('download') + '<span>Перенести из Eagle…</span>';
+  $('#purBtn').innerHTML = ic('image') + '<span>Картинки с доски PureRef…</span>';
   $('#flowBtn').innerHTML = ic('flow') + '<span>Сценарий из записи экрана…</span>';
   $('#matBtn').innerHTML = ic('sphere') + '<span>Материал из текстур…</span>';
   $('#pasteBtn').innerHTML = ic('paste') + '<span>Вставить из буфера</span><kbd>Ctrl V</kbd>';
@@ -362,6 +369,8 @@ function bind() {
   });
   $('#addBtn').addEventListener('click', pickFiles);
   $('#addDirBtn').addEventListener('click', pickFolder);
+  $('#eagleBtn').addEventListener('click', () => import('./lib/importers.js').then((m) => m.importEagle()));
+  $('#purBtn').addEventListener('click', () => import('./lib/importers.js').then((m) => m.importPureRef()));
   $('#flowBtn').addEventListener('click', () => import('./ui/flows.js').then((m) => m.flowFromDisk()));
   $('#matBtn').addEventListener('click', () => import('./ui/materials.js').then((m) => m.pickTextures()));
   $('#pasteBtn').addEventListener('click', pasteNow);
@@ -564,6 +573,17 @@ function bind() {
     trashItems(items); S.sel.clear(); ui.refresh();
     toast('В корзину: ' + items.length, 0, { fn: () => { restoreItems(items); ui.refresh(); } });
   } });
+  // the picture tools by one key, like F for favourites (audit 29.10: only the menu and the palette had them)
+  hotkey({ group: 'Сетка', keys: 'B', what: 'убрать фон', hit: (e) => e.code === 'KeyB' && plain(e) && !e.shiftKey && sel() && notTrash(), run: () => {
+    const pics = selItems().filter(isPic);
+    if (pics.length) import('./ui/cutout.js').then((m) => m.openCutout(pics));
+    else toast('Фон убирается с картинок и PSD — выберите картинку.');
+  } });
+  hotkey({ group: 'Сетка', keys: 'U', what: 'увеличить ×2 / ×4', hit: (e) => e.code === 'KeyU' && plain(e) && !e.shiftKey && sel() && notTrash(), run: () => {
+    const it = selItems().find((i) => isPic(i) && i.ext !== 'svg');
+    if (it) import('./ui/upscale.js').then((m) => m.openUpscale(it));
+    else toast('Увеличиваются картинки и PSD (не SVG и не GIF) — выберите картинку.');
+  } });
   hotkey({ group: 'Сетка', keys: 'Menu', what: 'меню карточки' });
   hotkey({ group: 'Сетка', keys: '/', what: 'поиск', hit: (e) => e.key === '/', run: (e) => { e.preventDefault(); $('#q').focus(); } });
   hotkey({ group: 'Добавить', keys: 'Ctrl V', what: 'вставить из буфера' });
@@ -621,10 +641,27 @@ function bind() {
 }
 
 /* ---------- boot ---------- */
+// the first-run window: a computer where Oddments has never run (no settings yet), or one left halfway (the language
+// was switched, which reloads); in the browser build only with ?welcome
+function wantWelcome() {
+  try {
+    if (/[?&]welcome(?:[&=]|$)/.test(location.search)) return true;
+    const w = localStorage.getItem('perch.welcome');
+    if (w) return !JSON.parse(w).done;
+    return !!window.__TAURI_INTERNALS__ && localStorage.getItem('perch.settings') == null;
+  } catch (e) { return false; }
+}
 async function boot() {
+  lockWindow(); // «Без сети»: nothing from other sites loads in the window (lib/net.js)
+  const crashed = initCrashLog(); // errors go to the local report (lib/crashlog.js); true: the last run crashed
+  const welcome = wantWelcome(); // read before loadSettings writes the first settings
   loadSettings();
   applySettings();
   await initI18n(); // English, when chosen: the dictionary loads (a Russian start skips it), then what the interface shows is translated
+  // the first run: language, the library folder, AI and the network, before the library opens (ui/welcome.js)
+  const firstRun = welcome ? await (await import('./ui/welcome.js')).runWelcome() : null;
+  // the tray menu is drawn by the system, not the page: its words go to Rust (tray.rs starts in Russian)
+  if (lang !== 'ru' && window.__TAURI_INTERNALS__) import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_tray_labels', { open: t('Открыть Oddments'), paste: t('Вставить из буфера'), quit: t('Выход') })).catch(() => {});
   bootIntro();
   document.body.classList.add('lib-loading'); // the header says «Открываю библиотеку…» until the index is read
   initFrame();
@@ -669,8 +706,11 @@ async function boot() {
   initShelf();
   renderShelf();
   initAi();
+  if (firstRun) import('./ui/welcome.js').then((m) => m.after(firstRun)); // AI on, the Eagle import — as chosen
   import('./lib/team.js').then((m) => m.initTeams()).catch((e) => console.warn('team', e)); // shared folders of the team, if connected
   setTimeout(() => import('./lib/ocr.js').then((m) => { ocrMod = m; m.initOcr(); }), 5000);
+  setTimeout(() => import('./lib/updater.js').then((m) => m.autoCheck()), 15000); // only when the person allowed it
+  crashed.then((yes) => { if (yes) setTimeout(() => toast('В прошлый раз в Oddments случился сбой. Отчёт сохранён на этом компьютере — его можно скопировать и прислать.', 12000, { label: 'Скопировать отчёт', fn: () => import('./ui/settingsabout.js').then((m) => m.copyReport()) }), 2500); });
   import('./lib/mcp.js').then((m) => m.initMcp()); // Claude and other MCP clients: the library as tools
   import('./lib/meshjob.js').then((m) => m.initMeshJobs()); // SVG → 3D meshes for the Blender add-on (bridge /mesh)
   initBridge(addPaths, (url, ctx) => { const v = parseVideoUrl(url); return v && v.site === 'Pinterest' ? addVideoLink(v, ctx).then(() => true) : null; });

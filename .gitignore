@@ -8,10 +8,13 @@ test-results/
 playwright-report/
 dist-web
 src-tauri/resources/safari/
-dist-perf
-.claude/
-.mcp.json
 tests/.ext/
 
 # Python bytecode (Blender writes it next to the add-on)
 __pycache__/
+
+# the Blender extension package and its self-hosted repository (tools/blender_extension.py)
+dist-blender/
+dist-perf
+.claude/
+.mcp.json

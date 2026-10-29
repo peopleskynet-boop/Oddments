@@ -78,7 +78,7 @@ async function showDigest(key) {
   const days = await D.digestDays();
   const d = await D.loadDigest(key || days[0] || D.today());
   const prefs = D.digestPrefs();
-  const auto = `<label class="nw-auto"><input type="checkbox" data-nw="auto"${prefs.auto ? ' checked' : ''}> Собирать каждое утро</label>`;
+  const auto = `<label class="nw-auto"><input type="checkbox" class="switch" role="switch" data-nw="auto"${prefs.auto ? ' checked' : ''}> Собирать каждое утро</label>`;
   const daysRow = days.length > 1 ? `<div class="nw-days">${days.slice(0, 10).map((k) => `<button type="button" data-day="${k}" aria-pressed="${d && d.day === k}">${esc(dayTitle(k).replace('Сегодня, ', ''))}</button>`).join('')}</div>` : '';
   if (!d) {
     body.innerHTML = `<div class="nw-col"><div class="nw-hero"><h1>Сводка дня</h1>
@@ -148,11 +148,13 @@ async function openReader(id) {
   const list = await N.articles();
   const a = list.find((x) => x.id === id);
   if (!a) return;
-  const b = await N.articleBody(id);
+  const b0 = await N.articleBody(id);
+  // a translation into the other language (made before the interface's language changed) is not shown
+  const b = b0.ru && (b0.ruLang || 'ru') !== lang ? { ...b0, ru: false } : b0;
   reading = a;
   el.querySelector('.nw-back').hidden = false;
   const pub = a.published ? ' · ' + dateFmt.format(new Date(a.published)) : '';
-  body.innerHTML = `<article class="nw-col nw-read" lang="${b.ru ? 'ru' : ''}">
+  body.innerHTML = `<article class="nw-col nw-read" lang="${b.ru ? b.ruLang || 'ru' : ''}">
       <p class="nw-site">${esc(a.site)}${pub} · ${a.minutes} мин</p>
       <h1>${esc(b.ru ? b.ruTitle : a.title)}</h1>
       ${a.byline ? `<p class="nw-by">${esc(a.byline)}</p>` : ''}
@@ -176,15 +178,16 @@ function closeReader() {
 async function translate(btn) {
   const a = reading;
   const b = await N.articleBody(a.id);
-  // ru: which one is shown; the translation is made once and kept next to the original
-  if (b.ruHtml) { await N.saveBody(a.id, { ...b, ru: !b.ru }); openReader(a.id); return; }
+  // ru: which one is shown; the translation is made once and kept next to the original (`ruLang`: into which language,
+  // Russian when absent — after the interface's language changes, it is made again)
+  if (b.ruHtml && (b.ruLang || 'ru') === lang) { await N.saveBody(a.id, { ...b, ru: !b.ru }); openReader(a.id); return; }
   const d = new DOMParser().parseFromString('<body>' + b.html + '</body>', 'text/html');
   const nodes = [...d.body.querySelectorAll('h1, h2, h3, h4, p, li, blockquote, figcaption')].filter((n) => !n.querySelector('p, li') && n.textContent.trim());
   btn.disabled = true;
   try {
     const out = await N.translateBlocks([a.title, ...nodes.map((n) => n.textContent.trim())], (k, n) => { btn.lastChild.textContent = ` Перевожу ${Math.round(k / n * 100)}%`; });
     nodes.forEach((n, i) => { n.textContent = out[i + 1]; });
-    await N.saveBody(a.id, { html: b.html, ruHtml: d.body.innerHTML, ruTitle: out[0], ru: true });
+    await N.saveBody(a.id, { html: b.html, ruHtml: d.body.innerHTML, ruTitle: out[0], ruLang: lang, ru: true });
     openReader(a.id);
   } catch (e) { toast('Перевод не получился: ' + e.message, 7000); btn.disabled = false; btn.lastChild.textContent = 'Перевести'; }
 }

@@ -69,27 +69,11 @@ body.insp-off { --pr: 28px; }
 body.ambient .main.lit::before { opacity: .25; }
 :root[data-theme="light"] body.ambient .main.lit::before, :root[data-theme="calm"] body.ambient .main.lit::before { opacity: .15; }
 .scroll {
-  position: absolute; inset: 0; z-index: 1; overflow: auto; scrollbar-width: none;
+  position: absolute; inset: 0; z-index: 1; overflow: hidden auto; scrollbar-width: none;
   padding: calc(var(--barh) + var(--gap) * 2 + 8px) var(--pr) 110px var(--pl);
 }
 .scroll::-webkit-scrollbar { display: none; }
-/* Inspector over the grid (Liquid Glass): the grid runs on under the right panel, so showing or
-   hiding it never reflows the grid and the pictures show through the glass. The sidebar on the left
-   keeps its own column. The view header stays clear of the inspector so it is never covered. */
-@media (min-width: 861px) {
-  body.overlay .scroll { padding-right: 24px; }
-  /* a selected card was under the panel: the grid made room for it (main.js makeRoom) */
-  body.overlay.insp-room.has-sel:not(.insp-off) .scroll { padding-right: calc(var(--iw) + var(--gap) + 24px); }
-  body.overlay .head, body.overlay .covers, body.overlay .tabrow, body.overlay .newbar {
-    margin-right: calc(var(--pr) - 20px); transition: margin .35s var(--ease);
-  }
-  /* the panel only shows with a selection: until then nothing waits on the right. The top bar always reaches
-     the edge (the panel starts under it); the tabs and the header make room only while the panel is out */
-  body.overlay .bar { right: 20px; }
-  body.overlay .cpop { right: 88px; }
-  body.overlay .insp { top: calc(var(--gap) + var(--barh) + 12px); }
-  body.overlay:not(.has-sel) :is(.head, .covers, .tabrow, .newbar), body.overlay.insp-off :is(.head, .covers, .tabrow, .newbar) { margin-right: 4px; }
-}
+/* the inspector-over-the-grid layout (body.overlay) lives in 07-inspector.css: it overrides components */
 /* Apple scroll-edge effect: content dissolves under the toolbar */
 .edge { position: absolute; left: 0; right: 0; top: 0; height: 100px; z-index: 2; pointer-events: none; background: linear-gradient(var(--bg) 62%, transparent); }
 .edge-b { position: absolute; left: 0; right: 0; bottom: 0; height: 110px; z-index: 2; pointer-events: none; background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 85%, transparent) 70%); }

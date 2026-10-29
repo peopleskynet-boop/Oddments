@@ -8,6 +8,7 @@ import * as fs from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
 import { KINDS } from '../state.js';
 import { readPref, writePref } from './prefs.js';
+import { t } from './i18n.js';
 
 const KEY = 'perch.watch';
 const EVERY = 5000;
@@ -29,7 +30,7 @@ async function listing(dir) {
 }
 
 export async function addWatchDir() {
-  const dir = await open({ directory: true, recursive: true, title: 'Какую папку смотреть' });
+  const dir = await open({ directory: true, recursive: true, title: t('Какую папку смотреть') });
   if (!dir) return null;
   const st = load();
   if (st.dirs.some((d) => d.path === dir)) return dir;

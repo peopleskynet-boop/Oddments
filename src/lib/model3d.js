@@ -1,7 +1,7 @@
 // 3D models: Three.js (loaded lazily, only when a model is imported or opened),
 // off-screen thumbnails, mesh statistics and the embedded preview of .blend files.
 
-export const MODEL_EXT = ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'dae', '3mf', '3ds', 'usdz', 'perchmat'];
+export const MODEL_EXT = ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'dae', '3mf', '3ds', 'usdz', 'perchmat', 'spz', 'splat', 'ksplat', 'sog']; // the last four: splats (splat.js)
 // formats we catalogue but cannot open in the browser (Blender and Alembic need Blender itself)
 export const NO_VIEWER = ['blend', 'abc'];
 export const hasViewer = (it) => MODEL_EXT.includes(it.ext);
@@ -71,7 +71,7 @@ export async function parseModel(T, ext, buf) {
   if (ext === 'usdz') return new T.USDZLoader().parse(buf, '');
   if (ext === 'obj') {
     const txt = new TextDecoder().decode(buf);
-    const g = new T.OBJLoader().parse(txt);
+    const g = new T.OBJLoader().parse(earcutNgons(THREE, txt));
     // no vn lines: the loader falls back to flat facets; weld and smooth instead, as Blender shows it
     const hasNormals = /^vn\s/m.test(txt);
     g.traverse((o) => {
@@ -132,6 +132,38 @@ function uniqueCount(pos) {
   const seen = new Set(), a = pos.array, k = pos.itemSize;
   for (let i = 0; i < pos.count; i++) seen.add(a[i * k].toFixed(5) + ',' + a[i * k + 1].toFixed(5) + ',' + a[i * k + 2].toFixed(5));
   return seen.size;
+}
+
+// OBJLoader splits a polygon into a fan from its first corner: right for a convex face, wrong for a concave n-gon — the
+// cap of «P» (its outline cut open to the hole by a bridge) covered its own hole and flickered (audit 29.10: «рваная
+// внутренняя стенка»). Faces of five corners and more are cut by earcut in their own plane, each triangle wound as the
+// face was; only what the loader sees changes — the counts and the wireframe read the file's own n-gons.
+function earcutNgons(THREE, txt) {
+  if (!/^f(?:[ \t]+\S+){5,}/m.test(txt)) return txt;
+  const v = [], out = [];
+  for (const line of txt.split('\n')) {
+    if (line.startsWith('v ')) { const p = line.trim().split(/\s+/); v.push([+p[1], +p[2], +p[3]]); out.push(line); continue; }
+    const tok = line.startsWith('f ') ? line.trim().split(/\s+/).slice(1) : null;
+    if (!tok || tok.length < 5) { out.push(line); continue; }
+    const pts = tok.map((t) => { const i = parseInt(t, 10); return v[i < 0 ? v.length + i : i - 1]; });
+    if (pts.some((p) => !p)) { out.push(line); continue; }
+    // the face's normal (Newell); the plane it is flattened to drops the normal's largest axis
+    let nx = 0, ny = 0, nz = 0;
+    for (let k = 0; k < pts.length; k++) {
+      const a = pts[k], b = pts[(k + 1) % pts.length];
+      nx += (a[1] - b[1]) * (a[2] + b[2]); ny += (a[2] - b[2]) * (a[0] + b[0]); nz += (a[0] - b[0]) * (a[1] + b[1]);
+    }
+    const [i0, i1] = Math.abs(nz) >= Math.abs(nx) && Math.abs(nz) >= Math.abs(ny) ? [0, 1] : Math.abs(nx) >= Math.abs(ny) ? [1, 2] : [2, 0];
+    const flat = pts.map((p) => new THREE.Vector2(p[i0], p[i1]));
+    const area = THREE.ShapeUtils.area(flat);
+    const tris = THREE.ShapeUtils.triangulateShape(flat.slice(), []);
+    if (!tris.length) { out.push(line); continue; }
+    for (let [a, b, c] of tris) {
+      if (THREE.ShapeUtils.area([flat[a], flat[b], flat[c]]) * area < 0) [b, c] = [c, b];
+      out.push(`f ${tok[a]} ${tok[b]} ${tok[c]}`);
+    }
+  }
+  return out.join('\n');
 }
 
 // counts faces of an OBJ by their vertex count, and its real vertices

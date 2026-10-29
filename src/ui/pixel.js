@@ -5,7 +5,8 @@
 //   наведении», and never for video (the hover plays it) or while dragging / selecting with the frame.
 import { S } from '../state.js';
 import { settings } from './settings.js';
-import { fmtSize, inkOn } from '../util.js';
+import { fmtSize, inkOn, LOC } from '../util.js';
+import { t } from '../lib/i18n.js';
 
 const motionOK = () => settings.anim === 'smooth' || (settings.anim === 'system' && !matchMedia('(prefers-reduced-motion: reduce)').matches);
 const cssv = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -47,7 +48,7 @@ function factsCanvas(it, W, H) {
   const f = Math.max(10, Math.round(W * 0.042));
   x.textBaseline = 'top';
   x.fillStyle = hud; x.font = `500 ${f}px ${mono}`;
-  x.fillText((KIND[it.kind] || 'Файл').toUpperCase() + ' · ' + (it.ext || '').toUpperCase(), pad, pad);
+  x.fillText(t(KIND[it.kind] || 'Файл').toUpperCase() + ' · ' + (it.ext || '').toUpperCase(), pad, pad);
   x.fillStyle = fg; x.font = `600 ${Math.round(f * 1.9)}px ${ui}`;
   let name = it.name || ''; while (name.length > 3 && x.measureText(name).width > W - pad * 2) name = name.slice(0, -2);
   if (name !== it.name) name = name.replace(/.$/, '…');
@@ -55,8 +56,8 @@ function factsCanvas(it, W, H) {
   x.font = `500 ${f}px ${mono}`; x.globalAlpha = 0.72;
   const lines = [];
   if (it.w && it.kind !== 'model' && it.kind !== 'material') lines.push(`${Math.round(it.w)} × ${Math.round(it.h)}`);
-  if (it.verts) lines.push(`${it.verts.toLocaleString('ru-RU')} верш.`);
-  lines.push(fmtSize(it.size || 0));
+  if (it.verts) lines.push(t(`${it.verts.toLocaleString(LOC)} верш.`));
+  lines.push(t(fmtSize(it.size || 0)));
   if (it.tags && it.tags.length) lines.push(it.tags.slice(0, 3).map((t) => '#' + t).join('  '));
   lines.forEach((l, i) => x.fillText(l.toUpperCase(), pad, pad + f * 4.6 + i * f * 1.55));
   x.globalAlpha = 1;

@@ -1,3 +1,6 @@
+// What the wall shows: the current view (S.view — all files, a collection, a tag, the trash, a file type…), the search
+// (words, #tags, text on the picture, AI meaning), the colour search and the sort, turned into S.vis for the grid.
+// setView() switches the view; setKindIn() narrows a place (a collection, a tag…) to one type of file.
 import { screenWords } from './screenwords.js';
 import { S, ui, KINDS, folderById, descend, recentSet } from '../state.js';
 import { okDist } from './palette.js';
@@ -56,8 +59,12 @@ export function matchesQuery() {
   };
 }
 
-export function computeVisible() {
-  const v = S.view;
+// the places of the left panel: a type tab there narrows the place (S.view.kind) and counts inside it, it does not lead
+// out into the whole library (audit 29.10: «Изображения (27)» over an empty collection took one out of it)
+export const PLACES = new Set(['folder', 'tag', 'trash', 'nofolder', 'notag', 'fav', 'recent']);
+
+// the files of a place before the type tab, the search and the colour
+export function placeItems(v = S.view) {
   let a = v.type === 'team' ? S.teamItems.filter((i) => i.team === v.id && !i.trashed) : S.items.filter((i) => (v.type === 'trash' ? i.trashed : !i.trashed));
   // a search over everything finds the team's files too (marked on the card, team.js)
   if (v.type === 'all' && S.q.trim() && S.teamItems.length) a = a.concat(S.teamItems.filter((i) => !i.trashed));
@@ -70,6 +77,13 @@ export function computeVisible() {
   else if (v.type === 'fav') a = a.filter((i) => i.fav);
   else if (v.type === 'similar') { const src = S.byId.get(v.id); a = src ? a.filter((i) => i !== src && similarity(src, i) > SIM_MIN) : []; }
   else if (v.type === 'recent') { const r = recentSet(); a = a.filter((i) => r.has(i.id)); }
+  return a;
+}
+
+export function computeVisible() {
+  const v = S.view;
+  let a = placeItems(v);
+  if (v.kind) a = a.filter((i) => i.kind === v.kind);
 
   if (S.q.trim()) aiSearch(S.q);
   if (S.q.trim() || S.color) a = a.filter(matchesQuery());
@@ -129,5 +143,13 @@ export function setView(type, id) {
   S.sel.clear();
   S.last = null;
   document.body.classList.remove('nav-open');
+  viewTransition(() => ui.refresh());
+}
+
+// a type tab inside a place: the same place, only that type (null — all of them)
+export function setKindIn(kind) {
+  S.view = { ...S.view, kind: kind || null };
+  S.sel.clear();
+  S.last = null;
   viewTransition(() => ui.refresh());
 }

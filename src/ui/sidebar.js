@@ -1,7 +1,11 @@
+// The left panel: places (all files, recent, favourites, app screens, trash), the collection tree (drag files onto it,
+// F2 / Delete / Insert on a row), tags, and the folding groups «Новости», «3D» and «Инструменты». One Tab stop for the
+// whole list (roving tabindex), the sliding highlight follows the open view.
 import { S, ui, folderById, descend, flatFolders, recentSet } from '../state.js';
 import { $, esc, uid, plural, isMac } from '../util.js';
 import { ic } from './icons.js';
-import { slideIndicator } from './motion.js';
+import { slideIndicator, motionOn } from './motion.js';
+import { reglide } from './glide.js';
 import { saveIndex, trashItems, restoreItems } from '../lib/library.js';
 import { setView } from '../lib/filter.js';
 import { ask, toast } from './dialogs.js';
@@ -43,7 +47,7 @@ function row(vt, id, label, icon, count, o = {}) {
   const on = !isOverlayOpen() && S.view.type === vt && (S.view.id || null) === (id == null ? null : id);
   // the screen reader hears «Подборка, 12 файлов» — not the label glued to a bare number and a nested button
   const say = esc(label) + (o.badge ? `, новых: ${o.badge}` : count !== '' && count != null ? `, ${count} ${plural(+count || 0, ['файл', 'файла', 'файлов'])}` : '');
-  return `<div class="nav${on ? ' on' : ''}" role="button" tabindex="0" aria-label="${say}"${on ? ' aria-current="page"' : ''}${o.expanded != null ? ` aria-expanded="${o.expanded}"` : ''} data-vt="${vt}"${id != null ? ` data-id="${esc(id)}"` : ''}${o.drop ? ` data-drop="${o.drop}"` : ''} style="padding-left:${8 + (o.depth || 0) * 14}px">${o.pre || ''}${icon === 'dot' ? '<span class="tagdot"></span>' : icon && icon[0] === '#' ? `<span class="sw" style="background:${icon}"></span>` : ic(icon)}<span class="lb">${esc(label)}</span>${o.badge ? `<span class="badge" title="Новые файлы">${o.badge}</span>` : `<span class="ct">${count}</span>`}${o.acts || ''}</div>`;
+  return `<div class="nav${on ? ' on' : ''}" role="button" tabindex="0" aria-label="${say}"${o.title ? ` title="${esc(o.title)}"` : ''}${on ? ' aria-current="page"' : ''}${o.expanded != null ? ` aria-expanded="${o.expanded}"` : ''} data-vt="${vt}"${id != null ? ` data-id="${esc(id)}"` : ''}${o.drop ? ` data-drop="${o.drop}"` : ''} style="padding-left:${8 + (o.depth || 0) * 14}px">${o.pre || ''}${icon === 'dot' ? '<span class="tagdot"></span>' : icon && icon[0] === '#' ? `<span class="sw" style="background:${icon}"></span>` : ic(icon)}<span class="lb">${esc(label)}</span>${o.badge ? `<span class="badge" title="Новые файлы">${o.badge}</span>` : `<span class="ct">${count}</span>`}${o.acts || ''}</div>`;
 }
 
 let groups = (() => { try { return JSON.parse(localStorage.getItem('perch.sideGroups') || '{}'); } catch (e) { return {}; } })();
@@ -56,7 +60,8 @@ export function renderSide() {
   h += row('recent', null, 'Недавние', 'clock', c.recent, { badge: c.fresh });
   h += row('fav', null, 'Избранное', 'heart', c.fav);
   // app screens (screens.js): the product designer's daily «how do others do it» — by app, kind, pattern; flows side by side
-  h += row('tool-screens', null, 'Экраны', 'phone', S.items.filter((i) => i.scr && !i.trashed).length || '');
+  // names a newcomer understands without the manual (audit 29.10: «Экраны», «Разобрать», «Ремеш» meant nothing to them)
+  h += row('tool-screens', null, 'Экраны приложений', 'phone', S.items.filter((i) => i.scr && !i.trashed).length || '', { title: 'Скриншоты и записи экранов приложений — по приложению, типу экрана и паттерну; сценарии рядом' });
   // duplicates are found from the trash (that is where the extra copies go)
   h += row('trash', null, 'Корзина', 'trash', c.trash, { drop: 'trash' });
   // connected team libraries (team.js): each its own place, next to one's own
@@ -79,7 +84,7 @@ export function renderSide() {
   // «what is not sorted yet» lives at the end of its own section, not in the top block
   if (S.folders.length && c.nofolder) h += row('nofolder', null, 'Без подборки', 'nofolder', c.nofolder);
   // «Разобрать» (#80): the same files with suggested collections
-  if (S.folders.length && c.nofolder) h += `<div class="nav${isTidyOpen() ? ' on' : ''}" role="button" tabindex="0" data-vt="tidy" title="Файлы без подборки — Oddments подскажет, в какие подборки их разложить по похожести" style="padding-left:8px">${ic('sparkle')}<span class="lb">Разобрать</span><span class="ct"></span></div>`;
+  if (S.folders.length && c.nofolder) h += `<div class="nav${isTidyOpen() ? ' on' : ''}" role="button" tabindex="0" data-vt="tidy" title="Файлы без подборки — Oddments подскажет, в какие подборки их разложить по похожести" style="padding-left:8px">${ic('sparkle')}<span class="lb">Разложить по подборкам</span><span class="ct"></span></div>`;
 
   h += '<!--tags-->';
   // tags: one's own first, then the AI's (✦, local model words or Claude's tags — bug #91); the group folds like
@@ -115,20 +120,23 @@ export function renderSide() {
   if (c.kind.material) d3 += row('kind', 'material', 'Материалы', 'sphere', c.kind.material);
   else d3 += tool('tool-material', 'sphere', 'Материалы', 'Материал из набора текстур (Poly Haven, ambientCG, Substance) или из Blender');
   d3 += tool('tool-svg3d', 'plus', 'SVG в 3D', 'Иконка или логотип из SVG — в 3D-модель с чистой сеткой');
-  if (!isMac) d3 += tool('tool-remesh', 'wire', 'Ремеш', 'Квадовая сетка для выбранной модели (AutoRemesher)'); // AutoRemesher: Windows only
-  d3 += tool('tool-blender', 'cube', 'Связь с Blender', 'Аддон Oddments: браузер библиотеки в Blender, модели в Asset Browser, проверка модели, умная UV-развёртка');
+  if (!isMac) d3 += tool('tool-remesh', 'wire', 'Ремеш в квады', 'Новая сетка из четырёхугольников для выбранной модели (AutoRemesher)'); // AutoRemesher: Windows only
+  d3 += tool('tool-splat', 'splat', 'Сплат из модели', 'Выбранная модель — в гауссовы сплаты: свет из 3D-просмотра запекается');
+  d3 += tool('tool-blender', 'plugs', 'Связь с Blender', 'Аддон Oddments: браузер библиотеки в Blender, модели в Asset Browser, проверка модели, умная UV-развёртка');
   let tools = '';
   // the icon constructor was only in «Добавить ▾» and the palette — the user could not find it (bug #58)
   tools += tool('tool-iconkit', 'grid', 'Конструктор иконок', 'Иконки по правилам: фигуры, проверка, все размеры, генерация по описанию');
   tools += tool('tool-flow', 'flow', 'Сценарий из записи', 'Запись экрана → экраны по шагам → сценарий и CJM');
-  tools += tool('tool-team', 'team', (S.teams || []).length ? 'Подключить ещё команду' : 'Командная библиотека', 'Общая папка команды: сетевой диск, OneDrive, Яндекс Диск — общие референсы без сервера');
-  tools += tool('tool-plugins', 'external', 'Плагины', 'Blender, Figma, Chrome и Edge, Safari, Claude (MCP): установка и статус');
+  tools += tool('tool-team', 'team', (S.teams || []).length ? 'Подключить ещё команду' : 'Общая папка команды', 'Общая папка команды: сетевой диск, OneDrive, Яндекс Диск — общие референсы без сервера');
+  tools += tool('tool-plugins', 'puzzle', 'Плагины', 'Blender, Figma, Chrome и Edge, Safari, Claude (MCP): установка и статус');
 
   // «Новости» and «Инструменты» fold away at the end (closed by default, remembered): collections and tags — the library
-  // itself — come first. A group holding the view that is open now stays open.
+  // itself — come first. A group holding the view that is open now stays open. A closed group's rows are there too,
+  // folded to no height (and inert): opening and closing slides the height instead of the list jumping (user, 28.10).
   const fold = (g, label, body, active, byDefault = false) => {
     const open = (groups[g] ?? byDefault) || active;
-    return `<div role="heading" aria-level="2" class="grp-h"><button type="button" class="grp fold" data-act="fold" data-g="${g}" aria-expanded="${open}">${label}<span class="fold-ch">${ic('chev')}</span></button></div>` + (open ? body : '');
+    return `<div role="heading" aria-level="2" class="grp-h"><button type="button" class="grp fold" data-act="fold" data-g="${g}" aria-expanded="${open}">${label}<span class="fold-ch">${ic('chev')}</span></button></div>` +
+      `<div class="fold-b${open ? ' open' : ''}" data-g="${g}"${open ? '' : ' inert'}><div class="fold-in">${body}</div></div>`;
   };
   const inTools = S.view.type === 'kind' && (S.view.id === 'model' || S.view.id === 'material');
   // tags sit right after the collections (as before), folding like the groups below
@@ -142,16 +150,54 @@ export function renderSide() {
   const key = f ? f.dataset.vt + '|' + (f.dataset.id || '') : null;
   sc.innerHTML = h;
   sc.scrollTop = top;
+  reglide(sc); // the hover highlight stays on the row under the pointer (it blinked out and popped back in)
   slideIndicator(sc, '.nav.on', 'nav-ind');
   // one Tab stop for the whole list (roving tabindex): ↑/↓ move between rows, the row buttons are reached by
   // keys (F2, Delete, Insert), so Tab no longer walks through every row and its three hidden buttons
-  const navs = Array.from(sc.querySelectorAll('.nav'));
+  const navs = rows(sc);
   const home = navs.find((x) => x.classList.contains('on')) || navs[0];
   navs.forEach((x) => { x.tabIndex = x === home ? 0 : -1; });
   sc.querySelectorAll('.nav .acts button').forEach((b) => { b.tabIndex = -1; });
   sc.querySelectorAll('.nav[data-vt="folder"]').forEach((x) => x.setAttribute('aria-keyshortcuts', 'F2 Delete Insert Shift+F10'));
   if (key) { const n = navs.find((x) => x.dataset.vt + '|' + (x.dataset.id || '') === key); if (n) { home.tabIndex = -1; n.tabIndex = 0; n.focus(); } }
 }
+
+// A group opens and closes in place: the rows below slide by its height (transform) while its own rows unroll from the
+// top (clip-path) — FLIP, so nothing animates the layout itself (code rules). Without animations it just switches.
+const FOLD_MS = 240, FOLD_EASE = 'cubic-bezier(.2, .8, .2, 1)';
+function foldGroup(sc, body, open) {
+  body.getAnimations().forEach((a) => a.finish()); // a quick second click finishes the first fold
+  if (!motionOn()) {
+    body.classList.toggle('open', open); body.inert = !open;
+    slideIndicator(sc, '.nav.on', 'nav-ind');
+    return;
+  }
+  const after = [];
+  for (let n = body.nextElementSibling; n; n = n.nextElementSibling) after.push(n);
+  const opt = { duration: FOLD_MS, easing: FOLD_EASE, fill: 'forwards' };
+  if (open) {
+    body.classList.add('open'); body.inert = false;
+    const h = body.offsetHeight;
+    const anims = after.map((n) => n.animate([{ transform: `translateY(${-h}px)` }, { transform: 'none' }], opt));
+    anims.push(body.animate([{ clipPath: 'inset(0 0 100% 0)', opacity: 0 }, { clipPath: 'inset(0 0 0 0)', opacity: 1 }], opt));
+    slideIndicator(sc, '.nav.on', 'nav-ind');
+    Promise.all(anims.map((a) => a.finished)).then(() => anims.forEach((a) => a.cancel())).catch(() => {});
+  } else {
+    const h = body.offsetHeight;
+    body.inert = true;
+    const anims = after.map((n) => n.animate([{ transform: 'none' }, { transform: `translateY(${-h}px)` }], opt));
+    anims.push(body.animate([{ clipPath: 'inset(0 0 0 0)', opacity: 1 }, { clipPath: 'inset(0 0 100% 0)', opacity: 0 }], opt));
+    // the height goes at the very end, in the same frame the slides are dropped: no jump
+    Promise.all(anims.map((a) => a.finished)).then(() => {
+      body.classList.remove('open');
+      anims.forEach((a) => a.cancel());
+      slideIndicator(sc, '.nav.on', 'nav-ind');
+    }).catch(() => {});
+  }
+}
+
+// the rows one can reach: not those of a folded group
+const rows = (sc) => Array.from(sc.querySelectorAll('.nav')).filter((x) => !x.closest('.fold-b:not(.open)'));
 
 function roveTo(from, to) {
   if (!to) return;
@@ -168,7 +214,15 @@ export function initSidebar() {
   side.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]'), rowEl = e.target.closest('.nav');
     if (b && b.dataset.act === 'newroot') { newFolder(); return; }
-    if (b && b.dataset.act === 'fold') { const g = b.dataset.g; groups = { ...groups, [g]: b.getAttribute('aria-expanded') !== 'true' }; try { localStorage.setItem('perch.sideGroups', JSON.stringify(groups)); } catch (err) { /* ignore */ } renderSide(); return; }
+    if (b && b.dataset.act === 'fold') {
+      const g = b.dataset.g, open = b.getAttribute('aria-expanded') !== 'true', body = side.querySelector(`.fold-b[data-g="${g}"]`);
+      groups = { ...groups, [g]: open };
+      try { localStorage.setItem('perch.sideGroups', JSON.stringify(groups)); } catch (err) { /* ignore */ }
+      if (!body || (!open && body.querySelector('.nav.on'))) { renderSide(); return; } // the open view's group stays open
+      b.setAttribute('aria-expanded', String(open));
+      foldGroup(side, body, open);
+      return;
+    }
     if (b && b.dataset.act === 'moretags') { tagsOpen = !tagsOpen; try { localStorage.setItem('perch.tagsOpen', tagsOpen ? '1' : ''); } catch (err) { /* ignore */ } renderSide(); return; }
     if (b && rowEl) {
       e.stopPropagation();
@@ -183,6 +237,7 @@ export function initSidebar() {
     if (rowEl && rowEl.dataset.vt === 'tool-plugins') { document.body.classList.remove('nav-open'); import('./plugins.js').then((m) => m.openPlugins()); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-iconkit') { document.body.classList.remove('nav-open'); import('./iconkit.js').then((m) => m.openIconKit()); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-remesh') { document.body.classList.remove('nav-open'); remeshSelected(); return; }
+    if (rowEl && rowEl.dataset.vt === 'tool-splat') { document.body.classList.remove('nav-open'); import('./splatmaker.js').then((m) => m.splatSelected()); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-team') { document.body.classList.remove('nav-open'); import('./teamui.js').then((m) => m.connectFlow()); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-screens') { document.body.classList.remove('nav-open'); import('./screens.js').then((m) => m.openScreens()); return; }
     if (rowEl && rowEl.dataset.vt === 'tool-flow') { document.body.classList.remove('nav-open'); import('./flows.js').then((m) => m.flowFromDisk()); return; }
@@ -197,7 +252,7 @@ export function initSidebar() {
     const nav = e.target.classList && e.target.classList.contains('nav') ? e.target : null;
     if (nav && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault(); e.stopPropagation();
-      const all = Array.from(side.querySelectorAll('.nav')), i = all.indexOf(nav);
+      const all = rows(side), i = all.indexOf(nav);
       roveTo(nav, e.key === 'Home' ? all[0] : e.key === 'End' ? all[all.length - 1] : all[i + (e.key === 'ArrowDown' ? 1 : -1)]);
       return;
     }

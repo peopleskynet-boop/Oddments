@@ -32,6 +32,27 @@ fn app_exe() -> String {
     std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
+// The crash report (lib/crashlog.js) stays on this computer: a panic is written to <app data>/logs/crash.log — the
+// version, the time, the message with its place in the code, the backtrace — before the usual handler runs (a panic in
+// a command becomes that call's error, the app goes on). Nothing is sent anywhere.
+fn log_panics(dir: std::path::PathBuf, version: String) {
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        use std::io::Write;
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("crash.log");
+        if std::fs::metadata(&path).map(|m| m.len() > 512 * 1024).unwrap_or(false) {
+            let _ = std::fs::rename(&path, dir.join("crash.old.log"));
+        }
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+            let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            let thread = std::thread::current().name().unwrap_or("?").to_string();
+            let _ = writeln!(f, "--- panic · Oddments {version} · unix {secs} · thread {thread}\n{info}\n{}\n", std::backtrace::Backtrace::force_capture());
+        }
+        prev(info);
+    }));
+}
+
 #[cfg(desktop)]
 fn mcp_mode() -> bool {
     if std::env::args().any(|a| a == "--mcp") { mcp::stdio(); true } else { false }
@@ -49,6 +70,9 @@ pub fn run() {
     // It must be the first plugin.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| tray::show_main(app)));
+    // updates (lib/updater.js asks; nothing is checked unless the person allowed it) and the restart after installing
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build()).plugin(tauri_plugin_process::init());
     builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -58,6 +82,9 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_drag::init())
         .setup(|app| {
+            if let Ok(dir) = app.path().app_local_data_dir() {
+                log_panics(dir.join("logs"), app.package_info().version.to_string());
+            }
             let shared = bridge::start(app.handle());
             app.manage(shared);
             tray::setup(app)?;
@@ -79,8 +106,9 @@ pub fn run() {
             allow_dropped,
             app_exe,
             tray::set_close_to_tray,
+            tray::set_tray_labels,
             tray::quit_app
         ])
         .run(tauri::generate_context!())
-        .expect("не удалось запустить Oddments");
+        .expect("Oddments could not start");
 }

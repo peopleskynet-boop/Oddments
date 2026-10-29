@@ -7,6 +7,7 @@ import { fetch as tfetch } from '@tauri-apps/plugin-http';
 import { peopleSources } from './people.js';
 import { CHANNELS, parseTelegram, cutMore } from './telegram.js';
 import { readPref, writePref } from './prefs.js';
+import { lang } from './i18n.js';
 
 export const SOURCES = [
   { id: 'behance', name: 'Behance', url: 'https://www.behance.net/feeds/projects', topic: 'design' },
@@ -189,11 +190,15 @@ export async function refresh(onProgress = () => {}, force = false) {
   const rest = all.filter((s) => (s.telegram || s.every) && Date.now() - (tgAt[s.id] || 0) < (s.every ? (force ? s.every / 4 : s.every) : force ? TG_FORCE_MS : TG_MS));
   const list = all.filter((s) => !rest.includes(s));
   const got = cache.items.filter((x) => rest.some((s) => s.id === x.source)), failed = [];
+  // the very first read shows what has come so far (cached() grows while the slow sources still answer): the screen
+  // was empty ~15 s until the last one did (audit 29.10). Not saved until all are in.
+  const first = !cache.items.length;
   let done = 0;
   const queue = list.slice();
   const worker = async () => {
     for (let s; (s = queue.shift());) {
       try { got.push(...await readSource(s)); if (s.telegram || s.every) tgAt[s.id] = Date.now(); } catch (e) { failed.push(s.name); console.warn('feed:', s.name, e); }
+      if (first) { const seen = new Set(); cache.items = got.filter((x) => !seen.has(x.id) && seen.add(x.id)).sort((a, b) => b.date - a.date); }
       onProgress(++done, list.length, failed);
     }
   };
@@ -247,7 +252,7 @@ export function ordered(items, topic = state.topic) {
 // Ads whose marking is printed on the picture itself (bug #106: «erid: 2VtzwqQVpb7» in the corner of a Telegram
 // post's picture, nothing in its text). The text on the picture is read on this computer (ocr.js) for the next cards
 // ahead of the one on screen; a found marking hides the card (`adPic`, kept in the cache), `adChk` — read once.
-const AD_PIC = /erid|erid\s*[:=]|(^|[\s.])реклама([.:\s]|$)|на правах рекламы|рекламодатель|sponsored|advertisement|партн[её]рский материал/im;
+const AD_PIC = /\berid\b|erid\s*[:=]|(^|[\s.])реклама([.:\s]|$)|на правах рекламы|рекламодатель|\bsponsored\b|\badvertisement\b|партн[её]рский материал/im;
 export const adOnPicture = (text) => AD_PIC.test(text || '');
 
 // an article without a picture in its feed: the page's own preview picture (og:image), asked once
@@ -267,9 +272,11 @@ export async function pagePicture(item) {
   return item.image;
 }
 
-// The title and text in Russian through Claude (the Anthropic key from Settings), kept with the item
+// The title and text in the interface's language through Claude (the Anthropic key from Settings), kept with the item
+// (`ru` keeps its name: older caches have it; `lang` says which language it is, Russian when absent)
+export const trOf = (item) => (item.ru && (item.ru.lang || 'ru') === lang ? item.ru : null);
 export async function translate(item) {
-  if (item.ru) return item.ru;
+  if (trOf(item)) return item.ru;
   const { aiPrefs } = await import('./iconai.js');
   const key = aiPrefs().key;
   if (!key) throw new Error('Нужен ключ Anthropic: Настройки › «Ключ Anthropic»');
@@ -278,7 +285,7 @@ export async function translate(item) {
   headers['anthropic-dangerous-direct-browser-access'] = 'true'; // the exe sends an Origin too (bug #110)
   const r = await tfetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify({
     model: 'claude-haiku-5-5', max_tokens: 900,
-    system: 'Переведи заголовок и текст новости о дизайне на русский, живо и коротко, без пояснений. Ответ — только JSON: {"title":"…","text":"…"}',
+    system: `Переведи заголовок и текст новости о дизайне ${lang === 'en' ? 'на английский' : 'на русский'}, живо и коротко, без пояснений. Ответ — только JSON: {"title":"…","text":"…"}`,
     messages: [{ role: 'user', content: JSON.stringify({ title: item.title, text: item.text }) }],
   }) });
   const j = await r.json().catch(() => ({}));
@@ -287,7 +294,7 @@ export async function translate(item) {
   const m = t.match(/\{[\s\S]*\}/);
   const ru = m ? JSON.parse(m[0]) : null;
   if (!ru || !ru.title) throw new Error('перевод не пришёл');
-  item.ru = { title: String(ru.title), text: String(ru.text || '') };
+  item.ru = { title: String(ru.title), text: String(ru.text || ''), lang };
   persist();
   return item.ru;
 }

@@ -22,11 +22,14 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after { animation: none 
      see-through, over the very card it described — narrow-window pass 25.10); the wall gets room to scroll the
      selected card above it (main.js makeRoom) */
   .insp {
-    display: none; top: auto; left: 8px; right: 8px; width: auto; max-height: 46vh; transform: none !important; opacity: 1 !important; pointer-events: auto !important; visibility: visible !important;
+    display: none; top: auto; left: 8px; right: 8px; width: auto; max-height: 40vh; transform: none !important; opacity: 1 !important; pointer-events: auto !important; visibility: visible !important;
     background: color-mix(in srgb, var(--panel) 94%, transparent) !important;
   }
   body.has-sel .insp { display: block; animation: rise .25s var(--ease); }
-  body.has-sel:not(.insp-off) #grid { margin-bottom: 46vh; }
+  /* the picture is right above, on its card: the sheet starts with the name and the facts (audit 29.10: it repeated the
+     picture and took half the window); video and sound keep their players */
+  .insp .ip-prev:not(:has(video, audio)) { display: none; }
+  body.has-sel:not(.insp-off) #grid { margin-bottom: 40vh; }
   .cpop { right: 8px; left: 8px; width: auto; }
   .wheel-wrap { grid-template-columns: 1fr; justify-items: center; }
   .pv-hold { padding: 0 8px 16px; }

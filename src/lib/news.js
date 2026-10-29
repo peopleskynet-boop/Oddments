@@ -5,6 +5,7 @@
 import * as fs from '@tauri-apps/plugin-fs';
 import { fetch as tfetch } from '@tauri-apps/plugin-http';
 import { absPath } from './library.js';
+import { lang } from './i18n.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Oddments';
 const dir = () => absPath('news');
@@ -132,7 +133,7 @@ export async function removeArticle(id) {
   try { await fs.remove(bodyFile(id)); } catch (e) { /* already gone */ }
 }
 
-// Russian, through Claude: the article's blocks (headings, paragraphs, list items, quotes) in order, a few at a time
+// The interface's language, through Claude: the article's blocks (headings, paragraphs, list items, quotes) in order, a few at a time
 export async function translateBlocks(blocks, onProgress = () => {}) {
   const { aiPrefs } = await import('./iconai.js');
   const key = aiPrefs().key;
@@ -146,7 +147,7 @@ export async function translateBlocks(blocks, onProgress = () => {}) {
     while (i < blocks.length && (size < 5000 || !part.length)) { part.push(blocks[i]); size += blocks[i].length; i++; }
     const r = await tfetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify({
       model: 'claude-haiku-5-5', max_tokens: 8000,
-      system: 'Переведи на русский каждый фрагмент статьи о дизайне или технологиях: точно, живо, без пояснений, термины и названия продуктов не переводи. Ответ — только JSON-массив строк той же длины и в том же порядке.',
+      system: `Переведи ${lang === 'en' ? 'на английский' : 'на русский'} каждый фрагмент статьи о дизайне или технологиях: точно, живо, без пояснений, термины и названия продуктов не переводи. Ответ — только JSON-массив строк той же длины и в том же порядке.`,
       messages: [{ role: 'user', content: JSON.stringify(part) }],
     }) });
     const j = await r.json().catch(() => ({}));

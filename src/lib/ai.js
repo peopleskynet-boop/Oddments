@@ -590,15 +590,23 @@ export async function selfTest() {
 /* ---------- «Ещё похожие» and «Разобрать» (#80) ---------- */
 const dotAll = (a, b) => { let s = 0; for (let j = 0; j < a.length; j++) s += a[j] * b[j]; return s; };
 // the pictures closest in meaning to one, best first: [{ id, s }] — null when this one has no vector yet
-export function nearestTo(id, n = 60) {
+// z: keep only those that stand out against this file's closeness to the whole library (mean + z deviations), as the
+// AI tags and the search do — the n nearest of an unusual picture are not similar to it, only the least far (audit
+// 29.10: a dog and a dandelion under a sneaker)
+export function nearestTo(id, n = 60, z = null) {
   const v = vecs.get(id);
   if (!real(v)) return null;
-  const out = [];
+  let out = [];
   for (const [k, w] of vecs) {
     if (k === id || !real(w)) continue;
     const it = S.byId.get(k);
     if (!it || it.trashed) continue;
     out.push({ id: k, s: dotAll(v, w) });
+  }
+  if (z != null && out.length > 4) {
+    const mean = out.reduce((a, x) => a + x.s, 0) / out.length;
+    const sd = Math.sqrt(out.reduce((a, x) => a + (x.s - mean) ** 2, 0) / out.length) || 1;
+    out = out.filter((x) => (x.s - mean) / sd >= z);
   }
   return out.sort((a, b) => b.s - a.s).slice(0, n);
 }

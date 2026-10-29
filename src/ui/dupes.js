@@ -102,7 +102,7 @@ function progress(text, frac) {
   bar.hidden = text == null;
   if (text == null) return;
   el.querySelector('.dp-sum').textContent = text;
-  bar.firstChild.style.width = Math.round(Math.max(0.03, Math.min(1, frac)) * 100) + '%';
+  bar.firstChild.style.transform = `scaleX(${Math.max(0.03, Math.min(1, frac)).toFixed(3)})`;
 }
 
 // shows one file in the inspector without touching the grid underneath

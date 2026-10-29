@@ -13,6 +13,7 @@ import { sfx } from './sound.js';
 import { markStep } from './onboard.js';
 import { similarTo } from '../lib/similar.js';
 import { pushLayer, popLayer } from './layers.js';
+import { isOffline } from '../lib/net.js';
 // the player (player.js + embedmedia.js) loads on first use or quietly after start (lazy.js preloadLazy): once it is
 // here it mounts at once, as before; the very first time it waits a few milliseconds, and a file switched meanwhile wins
 let P = null;
@@ -226,13 +227,16 @@ function bindStage(stage) {
 // scrolled; a click opens that file here. Folded / unfolded by its header (remembered).
 const MORE_KEY = 'perch.pvMore';
 let moreOpen = (() => { try { return localStorage.getItem(MORE_KEY) !== '0'; } catch (e) { return true; } })();
-let moreList = [], moreShown = 0;
+let moreList = [], moreShown = 0, moreBy = 'ai';
+// only what is really close (audit 29.10: a dog and a dandelion under a sneaker): with AI — standing out against the
+// library; without it the match is mostly the palette, so a stricter score and the strip says «по цвету и тегам»
 async function similarFor(it) {
   try {
     const ai = await import('../lib/ai.js');
-    if (ai.aiReady()) { const n = ai.nearestTo(it.id, 120); if (n && n.length) return n.map((x) => S.byId.get(x.id)).filter(Boolean); }
+    if (ai.aiReady()) { const n = ai.nearestTo(it.id, 120, 1.6); if (n) { moreBy = 'ai'; return n.map((x) => S.byId.get(x.id)).filter(Boolean); } }
   } catch (e) { /* no AI module */ }
-  return similarTo(it, S.items.filter((x) => !x.trashed), 60);
+  moreBy = 'color';
+  return similarTo(it, S.items.filter((x) => !x.trashed), 60, 0.5);
 }
 function moreItems(from, to) {
   return moreList.slice(from, to).map((x) => `<button class="pvm-i" data-more="${x.id}" title="${esc(x.name)}">${x.thumb ? `<img src="${assetUrl(x.thumb)}" alt="" loading="lazy" decoding="async">` : `<b>${esc((x.ext || x.kind).toUpperCase())}</b>`}</button>`).join('');
@@ -274,8 +278,10 @@ async function drawMore(it) {
   if (my !== token) return;
   moreList = list; moreShown = Math.min(list.length, 24);
   box.classList.toggle('open', moreOpen);
-  box.hidden = !list.length;
-  box.innerHTML = list.length ? `<button class="pvm-h" data-moretog aria-expanded="${moreOpen}">Ещё похожие <span>${list.length}</span></button><div class="pvm-row" role="list">${moreItems(0, moreShown)}</div>` : '';
+  box.hidden = it.trashed;
+  // nothing close: said so in one quiet line instead of the least far files
+  box.innerHTML = list.length ? `<button class="pvm-h" data-moretog aria-expanded="${moreOpen}">${moreBy === 'ai' ? 'Ещё похожие' : 'Похожие по цвету и тегам'} <span>${list.length}</span></button><div class="pvm-row" role="list">${moreItems(0, moreShown)}</div>`
+    : `<p class="pvm-none">${moreBy === 'ai' ? 'Похожего в библиотеке нет' : 'Похожего по цвету и тегам нет · с ИИ-поиском похожие ищутся по смыслу'}</p>`;
 }
 
 // a clip played from the web (a Pinterest video, a page's og:video): downloaded to memory, played by Oddments'
@@ -343,7 +349,8 @@ async function linkView(holder, it) {
       return;
     }
     // YouTube / Vimeo: the site's player under Oddments' own capsule (player.js + embedmedia.js), in the clip's shape;
-    // if the site never answers, the cover card with «Открыть на …» stays
+    // if the site never answers, the cover card with «Открыть на …» stays; in «Без сети» it stays from the start
+    if (isOffline()) return;
     const ar = await videoAspect(vid);
     if (S.previewId !== it.id) return;
     const card = holder.innerHTML;
@@ -520,8 +527,21 @@ async function modelView(holder, it, my) {
   if (scene && !it.glb) return blendView(holder, it, my);
   holder.innerHTML = '<div class="pv-other"><p>Загружаю модель…</p></div>';
   try {
-    const [{ mountViewer }, lib] = await Promise.all([import('./viewer3d.js'), import('./materials.js')]);
     const u8 = await fs.readFile(absPath(scene ? it.glb : it.file));
+    if (my !== token) return;
+    const { isSplatFile } = await import('../lib/splat.js');
+    if (!scene && isSplatFile(it.ext, u8)) { // Gaussian splats: their own viewer (Spark)
+      if (it.ext === 'ply' && !it.splat) { it.splat = true; saveIndex(); }
+      const { mountSplat } = await import('./splatview.js');
+      const done = await mountSplat(holder, u8, it.ext, () => my !== token, {
+        flip: it.splatFlip !== false,
+        onFlip: (f) => { if (f) delete it.splatFlip; else it.splatFlip = false; saveIndex(); }, // optional field, only when turned back
+      });
+      openOpts = {};
+      if (my !== token) done(); else cleanup = done;
+      return;
+    }
+    const [{ mountViewer }, lib] = await Promise.all([import('./viewer3d.js'), import('./materials.js')]);
     const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
     if (my !== token) return;
     const done = await mountViewer(holder, buf, scene ? 'glb' : it.ext, () => my !== token, { lib, itemId: it.id, name: it.name, wear: openOpts.wear });

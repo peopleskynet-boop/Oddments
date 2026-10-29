@@ -193,13 +193,21 @@ async function genPsd(src) {
   return { w, h, canvas, preview };
 }
 
-// 3D: an off-screen Three.js render; .blend: the preview Blender stores in the file header.
+// 3D: an off-screen Three.js render; .blend: the preview Blender stores in the file header; splats (their own formats
+// and a .ply with the 3DGS fields) — an off-screen Spark render, `splat` marks such a .ply.
 async function genModel(src, it) {
   const { renderModelThumb, blendThumb, hasViewer } = await import('./model3d.js');
   const blob = await src.getBlob();
   if (it.ext === 'blend') return (await blendThumb(blob)) || {};
-  if (!hasViewer(it) || src.size > 300e6) return {};
-  return renderModelThumb(await blob.arrayBuffer(), it.ext, MAX_THUMB, Math.round(MAX_THUMB * 0.75));
+  if (!hasViewer(it) || src.size > 600e6) return {};
+  const buf = await blob.arrayBuffer();
+  const { isSplatFile, renderSplatThumb } = await import('./splat.js');
+  if (isSplatFile(it.ext, new Uint8Array(buf, 0, Math.min(buf.byteLength, 8192)))) {
+    if (it.ext === 'ply') it.splat = true; // optional field
+    return renderSplatThumb(buf, it.ext, MAX_THUMB, Math.round(MAX_THUMB * 0.75));
+  }
+  if (src.size > 300e6) return {};
+  return renderModelThumb(buf, it.ext, MAX_THUMB, Math.round(MAX_THUMB * 0.75));
 }
 
 async function genFig(src) {
@@ -259,7 +267,7 @@ async function genBlock(src) {
 
 const GEN = { block: genBlock, image: genImage, gif: genImage, video: genVideo, audio: genAudio, font: genFont, pdf: genPdf, psd: genPsd, model: genModel, material: genModel, figma: genFig, link: genLink };
 
-// Returns { w, h, ar, duration, pages, colors, thumb: Blob|null, preview: Blob|null, verts?, tris? }
+// Returns { w, h, ar, duration, pages, colors, thumb: Blob|null, preview: Blob|null, verts?, tris?, splats? }
 export async function generate(it, src) {
   const out = { w: 0, h: 0, ar: 0.75, duration: 0, pages: 0, colors: [], thumb: null, preview: null };
   const fn = GEN[it.kind];
@@ -270,6 +278,7 @@ export async function generate(it, src) {
     if (r.duration) out.duration = r.duration;
     if (r.pages) out.pages = r.pages;
     if (r.verts) { out.verts = r.verts; out.tris = r.tris; }
+    if (r.splats) out.splats = r.splats;
     if (r.canvas) {
       out.ar = r.canvas.height / r.canvas.width;
       out.thumb = await toBlob(r.canvas);

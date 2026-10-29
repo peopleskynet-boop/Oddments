@@ -13,6 +13,8 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "dialog:default",
+    "updater:default",
+    "process:allow-restart",
     "clipboard-manager:allow-read-image",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",

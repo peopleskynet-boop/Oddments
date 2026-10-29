@@ -12,6 +12,7 @@ import { EXAMPLES } from './iconai-examples.js';
 // the Anthropic key and the model — shared with the AI through the API (aicloud.js), kept in a small module of their own
 export { MODELS, aiPrefs, setAiPrefs } from './anthropickey.js';
 import { aiPrefs } from './anthropickey.js';
+import { lang } from './i18n.js';
 
 // the tag the Figma plugin puts on icons sent as examples (any file with it counts, so a folder of SVGs works too)
 export const EX_TAG = 'пример иконки';
@@ -40,7 +41,7 @@ Make the variants genuinely different metaphors or compositions, not small tweak
 const REVIEW = `You check icon drafts for a design system. You get the request and pictures of the drafts (black on white,
 as the library will show them). For each draft decide: does a person see the requested thing at a glance, with no
 stray, meaningless or broken parts (a letter inside a house, a loose blob, a cut that splits the object)?
-Answer only JSON: {"reviews":[{"i":0,"ok":true,"why":"коротко по-русски"}, …]}. For a draft that is not ok also give
+Answer only JSON: {"reviews":[{"i":0,"ok":true,"why":"${lang === 'en' ? 'short, in English' : 'коротко по-русски'}"}, …]}. For a draft that is not ok also give
 "svg": a corrected drawing on the 24 grid, same conventions as before (stroke 2, round caps, fill="currentColor" for solid areas).`;
 
 const inApp = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;

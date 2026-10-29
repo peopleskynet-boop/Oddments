@@ -44,5 +44,5 @@ body.motion .aibar.open .ai-step:nth-child(4) { animation-delay: 120ms; }
 :root[data-theme="marathon"] .ai-sl { font-family: var(--mono); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
 /* progress as a hairline along the bottom edge of the pill */
 .ai-track { position: absolute; left: 14px; right: 14px; bottom: 3px; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 10%, transparent); }
-.ai-track::after { content: ''; position: absolute; inset: 0; right: auto; width: calc(var(--p, 0) * 100%); border-radius: inherit; background: var(--acc); transition: width .4s ease; }
+.ai-track::after { content: ''; position: absolute; inset: 0; transform: scaleX(var(--p, 0)); transform-origin: left; background: var(--acc); transition: transform .4s ease; }
 .aibar.err .ai-track, .aibar.fin .ai-track { display: none; }

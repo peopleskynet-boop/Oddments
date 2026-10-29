@@ -6,7 +6,7 @@ import { $, esc, fmtSize, plural } from '../util.js';
 import { ic } from './icons.js';
 import { assetUrl, saveIndex } from '../lib/library.js';
 import { slideIndicator, tick } from './motion.js';
-import { viewTitle, setView, matchesQuery } from '../lib/filter.js';
+import { viewTitle, setView, setKindIn, matchesQuery, PLACES, placeItems } from '../lib/filter.js';
 import { colorName } from './colorpick.js';
 import { openDupes } from './lazy.js';
 import { arm, toast } from './dialogs.js';
@@ -30,27 +30,38 @@ function stats() {
 let moreKinds = [];
 
 function tabs() {
-  const v = S.view, all = v.type === 'team' ? S.teamItems.filter((i) => i.team === v.id && !i.trashed) : activeItems(); // a team's tabs count the team's files
+  const v = S.view, place = PLACES.has(v.type);
+  // a team's tabs count the team's files, a place's (a collection, a tag, the trash…) — its own
+  const all = v.type === 'team' ? S.teamItems.filter((i) => i.team === v.id && !i.trashed) : place ? placeItems({ type: v.type, id: v.id }) : activeItems();
   // counts follow the search and colour filter; a type with nothing under the filter stays, dimmed
   const base = S.q.trim() || S.color ? all.filter(matchesQuery()) : all;
   const kinds = Object.keys(KINDS).filter((k) => all.some((i) => i.kind === k));
-  const fresh = freshCount();
+  const fresh = place ? 0 : freshCount(); // «Новые» is a view of its own: from a place it would lead out of it
   const t = (vt, id, label, extra = '') => {
     const on = v.type === vt && (v.id || null) === (id || null);
     return `<button class="chip${on ? ' on' : ''}" aria-pressed="${on}" data-vt="${vt}"${id ? ` data-id="${id}"` : ''}>${label}${extra}</button>`;
   };
+  // in a place a type tab narrows the place (setKindIn)
+  const kt = (k, label, extra = '') => {
+    const on = (v.kind || null) === k;
+    return `<button class="chip${on ? ' on' : ''}" aria-pressed="${on}" data-kin="${k || ''}">${label}${extra}</button>`;
+  };
   // a team's place: the type tabs would lead out of it into one's own library — the count says what is there
   if (v.type === 'team') return `<button class="chip on" aria-pressed="true" data-vt="team" data-id="${esc(v.id)}">Все файлы команды<span class="n">${base.length}</span></button>`;
-  let h = t('all', null, 'Всё');
+  let h = place ? kt(null, 'Всё') : t('all', null, 'Всё');
   // the active colour filter sits up front: at the end of a long row it would be scrolled out of sight
   if (S.color) h += `<button class="chip col" data-act="clrColor" title="Убрать фильтр по цвету" aria-label="Фильтр по цвету ${esc(colorName(S.color))}, убрать"><i style="background:${S.color}"></i>${esc(colorName(S.color))}<span class="x">${ic('x')}</span></button>`;
   if (fresh) { const nf = base === all ? fresh : base.filter((i) => i.fresh).length; h += t('new', null, '<span class="dotn"></span>Новые', `<span class="n">${nf}</span>`).replace('class="chip', `class="chip${nf ? '' : ' zero'}`); }
   // the biggest types stay in the row (three, or fewer in a narrow window) and the open one; the rest wait behind «Ещё»
   const count = (k) => base.filter((i) => i.kind === k).length;
   const byN = kinds.slice().sort((a, b) => all.filter((i) => i.kind === b).length - all.filter((i) => i.kind === a).length);
-  const shown = byN.slice(0, kindRoom());
-  if (v.type === 'kind' && !shown.includes(v.id) && kinds.includes(v.id)) shown.push(v.id);
-  const chip = (k) => { const n = count(k); return t('kind', k, KINDS[k].short || KINDS[k].label, `<span class="n">${n}</span>`).replace('class="chip', `class="chip${n ? '' : ' zero'}`); };
+  const shown = byN.slice(0, kindRoom);
+  const open = place ? v.kind : v.type === 'kind' ? v.id : null;
+  if (open && !shown.includes(open) && kinds.includes(open)) shown.push(open);
+  const chip = (k) => {
+    const n = count(k), label = KINDS[k].short || KINDS[k].label, extra = `<span class="n">${n}</span>`;
+    return (place ? kt(k, label, extra) : t('kind', k, label, extra)).replace('class="chip', `class="chip${n ? '' : ' zero'}`);
+  };
   h += kinds.filter((k) => shown.includes(k)).map(chip).join('');
   moreKinds = kinds.filter((k) => !shown.includes(k)).map((k) => [k, count(k)]);
   if (moreKinds.length) h += `<button class="chip more" data-act="moreKinds" aria-haspopup="menu" aria-expanded="false">Ещё${ic('chev')}</button>`;
@@ -96,7 +107,7 @@ export function renderHead() {
   $('#stats').innerHTML = home ? stats() : (S.sel.size ? `<div><dt>${S.sel.size}</dt><dd>выбрано</dd></div>` : '');
   // collection covers used to repeat the «Подборки» list of the sidebar here; the header keeps only the title
   $('#covers').hidden = true;
-  $('#tabs').innerHTML = tabs();
+  fillTabs();
   slideIndicator($('#tabs'), '.chip.on', 'tab-ind');
   fitTabs(true);
   // the trash: where the extra copies end up, so duplicates are found from here
@@ -150,10 +161,15 @@ export function renderHead() {
 
 // The tab row scrolls sideways when the types do not fit: fade the edge that hides something,
 // and keep the active tab in view.
-// how many type tabs fit next to «Всё», «Новые» and the sort: in a window under 1100 / 900 px the row was cut at its
-// right edge with «Ещё» out of sight (narrow-window pass 25.10)
-const kindRoom = () => (innerWidth < 900 ? 1 : innerWidth < 1100 ? 2 : 3);
-let lastRoom = 0;
+// how many type tabs fit next to «Всё», «Новые» and the sort — by the row's real width, not the window's: with the
+// panels out a 1380 px window cut «МАТЕРИАЛЫ (3» (audit 29.10; before, the narrow-window pass 25.10 cut by innerWidth)
+let kindRoom = 3;
+function fillTabs() {
+  const t = $('#tabs');
+  kindRoom = 3;
+  t.innerHTML = tabs();
+  while (kindRoom > 0 && t.scrollWidth > t.clientWidth + 2) { kindRoom--; t.innerHTML = tabs(); } // 0: all types behind «Ещё»
+}
 function fitTabs(reveal) {
   const t = $('#tabs');
   if (reveal) {
@@ -195,7 +211,7 @@ function kindMenu(btn) {
   btn.setAttribute('aria-expanded', 'true');
   const items = Array.from(kmenu.querySelectorAll('.mi'));
   items[0].focus();
-  kmenu.addEventListener('click', (e) => { const m = e.target.closest('[data-k]'); if (m) { closeKindMenu(); setView('kind', m.dataset.k); } });
+  kmenu.addEventListener('click', (e) => { const m = e.target.closest('[data-k]'); if (m) { closeKindMenu(); if (PLACES.has(S.view.type)) setKindIn(m.dataset.k); else setView('kind', m.dataset.k); } });
   kmenu.addEventListener('keydown', (e) => {
     const i = items.indexOf(document.activeElement);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
@@ -266,14 +282,22 @@ export function initHead({ newFolder, pick }) {
     e.preventDefault();
     tabsEl.scrollLeft += e.deltaY;
   }, { passive: false });
-  new ResizeObserver(() => { fitTabs(false); if (lastRoom && kindRoom() !== lastRoom) renderHead(); lastRoom = kindRoom(); }).observe(tabsEl);
+  // the row, not the tabs: their own width follows what is in them, and refilling them would wake the observer again
+  let rowW = 0;
+  new ResizeObserver(([en]) => {
+    const w = Math.round(en.contentRect.width);
+    if (w === rowW) return;
+    rowW = w;
+    fillTabs(); slideIndicator(tabsEl, '.chip.on', 'tab-ind'); fitTabs(false);
+  }).observe(tabsEl.closest('.tabrow'));
   // once the big header has scrolled away, its title and count ride along in the sticky tab row
   const head = document.querySelector('.head');
   new IntersectionObserver(([en]) => document.body.classList.toggle('head-gone', !en.isIntersecting), { root: scroll, rootMargin: '-24px 0px 0px 0px' }).observe(head);
   $('#trTop').addEventListener('click', () => scroll.scrollTo({ top: 0, behavior: document.body.classList.contains('motion') ? 'smooth' : 'auto' }));
   scroll.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-act],[data-vt],[data-fid],[data-wl],[data-wlx]');
+    const b = e.target.closest('[data-act],[data-vt],[data-kin],[data-fid],[data-wl],[data-wlx]');
     if (!b || !scroll.contains(b) || b.closest('#grid')) return;
+    if (b.dataset.kin != null) return setKindIn(b.dataset.kin);
     if (b.dataset.fid) return setView('folder', b.dataset.fid);
     if (b.dataset.vt) return setView(b.dataset.vt, b.dataset.id);
     const a = b.dataset.act;

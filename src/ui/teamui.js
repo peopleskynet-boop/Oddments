@@ -6,6 +6,7 @@ import { ic } from './icons.js';
 import { toast, ask, choose, busy, busyDone } from './dialogs.js';
 import { sfx } from './sound.js';
 import { absPath } from '../lib/library.js';
+import { t } from '../lib/i18n.js';
 
 const T = () => import('../lib/team.js');
 const files = (n) => `${n} ${plural(n, ['файл', 'файла', 'файлов'])}`;
@@ -17,7 +18,7 @@ export async function connectFlow() {
   let dir = window.__oddmentsTeamDir || null; // the web build's tests hand a folder in
   if (!dir) {
     const { open } = await import('@tauri-apps/plugin-dialog');
-    dir = await open({ directory: true, recursive: true, title: 'Общая папка команды: сетевой диск, OneDrive, Яндекс Диск' });
+    dir = await open({ directory: true, recursive: true, title: t('Общая папка команды: сетевой диск, OneDrive, Яндекс Диск') });
   }
   if (!dir) return null;
   let person = team.me();

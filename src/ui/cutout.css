@@ -1,0 +1,55 @@
+/* «Убрать фон» (cutout.js): the cut-out on a chosen backdrop, a dock with the backdrops and the brush */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.cut { position: fixed; inset: 0; z-index: 110; /* above the preview (100): opened from its menu too */ background: color-mix(in srgb, var(--bg) 97%, transparent); backdrop-filter: blur(24px); animation: fade .25s; }
+.cut[hidden] { display: none; }
+.cut [hidden] { display: none !important; }
+.cut-bar { position: absolute; z-index: 2; top: 16px; left: 50%; translate: -50% 0; height: 50px; max-width: calc(100% - 32px); border-radius: 99px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 16px; white-space: nowrap; }
+.cut-bar .ib { width: 38px; height: 38px; }
+.cut-bar .ibtn { height: 38px; }
+.cut-bar .ibtn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.cut-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; color: var(--mut); }
+.cut-stage { position: absolute; inset: 82px 24px 92px; display: grid; place-items: center; min-width: 0; min-height: 0; }
+.cut-cv { position: absolute; inset: 0; touch-action: none; }
+.cut-cv.brush { cursor: none; }
+.cut-ring { position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none; box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px rgb(0 0 0 / .55); }
+.cut-ring.erase { box-shadow: 0 0 0 1.5px #ff5f6d, 0 0 0 2.5px rgb(0 0 0 / .55); }
+.cut-wait { position: relative; display: grid; justify-items: center; gap: 14px; max-width: 460px; text-align: center; padding: 22px 26px; border-radius: 28px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: 0 0 0 1px var(--line), var(--shadow); }
+/* the original shows at once, dimmed, while the model works (audit 29.10) */
+.cut-cv.pending { opacity: .4; transition: opacity .3s; }
+.cut-note b { display: block; margin-bottom: 4px; color: var(--fg); font-size: 15px; font-weight: 600; }
+.cut-ask { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.cut-ask .ibtn { height: 40px; }
+.cut-prog { width: 280px; height: 4px; border-radius: 99px; background: var(--hover); overflow: hidden; }
+.cut-prog i { display: block; height: 100%; width: 100%; transform: scaleX(.02); transform-origin: left; background: var(--acc); transition: transform .25s; }
+.cut-note { margin: 0; font-size: 13px; line-height: 1.45; color: var(--mut); }
+.cut-dock { position: absolute; z-index: 2; bottom: 34px; left: 50%; translate: -50% 0; height: 50px; max-width: calc(100% - 32px); border-radius: 99px; display: flex; align-items: center; gap: 8px; padding: 0 6px; white-space: nowrap; }
+.cut-dock .ib { width: 38px; height: 38px; }
+.cut-dock .ibtn { height: 38px; }
+.cut-dock .ibtn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.cut-seg { display: inline-flex; padding: 3px; border-radius: 99px; background: var(--hover); gap: 2px; }
+.cut-seg button { height: 32px; min-width: 32px; padding: 0 10px; border-radius: 99px; color: var(--mut); font: inherit; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.cut-seg button[aria-checked="true"] { background: var(--fg); color: var(--bg); }
+.cut-seg button .i { width: 16px; height: 16px; }
+.cut-seg .sw { display: block; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(127 127 127 / .5); }
+.cut-seg .sw.checker { background: repeating-conic-gradient(#c4c4c8 0 25%, #e8e8ea 0 50%) 0 0 / 8px 8px; }
+.cut-seg .sw.white { background: #fff; }
+.cut-seg .sw.black { background: #000; }
+.cut-seg .sw.color { background: var(--cut-color, #d7ff63); }
+.cut-seg button[data-bg] { padding: 0 7px; }
+.cut-color { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cut-sep { width: 1px; height: 22px; background: var(--line); }
+.cut-size { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mut); font-variant-numeric: tabular-nums; }
+.cut-size input { width: 110px; accent-color: var(--fg); }
+.cut-size b { font-weight: 500; min-width: 46px; }
+.cut-size.off { opacity: .45; }
+.cut-info { position: absolute; left: 0; right: 0; bottom: 12px; margin: 0; text-align: center; color: var(--mut); font-family: var(--mono); }
+@media (max-width: 860px) {
+  .cut-name, .cut-size b { display: none; }
+  .cut-stage { inset: 82px 12px 96px; }
+  .cut-dock { gap: 4px; }
+  .cut-size input { width: 70px; }
+  .cut-seg button[data-tool] { font-size: 0; gap: 0; }
+}
+body:not(.motion) .cut, body:not(.motion) .cut-prog i { animation: none; transition: none; }
+}

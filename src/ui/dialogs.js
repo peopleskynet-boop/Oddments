@@ -1,3 +1,6 @@
+// Small shared dialogs: toasts (a stack at the bottom, with «Отменить»), the busy pill for long work, ask() — one line
+// of text, choose() — a few buttons, arm() — a two-step confirmation for what cannot be undone; trapTab keeps Tab inside
+// an open layer.
 import { $ } from '../util.js';
 import { sfx } from './sound.js';
 import { ic } from './icons.js';
@@ -158,11 +161,11 @@ export function busy(text, frac = -1) {
   el.hidden = false;
   el.classList.toggle('indet', frac < 0);
   $('#busyT').textContent = text;
-  $('#busyP').style.width = frac < 0 ? '' : Math.round(Math.max(0.03, Math.min(1, frac)) * 100) + '%';
+  $('#busyP').style.transform = frac < 0 ? '' : `scaleX(${Math.max(0.03, Math.min(1, frac)).toFixed(3)})`;
 }
 export function busyDone(text) {
   const el = $('#busy');
-  if (text) { el.classList.remove('indet'); $('#busyT').textContent = text; $('#busyP').style.width = '100%'; }
+  if (text) { el.classList.remove('indet'); $('#busyT').textContent = text; $('#busyP').style.transform = 'scaleX(1)'; }
   clearInterval(busyTick); busyTick = 0;
   if (text) $('#busyI').innerHTML = ic('check');
   busyHide = setTimeout(() => { el.hidden = true; }, text ? 1400 : 0);

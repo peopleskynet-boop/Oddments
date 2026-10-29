@@ -34,7 +34,8 @@ const CYR = /[А-Яа-яЁё]/;
 const norm = (s) => s.replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 const exact = new Map();
 const patterns = [];
-function build(EN) {
+// exported for the unit test (tests/unit/i18n.test.mjs): the dictionary without a page
+export function build(EN) {
 for (const [k, v] of Object.entries(EXTRA)) if (!(k in EN)) EN[k] = v;
 for (const [ru, en] of Object.entries(EN)) {
   // keys come from the source as written: «\\» there is one backslash on screen
@@ -51,39 +52,70 @@ for (const [ru, en] of Object.entries(EN)) {
     const before = /[А-Яа-яЁё]$/.test(parts[i - 1]) ? '(?![А-Яа-яЁё])' : '', after = /^[А-Яа-яЁё]/.test(parts[i]) ? '(?<![А-Яа-яЁё])' : '';
     src += before + '(.*?)' + after + parts[i];
   }
-  patterns.push({ re: new RegExp(src + '$'), order, en: v, hint: parts.reduce((a, b) => (b.length > a.length ? b : a), '').replace(/\\/g, '') });
+  patterns.push({ re: new RegExp(src + '$'), order, en: v, hint: parts.reduce((a, b) => (b.length > a.length ? b : a), '').replace(/\\/g, ''), lit: parts.join('').replace(/\\/g, '').length });
 }
+// the more of a pattern is fixed words, the more surely it is the one: «Убрать все лишние ({0})» before «Убрать {0}»
+patterns.sort((a, b) => b.lit - a.lit);
 }
 
 const word = (s) => exact.get(norm(s)) ?? s;
+const cyr = (s) => (s.match(/[А-Яа-яЁё]/g) || []).length;
+const memo = new Map();
+// The whole string first; otherwise every way to cut it (a pattern, «label: value», «a — b», «a · b», «a (key)»…) and the
+// cut that leaves the least Russian wins. The first matching pattern used to win: «{0} картинок» caught «Фон: Свет от
+// картинок» and left «Background: Свет от pictures» (audit 29.10). Results are remembered: the same strings come back.
 export function tr(s) {
   if (!s || !CYR.test(s)) return s;
+  const got = memo.get(s);
+  if (got != null) return got;
+  const r = trFresh(s);
+  if (memo.size > 6000) memo.clear();
+  memo.set(s, r);
+  return r;
+}
+function trFresh(s) {
   const lead = s.match(/^\s*/)[0], tail = s.match(/\s*$/)[0], k = norm(s);
   const hit = exact.get(k);
   if (hit != null) return lead + hit + tail;
+  let best = null, bestN = cyr(k);
+  // true when nothing Russian is left: no need to look further
+  const take = (r) => { if (r == null || r === k) return false; const n = cyr(r); if (n < bestN) { best = r; bestN = n; } return n === 0; };
   for (const p of patterns) {
     if (p.hint && !k.includes(p.hint)) continue;
     const m = k.match(p.re);
     if (!m) continue;
     const vals = {};
     p.order.forEach((n, i) => { vals[n] = m[i + 1]; });
-    return lead + p.en.replace(/\{(\d+)\}/g, (_, n) => (vals[n] != null ? tr(vals[n]) : '')) + tail;
+    if (take(p.en.replace(/\{(\d+)\}/g, (_, n) => (vals[n] != null ? tr(vals[n]) : '')))) return lead + best + tail;
   }
-  // «3 файла», «12 подборок»: a number and a dictionary word
+  // «3 файла», «12 подборок», «248 Б»: a number and a dictionary word
   const nw = k.match(/^([\d\s.,~≈+]+)\s*(\S+)$/);
-  if (nw && exact.has(nw[2])) return lead + nw[1].trim() + ' ' + exact.get(nw[2]) + tail;
+  if (nw && exact.has(nw[2]) && take(nw[1].trim() + ' ' + exact.get(nw[2]))) return lead + best + tail;
   // «3 из 5»
   const of = k.match(/^(\d+) из (\d+)$/);
-  if (of) return lead + of[1] + ' of ' + of[2] + tail;
+  if (of && take(of[1] + ' of ' + of[2])) return lead + best + tail;
+  // a sentence's full stop: «Действуют правила: по умолчанию.»
+  if (/[.!?…]$/.test(k) && take(tr(k.slice(0, -1)) + k.slice(-1))) return lead + best + tail;
+  // «Капсула (C)», «Рендер (1)»: a name and its key; «Красный #FF453A»: a name and its colour
+  const key = k.match(/^(.*[А-Яа-яЁё].*?) (\([^()А-Яа-яЁё]{1,12}\)|#[0-9A-Fa-f]{3,8})$/);
+  if (key && take(tr(key[1]) + ' ' + key[2])) return lead + best + tail;
   // «Тема: Марафон» (a label and its value, as the custom selects name themselves), «Папка библиотеки: /путь»
   const ci = k.indexOf(': ');
-  if (ci > 0) { const a = k.slice(0, ci), b = k.slice(ci + 2), tb = tr(b); let ta = tr(a); if (ta === a) { const w = tr(a + ':'); if (w !== a + ':') ta = w.replace(/:\s*$/, ''); } if (ta !== a || tb !== b) return lead + ta + ': ' + tb + tail; }
+  if (ci > 0) {
+    const a = k.slice(0, ci), b = k.slice(ci + 2), tb = tr(b);
+    let ta = tr(a);
+    if (ta === a) { const w = tr(a + ':'); if (w !== a + ':') ta = w.replace(/:\s*$/, ''); }
+    if (take(ta + ': ' + tb)) return lead + best + tail;
+  }
   // «Типографика, 10 файлов» / «Недавние, новых: 18» (the left panel's rows for a screen reader): a name and a count
-  const nc = k.match(/^(.+), (\d+ \S+|новых: \d+)$/);
-  if (nc) { const a = tr(nc[1]), b = tr(nc[2]); if (a !== nc[1] || b !== nc[2]) return lead + a + ', ' + b + tail; }
-  // «155 файлов · 5,1 МБ»: pieces joined by a middle dot, each on its own
-  if (k.includes(' · ')) { const parts = k.split(' · '), out = parts.map(tr); if (out.some((x, i) => x !== parts[i])) return lead + out.join(' · ') + tail; }
-  return s;
+  const nc = k.match(/^(.+), (\d+ \S+|новых: \d+|выбрано \d+)$/);
+  if (nc && take(tr(nc[1]) + ', ' + tr(nc[2]))) return lead + best + tail;
+  // «155 файлов · 5,1 МБ», «Рендер (1) — модель со своими…»: pieces joined by a middle dot or a dash, each on its own
+  for (const sep of [' · ', ' — ']) if (k.includes(sep) && take(k.split(sep).map(tr).join(sep))) return lead + best + tail;
+  // …or only at the first dash, when the rest is one phrase with a dash of its own («Глина (2) — одним серым цветом — …»)
+  const d = k.indexOf(' — ');
+  if (d > 0 && take(tr(k.slice(0, d)) + ' — ' + tr(k.slice(d + 3)))) return lead + best + tail;
+  return best != null ? lead + best + tail : s;
 }
 export const t = (s) => (lang === 'en' ? tr(s) : s);
 

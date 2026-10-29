@@ -4,11 +4,15 @@
 // put while the pointer crosses a gap; leaving the group fades it; a press darkens it and settles it to
 // 96.5 %. Keyboard focus (body.kbd) takes it too. One delegated listener for the whole app, so menus and
 // lists that re-render with innerHTML need nothing.
+// In vertical lists (the left panel, menus) it slides quickly without the spring's overshoot (styles: 12-motion.css),
+// and a jump over several rows fades in at the new row instead of flying through the list — it trailed the pointer and
+// swung back and forth on fast moves (user, 28.10). A list re-rendered under a still pointer keeps it (reglide).
 import { motionOn } from './motion.js';
 
 const BOX = '.dock, .capg, .menu, .ctx, .gsel-list, .tabs, .side-scroll';
 const ITEM = '.ib, .mi, .chip, .nav:not(.idle), .sb';
-let box = null, item = null;
+const LIST = '.menu, .ctx, .gsel-list, .side-scroll';
+let box = null, item = null, px = -1, py = -1;
 
 function hl(b) {
   let g = b.__gl;
@@ -37,9 +41,26 @@ function place(g, b, it, appear) {
 
 function move(b, it) {
   if (box && box !== b) hide();
+  const from = box === b && item && item.isConnected ? item.getBoundingClientRect() : null;
   box = b; item = it;
   const g = hl(b);
-  place(g, b, it, g.dataset.on !== '1' || g.style.opacity === '0');
+  let appear = g.dataset.on !== '1' || g.style.opacity === '0';
+  if (!appear && from && b.matches(LIST)) {
+    const to = it.getBoundingClientRect();
+    if (Math.abs(to.top - from.top) > to.height * 2.5) appear = true; // far: fade in there, no flight
+  }
+  place(g, b, it, appear);
+}
+
+// after a list re-rendered (innerHTML): the highlight goes back into it, on the row now under the pointer, without
+// travel or the fade-in (it blinked out and popped back on every refresh of the left panel)
+export function reglide(b) {
+  const g = b && b.__gl;
+  if (!g) return;
+  if (g.parentNode !== b) b.prepend(g);
+  if (box !== b) return;
+  const el = px >= 0 ? document.elementFromPoint(px, py) : null, it = el && el.closest(ITEM);
+  if (it && b.contains(it) && usable(it)) { item = it; place(g, b, it, false); } else hide();
 }
 
 function hide() {
@@ -59,6 +80,7 @@ export function initGlide() {
     if (it !== item || b !== box) move(b, it);
   }, { passive: true });
   document.documentElement.addEventListener('pointerleave', hide);
+  document.addEventListener('pointermove', (e) => { px = e.clientX; py = e.clientY; }, { passive: true });
   // the list scrolled or re-laid out under a still pointer: follow without travel
   document.addEventListener('scroll', (e) => { if (box && item && e.target === box && box.__gl) place(box.__gl, box, item, false); }, true);
   document.addEventListener('pointerdown', (e) => {

@@ -8,7 +8,7 @@
 import './screens.css';
 import { pushLayer, popLayer } from './layers.js';
 import { S, ui, folderById } from '../state.js';
-import { esc, plural } from '../util.js';
+import { esc, plural, LOC } from '../util.js';
 import { ic } from './icons.js';
 import { assetUrl, saveIndex } from '../lib/library.js';
 import { sfx } from './sound.js';
@@ -35,7 +35,7 @@ function build() {
   el.hidden = true;
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', 'Экраны приложений');
-  el.innerHTML = `<header class="scn-top"><div><h2 class="scn-t">Экраны</h2><span class="scn-sub cap-sm"></span></div>
+  el.innerHTML = `<header class="scn-top"><div><h2 class="scn-t">Экраны приложений</h2><span class="scn-sub cap-sm"></span></div>
       <div class="scn-seg" role="tablist" aria-label="Вид">${[['all', 'Все экраны'], ['mark', 'Разметить'], ['hist', 'Как менялся'], ['cmp', 'Сравнить сценарии']].map(([k, n]) => `<button type="button" role="tab" data-tab="${k}">${n}</button>`).join('')}</div>
       <button type="button" class="ib" data-sc="close" aria-label="Закрыть" title="Закрыть (Esc)">${ic('x')}</button></header>
     <div class="scn-body"></div>`;
@@ -160,7 +160,7 @@ function histView() {
   const pairs = tally(screens(), (i) => (i.scr.app && i.scr.type ? JSON.stringify([i.scr.app, i.scr.type]) : null)).filter(([, n]) => n > 1);
   if (!hist && pairs.length) { const [app, type] = JSON.parse(pairs[0][0]); hist = { app, type }; }
   const sel = `<select class="scn-sel" data-hsel="1" aria-label="Экран">${pairs.map(([k, n]) => { const [a, t] = JSON.parse(k); return `<option value="${esc(k)}"${hist && hist.app === a && hist.type === t ? ' selected' : ''}>${esc(a)} · ${esc(t)} (${n})</option>`; }).join('')}</select>`;
-  if (!hist) return '<div class="scn-empty"><h3>Нечего сравнивать</h3><p>Нужны два экрана одного типа одного приложения — например «Т-Банк · Перевод» за разные месяцы.</p></div>';
+  if (!hist) return '<div class="scn-empty"><h3>Нечего сравнивать</h3><p>Нужны два экрана одного типа одного приложения — например «Revolut · Перевод» за разные месяцы.</p></div>';
   const list = screens().filter((i) => i.scr.app === hist.app && i.scr.type === hist.type).sort((a, b) => (a.scr.date || '').localeCompare(b.scr.date || ''));
   return `<div class="scn-bar">${sel}<p class="scn-p">${esc(hist.app)} · ${esc(hist.type)}: ${count(list.length, ['экран', 'экрана', 'экранов'])}, по дате — слева старые.</p></div>` +
     `<div class="scn-hist">${list.map((it) => `<figure>${card(it)}<figcaption><b>${esc(it.scr.date || 'без даты')}</b>${it.scr.ver ? ` · v${esc(it.scr.ver)}` : ''}${it.scr.os ? ` · ${osName(it.scr.os)}` : ''}</figcaption></figure>`).join('')}</div>`;
@@ -174,7 +174,7 @@ function cmpView() {
   const opt = (sel) => flows.map((f) => `<option value="${esc(f.id)}"${f.id === sel ? ' selected' : ''}>${esc(f.name)}</option>`).join('');
   const steps = (fid) => (folderById(fid).order || []).map((id) => S.byId.get(id)).filter((i) => i && !i.trashed);
   const A = steps(st.a), B = steps(st.b), sa = flowStats(A), sb = flowStats(B);
-  const fmt = (s) => (s == null ? '—' : s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : `${s.toLocaleString('ru-RU')} с`);
+  const fmt = (s) => (s == null ? '—' : s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : `${s.toLocaleString(LOC)} с`);
   const stat = (s) => `<span><b>${s.steps}</b> ${plural(s.steps, ['шаг', 'шага', 'шагов'])}</span><span><b>${fmt(s.seconds)}</b> по записи</span><span><b>${s.waits}</b> ${plural(s.waits, ['ожидание', 'ожидания', 'ожиданий'])}${s.waitSeconds ? ` · ${fmt(s.waitSeconds)}` : ''}</span><span><b>${s.backs}</b> ${plural(s.backs, ['возврат', 'возврата', 'возвратов'])} назад</span>`;
   // each sentence names its flow: the shorter one need not be the faster one
   const nm = (id) => `«${folderById(id).name}»`, diff = [];
@@ -197,7 +197,7 @@ export function openScreens(opts = {}) {
     if (it && it.scr) { hist = { app: it.scr.app, type: it.scr.type }; st.tab = 'hist'; }
   } else if (opts.tab) st.tab = opts.tab;
   el.hidden = false;
-  pushLayer({ el, title: 'Экраны', close: closeScreens, onKey });
+  pushLayer({ el, title: 'Экраны приложений', close: closeScreens, onKey });
   sfx('open');
   draw();
   el.querySelector(`[data-tab="${st.tab}"]`).focus({ preventScroll: true });

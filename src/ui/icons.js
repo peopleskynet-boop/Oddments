@@ -104,9 +104,17 @@ import back from '@phosphor-icons/core/assets/regular/arrow-left.svg?raw';
 import users from '@phosphor-icons/core/assets/regular/users.svg?raw';
 import userPlus from '@phosphor-icons/core/assets/regular/user-plus.svg?raw';
 import bezier from '@phosphor-icons/core/assets/regular/bezier-curve.svg?raw';
+import splat from '@phosphor-icons/core/assets/regular/circles-three.svg?raw';
+import scissors from '@phosphor-icons/core/assets/regular/scissors.svg?raw';
+import brush from '@phosphor-icons/core/assets/regular/paint-brush.svg?raw';
+import eraser from '@phosphor-icons/core/assets/regular/eraser.svg?raw';
+import flipV from '@phosphor-icons/core/assets/regular/flip-vertical.svg?raw';
+import contrast from '@phosphor-icons/core/assets/regular/circle-half.svg?raw';
+import plugs from '@phosphor-icons/core/assets/regular/plugs-connected.svg?raw';
+import puzzle from '@phosphor-icons/core/assets/regular/puzzle-piece.svg?raw';
 
 const P = {
-  flow, journey, bezier, phone, shield, chat, present, team, seal, compare, note, mic, book,
+  flow, journey, bezier, splat, flipV, contrast, plugs, puzzle, scissors, brush, eraser, phone, shield, chat, present, team, seal, compare, note, mic, book,
   all, grip, folder, nofolder, notag, tag, trash, clock, search, plus, chev, filter, menu, x, edit, masonry, grid,
   left, right, arrowd, arrowu, restore, zoom, gear, paste, folderplus, image, film, music, type, doc, file,
   sideL, info, palette, play, heart, heartOn, scan, cube, sun, moon, gridfloor, planet, wire, pause, figma, link, check, external, download, undo, redo, alL, alC, alR, alT, alM, alB, tCursor, tRect, tCircle, tPill, tDiamond, tTriangle, tSlash, tDot, eye, eyeOff, megaphone, magnet, fitView, soundOn, soundOff, copy, bulb, sphere, pin, minus, square, restoreWin, more, warnC, sparkle, caretD, bookmark, news, article, back, users, userPlus,

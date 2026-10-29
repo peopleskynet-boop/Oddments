@@ -95,3 +95,22 @@ details.hint summary::before { content: '›'; display: inline-block; margin-rig
 details.hint[open] summary::before { transform: rotate(90deg); }
 details.hint summary:hover { color: var(--fg); }
 details.hint p { margin: 10px 0 0; line-height: 1.75; }
+/* Inspector over the grid (Liquid Glass): the grid runs on under the right panel, so showing or
+   hiding it never reflows the grid and the pictures show through the glass. The sidebar on the left
+   keeps its own column. The view header stays clear of the inspector so it is never covered.
+   In the components layer: from the base layer the top bar, the header and the panel's own rules beat it (since the
+   styles were split into layers, 25.10) and the bar kept a column for an invisible panel (audit 29.10). */
+@media (min-width: 861px) {
+  body.overlay .scroll { padding-right: 24px; }
+  /* a selected card was under the panel: the grid made room for it (main.js makeRoom) */
+  body.overlay.insp-room.has-sel:not(.insp-off) .scroll { padding-right: calc(var(--iw) + var(--gap) + 24px); }
+  body.overlay .head, body.overlay .covers, body.overlay .tabrow, body.overlay .newbar {
+    margin-right: calc(var(--pr) - 20px); transition: margin .35s var(--ease);
+  }
+  /* the panel only shows with a selection: until then nothing waits on the right. The top bar always reaches
+     the edge (the panel starts under it); the tabs and the header make room only while the panel is out */
+  body.overlay .bar { right: 20px; }
+  body.overlay .cpop { right: 88px; }
+  body.overlay .insp { top: calc(var(--gap) + var(--barh) + 12px); }
+  body.overlay:not(.has-sel) :is(.head, .covers, .tabrow, .newbar), body.overlay.insp-off :is(.head, .covers, .tabrow, .newbar) { margin-right: 4px; }
+}

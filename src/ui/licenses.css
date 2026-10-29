@@ -1,0 +1,29 @@
+/* «Лицензии» (licenses.js): Oddments' licence and the third-party notices, the look of the «?» sheet */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.lc { position: fixed; z-index: 130; left: 50%; top: 50%; translate: -50% -50%; width: min(820px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
+  display: flex; flex-direction: column; border-radius: 26px; padding: 18px 22px 0; animation: rise .25s var(--ease); outline: none; }
+.lc.glass { --glass-fill: color-mix(in srgb, var(--panel) 94%, transparent); background: var(--glass-fill); }
+.lc[hidden] { display: none; }
+.lc-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.lc-h h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
+.lc-b { overflow: auto; padding-bottom: 22px; font-size: 13px; line-height: 1.5; }
+.lc-b h3 { margin: 20px 0 6px; font-size: 15px; font-weight: 600; }
+.lc-b p, .lc-b ul { margin: 0 0 8px; color: var(--mut); }
+.lc-b ul { padding-left: 18px; }
+.lc-b code { font-family: var(--mono); font-size: 12px; }
+.lc-b pre { margin: 6px 0 10px; padding: 12px 14px; border-radius: 16px; background: var(--field); white-space: pre-wrap; word-break: break-word;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.45; color: var(--mut); }
+.lc-tw { overflow-x: auto; margin: 0 0 10px; }
+.lc-b table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.lc-b th, .lc-b td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.lc-b th { font-weight: 500; color: var(--mut); }
+.lc-txt { border-radius: 16px; }
+.lc-txt summary { cursor: pointer; padding: 6px 10px; border-radius: 99px; font-size: 12.5px; list-style: none; }
+.lc-txt summary::-webkit-details-marker { display: none; }
+.lc-txt summary::before { content: '›'; display: inline-block; width: 14px; color: var(--mut); transition: rotate .15s; }
+.lc-txt[open] summary::before { rotate: 90deg; }
+.lc-txt summary:hover { background: var(--hover); }
+.lc-txt summary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--acc); }
+body:not(.motion) .lc { animation: none; }
+}

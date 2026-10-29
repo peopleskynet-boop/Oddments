@@ -21,6 +21,9 @@ body.side-off .side { transform: translateX(calc(-100% - 24px)); opacity: 0; poi
 /* the chevron is caret-right: folded › points right, open ⌄ points down (bug #93) */
 .grp.fold .fold-ch svg.i { width: 13px; height: 13px; transition: rotate .25s var(--spring, ease); rotate: 0deg; }
 .grp.fold[aria-expanded="true"] .fold-ch svg.i { rotate: 90deg; }
+/* a group's rows: rendered when folded too (sidebar.js foldGroup slides them in and out) */
+.fold-b { display: none; }
+.fold-b.open { display: block; }
 /* «✦ ИИ-теги» under one's own tags */
 .grp.sub { padding-top: 10px; font-size: 11px; opacity: .8; }
 /* a field heading with a link at its right end («Похожие · Все →»): two things, not one word (bug #85) */

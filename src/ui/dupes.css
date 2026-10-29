@@ -46,11 +46,14 @@ body.dupes-on .scroll, body.dupes-on .dock { visibility: hidden; }
 .dp-conf { animation: fade .2s; }
 .dupes .orb-bar:has(.dp-conf:not([hidden])) .orb-t { display: none; } /* the question needs the room */
 .dp-prog { position: absolute; left: 20px; right: 20px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.dp-prog b { display: block; height: 100%; width: 3%; border-radius: inherit; background: var(--fg); transition: width .2s ease-out; }
+.dp-prog b { display: block; height: 100%; width: 100%; transform: scaleX(.03); transform-origin: left; background: var(--fg); transition: transform .2s ease-out; }
 .dp-empty .ibtn { margin-top: 16px; }
 .dc-n { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
 .dc-m, .dc-f { font-size: 12px; color: var(--mut); padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dc-pv { position: absolute; right: 12px; top: 12px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, .55); color: #fff; backdrop-filter: blur(10px); opacity: 0; transition: opacity .15s; }
 .dc:hover .dc-pv, .dc-pv:focus-visible, .dc:has(input:focus-visible) .dc-pv { opacity: 1; }
 .dc-pv svg.i { width: 15px; height: 15px; }
+/* the properties panel floats over the wall (body.overlay): this screen runs to the right edge like the grid, not short
+   of it by the panel's width (audit 29.10) */
+@media (min-width: 861px) { body.overlay .dupes { right: 24px; } }
 }

@@ -12,6 +12,7 @@ import { esc } from '../util.js';
 import { absPath, addFromBlobs, saveIndex, trashItems } from '../lib/library.js';
 import { fixSvg, reportLines } from '../lib/svgfix.js';
 import { readPref, writePref } from '../lib/prefs.js';
+import { t } from '../lib/i18n.js';
 
 const PREF = 'perch.svgfix';
 const prefs = readPref(PREF, { strength: 'normal', dots: true });
@@ -131,7 +132,7 @@ async function save() {
       if (!r.out || !r.out.report.changed) continue;
       const base = it.name.replace(/\.svg$/i, '');
       const blob = new Blob([r.out.svg], { type: 'image/svg+xml' });
-      const [copy] = await addFromBlobs([{ blob, name: `${base} — исправлен.svg`, source: it.url || '' }], { folder: (it.folders || [])[0] || null });
+      const [copy] = await addFromBlobs([{ blob, name: `${base} — ${t('исправлен')}.svg`, source: it.url || '' }], { folder: (it.folders || [])[0] || null });
       if (!copy) continue;
       copy.folders = [...new Set([...(copy.folders || []), ...(it.folders || [])])];
       copy.tags = [...new Set([...(copy.tags || []), ...(it.tags || [])])];

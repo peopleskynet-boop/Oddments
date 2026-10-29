@@ -6,17 +6,18 @@
 import paper from 'paper';
 import { offsetShape, strokeShape, smallFix } from './offset.js';
 import { getSvgPath } from 'figma-squircle';
+import { DEC } from '../util.js';
 
-// size → margin, keyline square [from, to], outline thickness (measured from the library's templates)
+// size → margin, keyline square [from, to], outline thickness: a common icon grid (the keyline square is ¾ of the size)
 export const SIZES = {
   16: { margin: 1, key: [2, 14], t: 1.5 },
+  20: { margin: 2, key: [2.5, 17.5], t: 1.5 },
   24: { margin: 2, key: [3, 21], t: 2 },
-  28: { margin: 2, key: [3, 25], t: 2 },
   32: { margin: 3, key: [4, 28], t: 2.5 },
-  44: { margin: 4, key: [6, 38], t: 3 },
+  48: { margin: 4, key: [6, 42], t: 3 },
 };
 export const BASE = 24;
-export const COLOR = '#1D2023';
+export const COLOR = '#1A1A1A';
 export const SMOOTH = 0.6; // corner smoothing of the library's shapes (Figma «iOS» smoothing)
 
 // keylines of the 24 grid (the templates' primitives): square 18, vertical 16×20, horizontal 20×16, circle, rhombus
@@ -456,7 +457,7 @@ export function fixToRules(shapes) {
         const b = r.bounds, lo = S.margin, hi = BASE - S.margin;
         const mx = snap(Math.max(lo - b.x, Math.min(hi - b.right, dx))), my = snap(Math.max(lo - b.y, Math.min(hi - b.bottom, dy)));
         for (const s of out) { s.x += mx; s.y += my; }
-        done.push(`центр тяжести на месте (сдвиг ${String(mx).replace('.', ',')}; ${String(my).replace('.', ',')})`);
+        done.push(`центр тяжести на месте (сдвиг ${String(mx).replace('.', DEC)}; ${String(my).replace('.', DEC)})`);
       }
     }
   }
@@ -520,4 +521,4 @@ export function check(shapes, size = BASE, opts) {
   return out;
 }
 const grow = (p, d) => (p ? offsetShape(p, d) : null);
-const fmt = (n) => String(+n.toFixed(2)).replace('.', ',');
+const fmt = (n) => String(+n.toFixed(2)).replace('.', DEC);

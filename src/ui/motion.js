@@ -93,6 +93,23 @@ export function slideIndicator(container, activeSel, cls) {
   if (!container) return;
   let ind = container.__ind;
   if (!ind) { ind = document.createElement('i'); ind.className = cls; ind.setAttribute('aria-hidden', 'true'); container.__ind = ind; }
+  container.__sel = activeSel;
+  if (!container.__ro && window.ResizeObserver) {
+    // the list changed its width (a narrower window, a scrollbar came): the pill takes its row's new size at once — it
+    // kept the old one and stuck out of the row (audit 29.10). Only a real change: the observer's first call is not one.
+    container.__ro = new ResizeObserver(() => {
+      const a = ind.dataset.placed && container.querySelector(container.__sel);
+      if (!a) return;
+      const x = a.offsetLeft, y = a.offsetTop, w = a.offsetWidth, h = a.offsetHeight;
+      if (x === +ind.dataset.x && y === +ind.dataset.y && w === +ind.dataset.w && h === +ind.dataset.h) return;
+      Object.assign(ind.dataset, { x, y, w, h });
+      ind.style.transition = 'none';
+      ind.style.transform = `translate(${x}px, ${y}px)`;
+      ind.style.width = w + 'px'; ind.style.height = h + 'px';
+      void ind.offsetWidth; ind.style.transition = '';
+    });
+    container.__ro.observe(container);
+  }
   if (ind.parentNode !== container) {
     // re-rendering the list (innerHTML) detaches the pill; a re-inserted element has no previous style,
     // so it would animate in from the top-left corner. Put it back exactly where it was first.

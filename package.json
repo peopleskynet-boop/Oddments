@@ -1,6 +1,6 @@
 {
   "name": "oddments",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Oddments — настольный менеджер визуальных референсов: картинки, видео, 3D, шрифты, иконки",
   "license": "MIT",
   "repository": {
@@ -28,12 +28,15 @@
     "@huggingface/tokenizers": "^0.2.0",
     "@mozilla/readability": "^0.6.0",
     "@phosphor-icons/core": "^2.1.1",
+    "@sparkjsdev/spark": "2.4.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-http": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
     "ag-psd": "^22.0.0",
     "clipper-lib": "6.4.2",
     "comlink": "^4.4.2",

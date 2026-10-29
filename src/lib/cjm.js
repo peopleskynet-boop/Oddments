@@ -8,6 +8,7 @@
 import { S, folderById } from '../state.js';
 import { assetUrl } from './library.js';
 import { t } from './i18n.js';
+import { DEC } from '../util.js';
 
 export const LANES = [
   ['act', 'Действие', 'Что человек делает на этом шаге'],
@@ -47,7 +48,7 @@ export function nameStage(c, from, name) {
   if (s) s.name = name; else c.stages.push({ name, from });
 }
 
-const sec = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+const sec = (v) => String(Math.round(v * 10) / 10).replace('.', DEC);
 // hints from the recording, per step: [{ text }]
 export function hints(steps) {
   const dw = steps.map((it, i) => (it.flowT != null && steps[i + 1] && steps[i + 1].flowT != null ? steps[i + 1].flowT - it.flowT : null));
@@ -120,7 +121,7 @@ export async function renderPng(title, steps, c) {
   const H = pad + 70 + 46 + imgH + 30 + LANES.reduce((a, [k]) => a + laneH[k], 0) + pad;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
-  const BG = '#0e0f12', FG = '#f2f2f0', MUT = '#9a9aa0', LINE = 'rgba(255,255,255,.12)', ACC = '#c6ff00';
+  const BG = '#0e0f12', FG = '#f2f2f0', MUT = '#9a9aa0', LINE = 'rgba(255,255,255,.12)', ACC = '#d7ff63'; // the Oddments lime (was an older #c6ff00)
   const font = (sz, wt = 400) => `${wt} ${sz}px "Geist Variable", "Segoe UI", sans-serif`;
   g.fillStyle = BG; g.fillRect(0, 0, W, H);
   g.fillStyle = FG; g.font = font(30, 700); g.fillText(title, pad, pad + 30);

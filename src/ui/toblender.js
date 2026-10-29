@@ -14,16 +14,38 @@ export async function toBlender(paths, what) {
   else toast('Отправлено. Blender заберёт, когда будет открыт с аддоном Oddments 1.2 и включённым «Принимать из Oddments» (аддон — в Настройках › Интеграции).', 9000);
 }
 
-// a file made on the fly (the SVG → 3D result) that is not in the library: written to the app's outbox folder first
+// a file made on the fly (the SVG → 3D result, a splat made or converted here) that is not in the library: written to the
+// app's outbox folder first
+async function outboxFile(data, fileName) {
+  const dir = await join(await appLocalDataDir(), 'outbox');
+  await fs.mkdir(dir, { recursive: true });
+  const path = await join(dir, fileName.replace(/[\\/:*?"<>|]/g, '_'));
+  if (typeof data === 'string') await fs.writeTextFile(path, data); else await fs.writeFile(path, data);
+  return path;
+}
+const inApp = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
 export async function textToBlender(text, fileName, what) {
-  if (!(typeof window !== 'undefined' && window.__TAURI_INTERNALS__)) return toBlender([], what);
+  if (!inApp()) return toBlender([], what);
+  try { await toBlender([await outboxFile(text, fileName)], what); } catch (e) { toast('Не удалось отправить в Blender: ' + (e && e.message ? e.message : e)); }
+}
+export async function bytesToBlender(bytes, fileName, what) {
+  if (!inApp()) return toBlender([], what);
+  try { await toBlender([await outboxFile(bytes, fileName)], what); } catch (e) { toast('Не удалось отправить в Blender: ' + (e && e.message ? e.message : e)); }
+}
+
+// library files go as they are; a splat in a format Blender does not read (.splat, .ksplat, .sog) goes as PLY
+export async function itemsToBlender(items) {
+  const [{ absPath }, { isSplatItem }] = await Promise.all([import('../lib/library.js'), import('../state.js')]);
+  const paths = [];
   try {
-    const dir = await join(await appLocalDataDir(), 'outbox');
-    await fs.mkdir(dir, { recursive: true });
-    const path = await join(dir, fileName.replace(/[\\/:*?"<>|]/g, '_'));
-    await fs.writeTextFile(path, text);
-    await toBlender([path], what);
-  } catch (e) { toast('Не удалось отправить в Blender: ' + (e && e.message ? e.message : e)); }
+    for (const it of items) {
+      if (inApp() && isSplatItem(it) && !['ply', 'spz'].includes(it.ext)) {
+        const { splatToPly } = await import('../lib/splat.js');
+        paths.push(await outboxFile(await splatToPly(await fs.readFile(absPath(it.file)), it.ext, it.name), it.name + '.ply'));
+      } else paths.push(absPath(it.file));
+    }
+  } catch (e) { toast('Не удалось подготовить сплат для Blender: ' + (e && e.message ? e.message : e)); return; }
+  await toBlender(paths, items.length === 1 ? items[0].name : 'Файлы: ' + items.length);
 }
 
 // «Набор в Blender»: several SVGs become one icon set — every icon built in its own frame (viewBox) with the style of

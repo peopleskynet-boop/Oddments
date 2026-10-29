@@ -8,6 +8,7 @@ import { assetUrl, saveIndex } from '../lib/library.js';
 import { toast, choose } from './dialogs.js';
 import { sfx } from './sound.js';
 import { aggregate, reportMd, NOTE_KINDS } from '../lib/study.js';
+import { t } from '../lib/i18n.js';
 
 let box = null, fid = null, sel = 0, kind = 'problem';
 const fmtT = (t) => (t == null ? '' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`);
@@ -85,9 +86,9 @@ async function onClick(e) {
     o.study = { id: sid, resp: (o.study && o.study.resp) || o.name };
     saveIndex(); sfx('done'); draw();
   } else if (b.dataset.report) {
-    const md = reportMd(f.name.replace(/\s*·.*$/, '') || 'Исследование', studyFlows(fid));
+    const md = reportMd(f.name.replace(/\s*·.*$/, '') || t('Исследование'), studyFlows(fid));
     if (b.dataset.report === 'copy') { try { await navigator.clipboard.writeText(md); toast('Отчёт скопирован — вставьте в Confluence, чат или документ'); } catch (err) { toast('Не удалось скопировать отчёт'); } return; }
-    await saveMd(md, (f.name || 'Исследование') + ' — отчёт.md');
+    await saveMd(md, `${f.name || t('Исследование')} — ${t('отчёт')}.md`);
   }
 }
 function onSubmit(e) {

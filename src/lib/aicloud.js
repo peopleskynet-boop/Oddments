@@ -10,6 +10,9 @@
 import { aiPrefs as iconPrefs } from './anthropickey.js';
 import { assetUrl } from './library.js';
 import { readPref, writePref } from './prefs.js';
+import { lang } from './i18n.js';
+import { DEC } from '../util.js';
+const OUT = () => (lang === 'en' ? 'по-английски' : 'по-русски');
 
 export const TAG_MODELS = [
   { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 — дешевле всего, для тегов хватает' },
@@ -34,7 +37,7 @@ export function estimate(nDescribe, nEmbed) {
   const voyage = nEmbed * (SIDE * 384 / 560) * VOYAGE.price / 1e6;
   return claude + voyage;
 }
-export const usd = (x) => (x < 0.01 ? '< $0,01' : '$' + x.toFixed(2).replace('.', ','));
+export const usd = (x) => (x < 0.01 ? '< $0' + DEC + '01' : '$' + x.toFixed(2).replace('.', DEC));
 
 const inApp = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
 async function post(url, headers, body) {
@@ -76,12 +79,12 @@ export async function smallCopy(it) {
   return btoa(s);
 }
 
-const SYSTEM = `Ты подписываешь референсы дизайнера, чтобы он находил их поиском своими словами.
+// in the interface's language: an English interface gets English descriptions and tags (they are searched in it)
+const SYSTEM = () => `Ты подписываешь референсы дизайнера, чтобы он находил их поиском своими словами.
 Для каждой картинки дай:
-- "desc": одно-два предложения по-русски — что изображено: предметы, люди и что они делают, цвета (в том числе волос,
+- "desc": одно-два предложения ${OUT()} — что изображено: предметы, люди и что они делают, цвета (в том числе волос,
   одежды, фона), материал, техника и стиль (3D-рендер, фото, иллюстрация, интерфейс, иконка, типографика, плакат…).
-- "tags": 3–6 коротких тегов по-русски в нижнем регистре: главные предметы и стиль («наушники», «3d-рендер»,
-  «голубые волосы»). Без общих слов вроде «картинка», «изображение», «дизайн».
+- "tags": 3–6 коротких тегов ${OUT()} в нижнем регистре: главные предметы и стиль (${lang === 'en' ? '«headphones», «3d render», «blue hair»' : '«наушники», «3d-рендер», «голубые волосы»'}). Без общих слов вроде «картинка», «изображение», «дизайн».
 - "name": короткое название файла по-английски, 2–5 слов, каждое с большой буквы, без знаков препинания и без слов
   «Image», «Picture», «Photo of» — по главному предмету и стилю («Blue Haired Girl Render», «Brutalist Concrete Stairs»).
 Ответ — только JSON: {"items":[{"n":1,"desc":"…","tags":["…"],"name":"…"}]}`;
@@ -100,7 +103,7 @@ export async function describe(pics) {
   // always: the exe's HTTP plugin adds an Origin header like a browser, and the API then wants this opt-in too —
   // without it the exe got «ключ не подошёл» while the web build worked (bug #110)
   headers['anthropic-dangerous-direct-browser-access'] = 'true';
-  const j = await post('https://api.anthropic.com/v1/messages', headers, { model: cloudPrefs().tagModel, max_tokens: 200 + pics.length * 160, system: SYSTEM, messages: [{ role: 'user', content }] });
+  const j = await post('https://api.anthropic.com/v1/messages', headers, { model: cloudPrefs().tagModel, max_tokens: 200 + pics.length * 160, system: SYSTEM(), messages: [{ role: 'user', content }] });
   const text = (j.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
   const m = text.match(/\{[\s\S]*\}/);
   let items = [];
