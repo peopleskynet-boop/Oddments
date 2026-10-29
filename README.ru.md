@@ -1,0 +1,107 @@
+> **English:** the documentation in English is the main [README.md](README.md). The app has an English interface
+> too: Settings › Look › Language (Настройки › Вид › Язык).
+
+# Oddments
+
+[![Release](https://img.shields.io/github/v/release/peopleskynet-boop/Oddments)](https://github.com/peopleskynet-boop/Oddments/releases/latest) [![Downloads](https://img.shields.io/github/downloads/peopleskynet-boop/Oddments/total)](https://github.com/peopleskynet-boop/Oddments/releases) [![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-555)](https://github.com/peopleskynet-boop/Oddments/releases/latest) [![License: MIT](https://img.shields.io/github/license/peopleskynet-boop/Oddments)](LICENSE) [![Stars](https://img.shields.io/github/stars/peopleskynet-boop/Oddments?style=social)](https://github.com/peopleskynet-boop/Oddments/stargazers)
+
+**[⬇ Скачать для Windows и macOS](https://github.com/peopleskynet-boop/Oddments/releases/latest)** · бесплатно и с открытым кодом, без регистрации и телеметрии
+
+Настольный менеджер визуальных референсов для дизайнеров: картинки, видео, GIF, 3D-модели, материалы, шрифты, PDF и
+PSD в одной библиотеке. Библиотека — обычная папка на диске, оригиналы не меняются, аккаунта и облака нет. Windows и
+macOS, интерфейс на русском и английском, лицензия MIT.
+
+![Библиотека](docs/screenshots/library.jpg)
+
+## Что умеет
+
+- **Собирать в одно движение.** Ctrl/⌘+V картинки из браузера, Figma или скриншота, перетаскивание файлов и ссылок,
+  расширение для Chrome, Edge и Safari, папки-наблюдатели. YouTube, Vimeo и Pinterest — карточками с обложкой,
+  видео Pinterest и Instagram — файлом.
+- **Переехать из Eagle и PureRef.** Библиотека Eagle переносится с папками, тегами, заметками и ссылками; картинки
+  с досок PureRef — подборками. Исходные библиотеки не меняются. Подробно — [docs/import.md](docs/import.md).
+- **Забирать блоки интерфейса.** Расширение выделяет любой блок страницы (кнопку, карточку, меню, первый экран) и
+  сохраняет снимок вместе с HTML и стилями. В Oddments блок открывается живым: при наведении видны шрифт, размеры,
+  цвета и отступы, стили копируются кликом.
+- **Находить.** Поиск по названию и тегам, по цвету (круг, HEX, точность), похожие файлы. ИИ-поиск по смыслу
+  («рука с наушниками») — локально моделью SigLIP 2, без отправки картинок, или через API Claude и Voyage по вашему ключу.
+  Текст на картинках распознаётся локально (PaddleOCR) и тоже ищется.
+- **Улучшать картинки.** Увеличение ×2 / ×4 нейросетью Real-ESRGAN и удаление фона моделью BEN2 прямо на компьютере,
+  сравнение «до / после» с лупой.
+- **Смотреть.** Быстрая мозаика на тысячи файлов, просмотр с каруселью, свой видеоплеер (покадрово, скорость, A–B),
+  3D-просмотр GLB, OBJ, FBX, STL, USDZ и других (режимы глины, нормалей, UV, HDRI-освещение), гауссовы сплаты (PLY,
+  SPZ), `.blend` — превью и сцена через установленный Blender.
+- **Работать с 3D.** Материалы (`.perchmat`) из текстур в один клик, «SVG в 3D» с чистой квадовой сеткой и UV,
+  «Исправить SVG», ремеш через AutoRemesher (Windows), сплат из модели. Аддон Blender: отправка и вставка моделей и
+  материалов, наборы иконок из SVG в 3D со стилями и рендером, своя библиотека материалов, умная UV-развёртка.
+- **Делать иконки.** Конструктор иконок с правилами сетки, полей и толщин, проверками, «умным» 16 px, стилизацией любых
+  SVG и генерацией вариантов по описанию.
+- **Сценарии из записи экрана.** Видео с телефона или компьютера режется на экраны: раскадровка, «пройти сценарий»,
+  CJM (этапы, эмоции, боли и подсказки из записи), перенос в Figma секцией с прототипом.
+- **Работать командой.** Общая библиотека в сетевой папке без сервера, комментарии и пометки на картинках, показ
+  подборки и экспорт в PDF, заметки исследований, проверка по правилам бренда, скрытие личных данных на скриншотах.
+- **Читать.** Лента дизайн-новостей в формате рилсов (RSS, открытые каналы Telegram, блоги и YouTube дизайнеров),
+  читалка сохранённых статей с переводом, ИИ-сводка дня.
+- **Связываться с инструментами.** Плагин Figma (библиотека внутри Figma, мудборды, иконки компонентами), MCP-сервер
+  для Claude Desktop и Claude Code, перетаскивание файлов из Oddments в другие программы.
+
+| | |
+|---|---|
+| ![Поиск по смыслу](docs/screenshots/ai-search.jpg) | ![Поиск по цвету](docs/screenshots/color-search.jpg) |
+| ![3D-просмотр](docs/screenshots/3d-viewer.jpg) | ![SVG в 3D](docs/screenshots/svg-to-3d.jpg) |
+| ![Конструктор иконок](docs/screenshots/icon-constructor.jpg) | ![Чистый экран](docs/screenshots/clean.jpg) |
+
+## Установка
+
+Готовые сборки — на странице [Releases](https://github.com/peopleskynet-boop/Oddments/releases):
+`Oddments_…_x64-setup.exe` для Windows и `Oddments_…_universal.dmg` для Mac (Apple Silicon и Intel). Как поставить,
+что делать, если система переспросит при первом запуске, и как удалить — [docs/install.md](docs/install.md).
+
+При первом запуске Oddments спросит язык, папку библиотеки и что включить: ИИ-поиск, текст на картинках, проверку
+обновлений или режим «Без сети». Всё это меняется потом в настройках.
+
+## Обновления
+
+Oddments может раз в день проверять, нет ли новой версии, — если вы это разрешили (в первом окне или в
+Настройки › О программе). Новая версия приходит тостом «Есть новая версия», ставится одной кнопкой и подписана ключом
+проекта: файл с чужой подписью не установится. Что изменилось — в [CHANGELOG.md](CHANGELOG.md).
+
+## Приватность
+
+Аналитики и телеметрии нет. Библиотека, теги, заметки и отчёты о сбоях не покидают компьютер. В сеть Oddments выходит
+только за тем, что вы включили сами (модели ИИ, лента, обложки ссылок, API по вашему ключу, проверка обновлений), а
+режим **«Без сети»** выключает всё это одной галкой. Подробно — [docs/privacy.md](docs/privacy.md).
+
+Если что-то сломалось, Настройки › О программе › «Отчёт о сбоях» › «Скопировать отчёт» — и пришлите его нам. Сам
+Oddments никуда ничего не отправляет.
+
+## Где лежат данные
+
+- Библиотека: `Документы/Oddments Library` (если есть `Perch Library` от ранних версий — берётся она) — `index.json`,
+  файлы в `files/<id>/`, резервные копии индекса в `backups/`. Папку можно сменить в Настройки › Библиотека.
+- Настройки — в хранилище окна приложения; модели ИИ, HDRI, токен интеграций и отчёты о сбоях — в папке данных
+  приложения (`%LOCALAPPDATA%\app.perch.desktop` на Windows, `~/Library/Application Support/app.perch.desktop` на Mac).
+
+## Сборка из исходников
+
+```bash
+npm ci
+npm run tauri dev
+```
+
+Подробно (что поставить, веб-версия для работы над интерфейсом, сборка установщика, тесты) — [docs/build.md](docs/build.md).
+Выпуск версии, подпись и обновления — [docs/release.md](docs/release.md) и [docs/signing.md](docs/signing.md).
+Карта кода — [ARCHITECTURE.md](ARCHITECTURE.md), как предложить правку — [CONTRIBUTING.md](CONTRIBUTING.md) (на английском).
+
+## Связаться
+
+Вопросы, ошибки, идеи — пишите:
+- Почта: [peopleskynet@gmail.com](mailto:peopleskynet@gmail.com)
+- Telegram: [@PeopleSkyNet](https://t.me/PeopleSkyNet)
+- LinkedIn: [linkedin.com/in/alexander-park-725461267](https://www.linkedin.com/in/alexander-park-725461267/)
+- Ошибки можно завести и в [Issues](https://github.com/peopleskynet-boop/Oddments/issues).
+
+## Лицензия
+
+[MIT](LICENSE). Сторонние библиотеки, модели и ресурсы с их лицензиями — в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+и в приложении: Настройки › О программе › «Лицензии и авторы».

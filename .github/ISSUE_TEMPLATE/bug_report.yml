@@ -1,0 +1,52 @@
+name: Bug report · Ошибка
+description: Something does not work as it should · Что-то работает не так
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please write in English or Russian. · Спасибо! Можно писать по-русски.
+  - type: input
+    id: version
+    attributes:
+      label: Oddments version · Версия
+      description: Settings › About · Настройки › О программе
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: System · Система
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened · Что случилось
+      description: What you did, what you expected, what you got instead · Что делали, что ждали, что получилось
+      placeholder: |
+        1. …
+        2. …
+        Expected · Ожидалось: …
+        Got · Получилось: …
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Crash report · Отчёт о сбое
+      description: >-
+        Settings › About › Crash report › «Copy the report» — it has no personal paths. · Настройки › О программе ›
+        Отчёт о сбоях › «Скопировать отчёт» — без личных путей.
+      render: text
+  - type: textarea
+    id: shots
+    attributes:
+      label: Screenshots · Скриншоты
+      description: Optional. Please hide anything private. · По желанию. Личное лучше скрыть.

@@ -1,0 +1,21 @@
+name: Idea · Идея
+description: Something Oddments could do better or anew · Чего не хватает в Oddments
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What gets in the way · Что мешает
+      description: The task and where Oddments falls short today · Задача и где Oddments сейчас не помогает
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help · Что бы помогло
+      description: How you imagine it; a sketch or a reference from another tool is welcome · Как это видите; эскиз или пример из другой программы — кстати
+  - type: textarea
+    id: tools
+    attributes:
+      label: How you do it now · Как делаете сейчас
+      description: Eagle, PureRef, Figma, Blender, a folder… · Eagle, PureRef, Figma, Blender, папка…
