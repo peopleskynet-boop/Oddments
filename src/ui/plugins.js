@@ -96,7 +96,9 @@ async function copy(textValue, done) {
   try { await navigator.clipboard.writeText(textValue); toast(done); } catch (e) { toast(textValue, 12000); }
 }
 const claudeDesktop = (i) => JSON.stringify({ mcpServers: { oddments: { command: i ? i.exe : 'C:\\Program Files\\Oddments\\Oddments.exe', args: ['--mcp'] } } }, null, 2);
-const claudeCode = (i) => `claude mcp add --transport http oddments http://127.0.0.1:${i ? i.port : 47215}/mcp --header "Authorization: Bearer ${i ? i.token : '<токен>'}"`;
+// Claude Code starts `Oddments --mcp` like Claude Desktop does (mcp.rs): it opens Oddments when it is closed and reads the
+// token itself. The HTTP address of the receiver (until 29.10) worked only while Oddments was open.
+const claudeCode = (i) => `claude mcp add -s user oddments -- "${i ? i.exe : 'C:\\Program Files\\Oddments\\Oddments.exe'}" --mcp`;
 
 const CARDS = [
   {
@@ -127,7 +129,7 @@ const CARDS = [
     id: 'claude', seen: 'mcp', title: 'Claude (MCP)', icon: 'sparkle', ver: 'MCP-сервер',
     what: 'Claude ищет в вашей библиотеке («найди референсы со стеклом и фиолетовым светом»), смотрит картинки, сохраняет новые в нужную подборку.',
     acts: [{ a: 'mcp-desktop', label: 'Для Claude Desktop', pri: true }, { a: 'mcp-code', label: 'Для Claude Code' }],
-    steps: ['Claude Desktop: «Для Claude Desktop» копирует настройку. Claude › Settings › Developer › Edit Config — вставьте её в claude_desktop_config.json (или добавьте «oddments» в уже существующий mcpServers) и перезапустите Claude.', 'Claude Code: «Для Claude Code» копирует команду — выполните её в терминале.', 'Oddments должен быть открыт (можно свёрнутым в трей); Claude Desktop откроет его сам, если он закрыт.'],
+    steps: ['Claude Desktop: «Для Claude Desktop» копирует настройку. Claude › Settings › Developer › Edit Config — вставьте её в claude_desktop_config.json (или добавьте «oddments» в уже существующий mcpServers) и перезапустите Claude.', 'Claude Code: «Для Claude Code» копирует команду — выполните её в терминале.', 'Claude Desktop и Claude Code сами откроют Oddments, если он закрыт. Если Oddments уже добавлен в Claude Code по адресу 127.0.0.1, сначала выполните claude mcp remove -s user oddments.'],
   },
 ];
 

@@ -2476,5 +2476,7 @@
 "Всё это меняется потом в Настройках: «ИИ» и «О программе».": "All of it can be changed later in Settings: «AI» and «About».",
 "Скопируйте картинку где угодно и нажмите {1} V в Oddments — она уже в библиотеке. Остальное подскажет «Знакомство» слева внизу, клавиши — по «?».": "Copy a picture anywhere and press {1} V in Oddments — it is in the library. «Getting started» at the bottom left shows the rest, the keys are behind «?».",
 "Сейчас откроется выбор библиотеки Eagle — папки, которая кончается на .library.": "Next you will pick the Eagle library — the folder ending in .library.",
-"Не удалось открыть папку:": "Could not open the folder:"
+"Не удалось открыть папку:": "Could not open the folder:",
+"Claude Desktop и Claude Code сами откроют Oddments, если он закрыт. Если Oddments уже добавлен в Claude Code по адресу 127.0.0.1, сначала выполните claude mcp remove -s user oddments.": "Claude Desktop and Claude Code open Oddments themselves when it is closed. If Oddments is already added to Claude Code by its 127.0.0.1 address, run claude mcp remove -s user oddments first.",
+"Папка библиотеки": "Library folder"
 }

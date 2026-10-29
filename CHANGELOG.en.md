@@ -2,6 +2,15 @@
 
 # Changelog
 
+## 1.0.1 — 29 October 2026
+
+- Claude Code connects to Oddments the way Claude Desktop does: through `Oddments --mcp`, and Oddments starts by
+  itself if it was closed. «For Claude Code» in «Plugins» copies the new command; if Oddments is already added by its
+  127.0.0.1 address, run `claude mcp remove -s user oddments` first.
+- English: the corner label of the clean screen («All files») and the tooltip of the library folder are translated.
+- A library made before the rename (the «Perch Library» folder) is labelled «Oddments Library» at the bottom of the
+  sidebar; the real path is in the tooltip.
+
 ## 1.0.0 — 29 October 2026
 
 **The release**

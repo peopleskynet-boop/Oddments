@@ -674,7 +674,10 @@ async function boot() {
     const lib = await initLibrary();
     if (lib.restored) setTimeout(() => toast(`Файл библиотеки index.json был повреждён — открыта резервная копия (${lib.restored.replace('backups/index-', 'от ').replace('.json', '').replace('index.json.bak', 'последняя')}). Повреждённый файл сохранён рядом.`, 12000), 1500);
     const root = getRoot();
-    $('#libLabel').textContent = root.split(/[\\/]/).filter(Boolean).pop() || root;
+    // a library made before the rename keeps its folder «Perch Library» (library.js defaultRoot, nothing is moved): it is
+    // named as today's default; the real path is in the tooltip
+    const folder = root.split(/[\\/]/).filter(Boolean).pop() || root;
+    $('#libLabel').textContent = folder === 'Perch Library' ? 'Oddments Library' : folder;
     $('#libLabel').title = 'Папка библиотеки: ' + root;
   } catch (e) {
     document.body.classList.remove('lib-loading');

@@ -1,6 +1,6 @@
 [package]
 name = "perch"
-version = "1.0.0"
+version = "1.0.1"
 description = "Oddments — менеджер визуальных референсов"
 license = "MIT"
 edition = "2021"

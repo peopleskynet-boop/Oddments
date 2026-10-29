@@ -112,7 +112,9 @@ export const cleanOn = isOn;
 export function updateHud() {
   if (!hud) return;
   const t = document.getElementById('vTitle');
-  hud.querySelector('#hudWhere').textContent = t ? '· ' + t.textContent : '';
+  // the dot and the title as two text nodes: the title is copied before the interface's English reaches it (i18n.js
+  // translates text as it appears), and «· Все файлы» in one piece is not a dictionary entry, «Все файлы» is
+  hud.querySelector('#hudWhere').replaceChildren(...(t ? ['· ', document.createTextNode(t.textContent)] : []));
   hud.querySelector('#hudN').textContent = `(${S.vis.length})`;
 }
 
