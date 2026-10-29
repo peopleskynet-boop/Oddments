@@ -9,6 +9,7 @@ import { isOffline } from './net.js';
 import { flushIndex } from './library.js';
 import { busy, busyDone, toast } from '../ui/dialogs.js';
 import { sfx } from '../ui/sound.js';
+import { t } from './i18n.js';
 
 const KEY = 'perch.updates';
 const DAY = 20 * 3600e3; // «once a day», with room for a computer that starts at slightly different hours
@@ -51,7 +52,8 @@ export async function checkUpdates({ quiet = false } = {}) {
       return up;
     } catch (e) {
       // a release without latest.json yet (it is written a minute after publishing) reads as «no update» for the daily check
-      if (!quiet) toast('Не удалось проверить обновления: ' + reason(e) + '. Проверьте интернет или скачайте установщик со страницы выпусков.', 8000);
+      // the reason comes from the plugin in English: each Russian piece is translated on its own (t), the sentence is not
+      if (!quiet) toast(t('Не удалось проверить обновления:') + ' ' + reason(e) + t('. Проверьте интернет или скачайте установщик со страницы выпусков.'), 8000);
       return null;
     } finally { running = null; tell(); }
   })();
@@ -90,7 +92,7 @@ export async function installUpdate() {
   } catch (e) {
     busyDone();
     console.error('update', e);
-    toast('Не удалось обновить Oddments: ' + reason(e) + '. Скачайте установщик со страницы выпусков.', 12000, { label: 'Открыть', fn: () => import('@tauri-apps/plugin-opener').then((m) => m.openUrl(RELEASES)) });
+    toast(t('Не удалось обновить Oddments:') + ' ' + reason(e) + t('. Скачайте установщик со страницы выпусков.'), 12000, { label: 'Открыть', fn: () => import('@tauri-apps/plugin-opener').then((m) => m.openUrl(RELEASES)) });
   }
 }
 

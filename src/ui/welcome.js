@@ -4,7 +4,7 @@
 // (after() — AI on, the Eagle import). Choosing English reloads the window (i18n.js) and the window comes back on the
 // next step. Everything here is in Settings later; «Знакомство» in the sidebar takes over from here.
 import './welcome.css';
-import { esc } from '../util.js';
+import { esc, DEC } from '../util.js';
 import { ic } from './icons.js';
 import { pushLayer, popLayer } from './layers.js';
 import { sfx } from './sound.js';
@@ -61,7 +61,7 @@ export function runWelcome() {
       } else if (s === 'ai') {
         const off = st.offline;
         card.innerHTML = `${dots}<h2>ИИ и сеть</h2><p class="wz-p">Всё работает на этом компьютере. В сеть Oddments выходит только за тем, что вы включите.</p>
-          <label class="wz-row"><span><b>Поиск по смыслу</b><small>«рука с наушниками», «персонаж с голубыми волосами» — модель SigLIP 2, около ${(AI_MB / 1000).toFixed(1).replace('.', ',')} ГБ, скачается один раз с Hugging Face.</small></span><input type="checkbox" class="switch" data-k="ai" ${st.ai && !off ? 'checked' : ''} ${off ? 'disabled' : ''}></label>
+          <label class="wz-row"><span><b>Поиск по смыслу</b><small>«рука с наушниками», «персонаж с голубыми волосами» — модель SigLIP 2, около ${(AI_MB / 1000).toFixed(1).replace('.', DEC)} ГБ, скачается один раз с Hugging Face.</small></span><input type="checkbox" class="switch" data-k="ai" ${st.ai && !off ? 'checked' : ''} ${off ? 'disabled' : ''}></label>
           <label class="wz-row"><span><b>Текст на картинках</b><small>Поиск по написанному на скриншотах и постерах — модель ${OCR_MB} МБ.</small></span><input type="checkbox" class="switch" data-k="ocr" ${st.ocr && !off ? 'checked' : ''} ${off ? 'disabled' : ''}></label>
           <label class="wz-row"><span><b>Проверять обновления</b><small>Раз в день — один запрос к GitHub, без данных о вас.</small></span><input type="checkbox" class="switch" data-k="updates" ${st.updates && !off ? 'checked' : ''} ${off ? 'disabled' : ''}></label>
           <label class="wz-row"><span><b>Без сети</b><small>Ничего не скачивать и не отправлять: ни моделей, ни ленты, ни обложек ссылок.</small></span><input type="checkbox" class="switch" data-k="offline" ${off ? 'checked' : ''}></label>
