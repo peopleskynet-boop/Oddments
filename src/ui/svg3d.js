@@ -181,7 +181,8 @@ async function update() {
   } else notes.unshift(P.cap === 'ngon' ? 'Крышки n-гонами (как в Cinema 4D)' : 'Крышки треугольниками');
   if (!check.ok) { notes.unshift('В сетке ошибки — смените настройки'); level = 'bad'; }
   result = { mesh, ok: check.ok };
-  status(describe(mesh), notes.join('. '), level);
+  // each note on its own: the dictionary knows the notes, not their «. »-joined combinations
+  status(describe(mesh), notes.map(t).join('. '), level);
   await show(lib.toOBJ(mesh, src.name));
   el.querySelector('[data-s3="save"]').disabled = !check.ok;
   el.querySelector('[data-s3="obj"]').disabled = !check.ok;

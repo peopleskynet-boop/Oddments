@@ -1,6 +1,6 @@
 // Small helpers used everywhere: DOM shortcuts ($, $$), escaping (esc), ids, sizes and dates in the interface's
 // language, plural forms, colour conversions (hexRGB, inkOn — black or white text on a colour), platform checks (isMac).
-import { lang } from './lib/i18n.js';
+import { lang, t } from './lib/i18n.js';
 // numbers as the interface's language writes them: «2,5» and «7 172» in Russian, «2.5» and «7,172» in English
 export const DEC = lang === 'en' ? '.' : ',';
 export const LOC = lang === 'en' ? 'en-GB' : 'ru-RU';
@@ -12,7 +12,11 @@ export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
 // what a file is, in words a person reads: our own formats by their meaning (audit 24.10: «PERCHMAT», «ODDBLOCK»
 // leaked into the inspector and the screen reader), the rest by extension
 const OWN_TYPES = { perchmat: 'Материал', oddblock: 'Блок интерфейса' };
-export const typeLabel = (it) => OWN_TYPES[(it.ext || '').toLowerCase()] || (it.ext || it.kind || '').toUpperCase();
+// (translated here: cards are never translated as a whole — their names are the person's own words)
+export const typeLabel = (it) => {
+  const own = OWN_TYPES[(it.ext || '').toLowerCase()];
+  return own ? t(own) : (it.ext || it.kind || '').toUpperCase();
+};
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 

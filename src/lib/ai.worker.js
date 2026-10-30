@@ -12,6 +12,16 @@ ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardw
 const SIZE = 256, LEN = 64;
 let vision = null, text = null, tok = null, device = 'wasm';
 
+// onnxruntime keeps one «a run is in progress» flag for the whole wasm module: two runs at once — the same model
+// twice, or pictures and a search phrase — fail with «Session already started». Every model call waits its turn
+// (a phrase waits for at most one picture: the library is studied one picture at a time).
+let turn = Promise.resolve();
+const inTurn = (fn) => {
+  const r = turn.then(fn);
+  turn = r.catch(() => {});
+  return r;
+};
+
 const norm = (a) => {
   let s = 0;
   for (let i = 0; i < a.length; i++) s += a[i] * a[i];
@@ -55,20 +65,22 @@ function pixels(bitmap) {
 }
 
 async function embedImage(bitmap) {
-  const r = await vision.run({ pixel_values: new ort.Tensor('float32', pixels(bitmap), [1, 3, SIZE, SIZE]) });
+  const px = new ort.Tensor('float32', pixels(bitmap), [1, 3, SIZE, SIZE]);
+  const r = await inTurn(() => vision.run({ pixel_values: px }));
   return norm(r.pooler_output.data);
 }
 
 async function embedText(q) {
   const ids = tok.encode(q.toLowerCase()).ids.slice(0, LEN);
   while (ids.length < LEN) ids.push(0); // <pad>
-  const r = await text.run({ input_ids: new ort.Tensor('int64', BigInt64Array.from(ids.map(BigInt)), [1, LEN]) });
+  const inp = new ort.Tensor('int64', BigInt64Array.from(ids.map(BigInt)), [1, LEN]);
+  const r = await inTurn(() => text.run({ input_ids: inp }));
   return norm(r.pooler_output.data);
 }
 
 self.onmessage = async ({ data: m }) => {
   try {
-    if (m.type === 'init') self.postMessage({ type: 'ready', rid: m.rid, ...(await init(m)) });
+    if (m.type === 'init') self.postMessage({ type: 'ready', rid: m.rid, ...(await inTurn(() => init(m))) });
     else if (m.type === 'image') {
       // the thumbnail is read here (asset / blob URL), so the interface thread only sends its address
       const bitmap = m.bitmap || await createImageBitmap(await (await fetch(m.url)).blob());

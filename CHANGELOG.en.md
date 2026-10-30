@@ -2,6 +2,13 @@
 
 # Changelog
 
+## 1.0.2 — 30 October 2026
+
+- AI search: on the first run the AI could answer “Session already started” or hang when a search or AI tags came
+  at the same time as studying the library. The model now takes requests one at a time.
+- English: material and block cards, the heart's tooltip, screen-reader labels, the team and personal-data badges and
+  the status line in “SVG to 3D” are no longer in Russian; quotes in English text are “ ” instead of « ».
+
 ## 1.0.1 — 29 October 2026
 
 - Claude Code connects to Oddments the way Claude Desktop does: through `Oddments --mcp`, and Oddments starts by

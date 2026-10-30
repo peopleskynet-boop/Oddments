@@ -9,6 +9,7 @@ import { settings } from './settings.js';
 import { sfx } from './sound.js';
 import { setFrameGeometry } from './frame.js';
 import { motionOn } from './motion.js';
+import { t } from '../lib/i18n.js';
 
 const scroller = () => document.getElementById('scroll');
 const host = () => document.getElementById('grid');
@@ -20,6 +21,8 @@ const OVERSCAN = 700;
 
 const KIND_ICON = { video: '▶', audio: '♪', font: 'Aa', pdf: 'PDF', psd: 'PSD', gif: 'GIF', model: '3D', other: '' };
 const liveVideo = (it) => it.kind === 'video' && settings.vplay === 'always';
+// cards are never translated as a whole (the names are the person's own words): their own labels go through t() here
+const favTip = (it) => t(it.fav ? 'Убрать из избранного' : 'В избранное');
 
 function capHeight() { return settings.captions ? 24 : 0; }
 
@@ -38,38 +41,40 @@ function cardHTML(it) {
   else if (it.kind === 'pdf') badge = `<span class="badge">PDF${it.pages ? ' · ' + it.pages : ''}</span>`;
   else if (it.kind === 'psd') badge = '<span class="badge">PSD</span>';
   else if (it.kind === 'font') badge = '<span class="badge">Aa</span>';
-  else if (it.kind === 'material') badge = '<span class="badge">Материал</span>';
-  else if (it.kind === 'block') badge = '<span class="badge">Блок</span>';
+  else if (it.kind === 'material') badge = `<span class="badge">${t('Материал')}</span>`;
+  else if (it.kind === 'block') badge = `<span class="badge">${t('Блок')}</span>`;
   else if (it.kind === 'model') badge = `<span class="badge">${it.ext === 'blend' ? 'BLEND' : '3D · ' + esc((it.ext || '').toUpperCase())}</span>`;
   // the type is said once: a card with a type badge does not repeat the extension in its caption
   const ex = badge ? '' : `<span class="ex">${esc(it.ext || '')}</span>`;
   const cap = settings.captions
     ? `<div class="cap"><span class="nm">${esc(it.name)}</span>${ex}</div>` : '';
   const ovl = settings.captions ? '' : `<div class="ovl"><span class="nm">${esc(it.name)}</span>${ex}</div>`;
-  const fav = `<button class="fav${it.fav ? ' on' : ''}" data-fav tabindex="-1" aria-label="${it.fav ? 'Убрать из избранного' : 'В избранное'}" title="${it.fav ? 'Убрать из избранного' : 'В избранное'}">${ic(it.fav ? 'heartOn' : 'heart')}</button>`;
-  const dot = it.fresh ? '<span class="newdot" aria-label="Новый файл"></span>' : '';
+  const fav = `<button class="fav${it.fav ? ' on' : ''}" data-fav tabindex="-1" aria-label="${favTip(it)}" title="${favTip(it)}">${ic(it.fav ? 'heartOn' : 'heart')}</button>`;
+  const dot = it.fresh ? `<span class="newdot" aria-label="${t('Новый файл')}"></span>` : '';
   // a flow collection (flows.js): the step number in the corner
   const fl = S.view.type === 'folder' && folderById(S.view.id);
   const at = fl && fl.flow && fl.order ? fl.order.indexOf(it.id) : -1;
   const step = at >= 0 ? `<span class="step">${String(at + 1).padStart(2, '0')}</span>` : '';
-  const pii = piiMark(it) + (it.team ? `<span class="teamm" title="Из командной библиотеки${it.by ? ' · добавил(а) ' + esc(it.by) : ''}">${ic('team')}</span>` : '');
+  const team = it.by ? t(`Из командной библиотеки · добавил(а) ${it.by}`) : t('Из командной библиотеки');
+  const pii = piiMark(it) + (it.team ? `<span class="teamm" title="${esc(team)}">${ic('team')}</span>` : '');
   return `<div class="ph">${media}${badge}${step}${dot}${pii}${fav}${ovl}</div>${cap}`;
 }
 
 // what a screen reader hears for a card: name, type, and the states shown only visually
 function cardLabel(it) {
-  return [it.name, typeLabel(it), it.team && 'командный', it.fresh && 'новый', it.fav && 'в избранном', it.pii && it.pii.length && !it.masked && 'личные данные'].filter(Boolean).join(', ');
+  const flags = [it.team && 'командный', it.fresh && 'новый', it.fav && 'в избранном', it.pii && it.pii.length && !it.masked && 'личные данные'];
+  return [it.name, typeLabel(it), ...flags.filter(Boolean).map(t)].join(', ');
 }
 
 // keep a card's heart and label in sync after favourites change elsewhere (F key, inspector)
 // personal data on the picture (pii.js): a quiet shield in the corner — check it before it goes to Figma or the team
-const piiMark = (it) => (it.pii && it.pii.length && !it.masked ? `<span class="piim" title="Личные данные на картинке — «Скрыть личные данные…» в меню">${ic('shield')}</span>` : '');
+const piiMark = (it) => (it.pii && it.pii.length && !it.masked ? `<span class="piim" title="${t('Личные данные на картинке — «Скрыть личные данные…» в меню')}">${ic('shield')}</span>` : '');
 
 export function syncCard(id) {
   const n = nodes.get(id), it = S.byId.get(id);
   if (!n || !it) return;
   const b = n.querySelector('[data-fav]');
-  if (b) { b.classList.toggle('on', it.fav); b.innerHTML = ic(it.fav ? 'heartOn' : 'heart'); b.title = b.ariaLabel = it.fav ? 'Убрать из избранного' : 'В избранное'; }
+  if (b) { b.classList.toggle('on', it.fav); b.innerHTML = ic(it.fav ? 'heartOn' : 'heart'); b.title = b.ariaLabel = favTip(it); }
   n.setAttribute('aria-label', cardLabel(it));
   const ph = n.querySelector('.ph'), m = ph && ph.querySelector('.piim'), want = piiMark(it);
   if (m && !want) m.remove();
@@ -275,7 +280,7 @@ export function initGrid() {
     sfx(it.fav ? 'fav' : 'unfav');
     b.classList.toggle('on', it.fav);
     b.innerHTML = ic(it.fav ? 'heartOn' : 'heart');
-    b.title = b.ariaLabel = it.fav ? 'Убрать из избранного' : 'В избранное';
+    b.title = b.ariaLabel = favTip(it);
     c.setAttribute('aria-label', cardLabel(it));
     saveIndex();
     if (S.view.type === 'fav') ui.refresh(); else ui.renderSide();
