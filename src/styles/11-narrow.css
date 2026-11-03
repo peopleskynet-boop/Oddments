@@ -4,7 +4,7 @@
 /* animations off — by the setting, or by the system when «Анимации: Как в системе» (settings.js sets no-anim) */
 body.no-anim *, body.no-anim *::before, body.no-anim *::after { animation: none !important; transition: none !important; }
 
-@media (max-width: 1180px) { :root { --sw: 228px; --iw: 290px; } .head h1 { font-size: 44px; } .head .count { font-size: 40px; } .stats { gap: 22px; } .stats dt { font-size: 24px; } }
+@media (max-width: 1180px) { :root { --sw: 228px; --iw: 290px; } .head h1 { font-size: 39px; } .head .count { font-size: 40px; } .stats { gap: 22px; } .stats dt { font-size: 24px; } }
 @media (max-width: 860px) {
   :root, body.side-off, body.insp-off { --pl: 12px; --pr: 12px; --gap: 8px; }
   .only-narrow { display: inline-grid !important; }
@@ -16,7 +16,7 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after { animation: none 
   #addBtn span { display: none; }
   #addBtn { padding: 0 10px 0 14px; }
   .dock, #simBtn, .search kbd { display: none; }
-  .head h1 { font-size: 36px; } .head .count { font-size: 32px; }
+  .head h1 { font-size: 32px; } .head .count { font-size: 32px; }
   .stats { display: none; }
   /* the properties panel is a sheet at the bottom: under half the window and dense (it used to take two thirds,
      see-through, over the very card it described — narrow-window pass 25.10); the wall gets room to scroll the

@@ -263,7 +263,7 @@ body:not(.motion) .pvm-row, body:not(.motion) .pvm-h::after, body:not(.motion) .
 .bl-pic img { width: 200px; height: 200px; object-fit: contain; display: block; }
 .bl-pic b { margin: 0; }
 .bl-info { display: grid; gap: 6px; justify-items: start; min-width: 0; }
-.bl-info h3 { margin: 0; color: var(--stage-fg); font-size: 24px; font-weight: 650; letter-spacing: -.03em; line-height: 1.15; overflow-wrap: anywhere; }
+.bl-info h3 { margin: 0; color: var(--stage-fg); font-family: var(--font-display); font-size: 21px; font-weight: 500; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
 .bl-meta { font: 500 12px var(--mono); color: #a1a1a8; text-transform: uppercase; letter-spacing: .04em; }
 .bl-info p { margin: 6px 0 10px; font-size: 13px; line-height: 1.5; color: #a1a1a8; max-width: 44ch; }
 .pv-other.blend .pv-btn.pri { background: var(--acc); color: var(--acc-fg); }

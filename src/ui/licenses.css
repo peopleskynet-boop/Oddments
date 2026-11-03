@@ -6,7 +6,7 @@
 .lc.glass { --glass-fill: color-mix(in srgb, var(--panel) 94%, transparent); background: var(--glass-fill); }
 .lc[hidden] { display: none; }
 .lc-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.lc-h h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
+.lc-h h2 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 500; letter-spacing: -.02em; }
 .lc-b { overflow: auto; padding-bottom: 22px; font-size: 13px; line-height: 1.5; }
 .lc-b h3 { margin: 20px 0 6px; font-size: 15px; font-weight: 600; }
 .lc-b p, .lc-b ul { margin: 0 0 8px; color: var(--mut); }

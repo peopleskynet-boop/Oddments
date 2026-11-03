@@ -4,7 +4,7 @@
 /* dense: the sheet opens over pictures and its small grey keys must read (audit 29.10) */
 .keys.glass { --glass-fill: color-mix(in srgb, var(--panel) 94%, transparent); background: var(--glass-fill); }
 .keys-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.keys-h h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.03em; }
+.keys-h h2 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 500; letter-spacing: -.02em; }
 .keys-g { columns: 2 300px; column-gap: 28px; }
 .keys section { break-inside: avoid; margin-bottom: 16px; }
 .keys h3 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--mut); }

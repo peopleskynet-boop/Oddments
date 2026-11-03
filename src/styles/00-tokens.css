@@ -16,6 +16,7 @@
   --shadow: 0 22px 56px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .35);
   --r: 16px; --rp: 28px; --fs: 13px; --navpad: 6px; --gap: 12px;
   --font-ui: 'Golos Text Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Unbounded Variable', 'Golos Text Variable', 'Segoe UI', sans-serif; /* headings: wide and round, like the pills */
   --mono: 'Geist Mono Variable', Consolas, ui-monospace, monospace;
   --ease: cubic-bezier(.2, .7, .2, 1);
   --sw: 256px; --iw: 316px; --barh: 52px;

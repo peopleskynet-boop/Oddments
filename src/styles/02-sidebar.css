@@ -10,7 +10,7 @@ body.side-off .side { transform: translateX(calc(-100% - 24px)); opacity: 0; poi
 /* the Oddments «Prism» mark: the app icon itself (src/assets, cropped from the brand concept) */
 .mark { width: 26px; height: 26px; border-radius: 7px; background: url("../assets/oddments-mark.png") center / cover no-repeat; position: relative; flex: none; transition: transform .5s var(--ease); }
 .brand:hover .mark { transform: rotate(-8deg); }
-.brand-n { font-size: 18px; font-weight: 700; letter-spacing: -.045em; }
+.brand-n { font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
 .brand .sp { flex: 1; }
 .side-scroll { overflow: auto; padding: 0 2px 8px; flex: 1; min-height: 0; scrollbar-width: none; }
 .side-scroll::-webkit-scrollbar { display: none; }

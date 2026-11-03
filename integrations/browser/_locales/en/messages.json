@@ -17,6 +17,9 @@
   "cmd_save_article": {
     "message": "Save the article to Oddments — read it there"
   },
+  "cmd_record_area": {
+    "message": "Record a video of an area to Oddments (again — stop)"
+  },
   "cmd_grab_block": {
     "message": "Take a UI block to Oddments"
   }

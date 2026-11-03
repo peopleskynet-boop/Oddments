@@ -19,13 +19,13 @@ body.insp-off .insp { transform: translateX(calc(100% + 24px)); opacity: 0; poin
 .fsample { font-size: 34px; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
 .title-in {
   width: calc(100% + 8px); margin: 0 0 2px -4px; padding: 2px 4px; border: 0; outline: 0; background: none; border-radius: 10px;
-  font-size: 24px; font-weight: 650; letter-spacing: -.04em; line-height: 1.15; text-overflow: ellipsis;
+  font-family: var(--font-display); font-size: 21px; font-weight: 500; letter-spacing: -.02em; line-height: 1.2; text-overflow: ellipsis;
 }
 .title-in:hover { background: var(--hover); }
 .title-in:focus { background: var(--field); box-shadow: inset 0 0 0 1px var(--line-2); }
 .ov-s { color: var(--mut); margin: 0 0 18px; font-size: 12px; font-weight: 500; }
 .ov-s.sub { margin: 0 0 16px; }
-.ov-h { font-size: 26px; font-weight: 650; letter-spacing: -.045em; margin: 4px 0 4px; line-height: 1.05; }
+.ov-h { font-family: var(--font-display); font-size: 23px; font-weight: 500; letter-spacing: -.02em; margin: 4px 0 4px; line-height: 1.05; }
 .fld { display: block; margin-bottom: 16px; }
 .fld > span, .sec { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 500; color: var(--mut); margin-bottom: 7px; }
 .lnk { color: var(--mut); font-size: 12px; font-weight: 500; }

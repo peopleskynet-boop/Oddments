@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_name__",
   "short_name": "Oddments",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "__MSG_desc__",
   "minimum_chrome_version": "116",
   "icons": {
@@ -26,7 +26,10 @@
     "storage",
     "activeTab",
     "scripting",
-    "tabs"
+    "tabs",
+    "tabCapture",
+    "offscreen",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -84,6 +87,9 @@
     },
     "grab-block": {
       "description": "__MSG_cmd_grab_block__"
+    },
+    "record-area": {
+      "description": "__MSG_cmd_record_area__"
     }
   },
   "default_locale": "en"

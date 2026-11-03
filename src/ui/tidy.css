@@ -27,7 +27,7 @@ body.tidy-on .scroll, body.tidy-on .dock { visibility: hidden; }
 .td-a select { flex: 1 1 auto; width: auto; min-width: 0; height: 30px; border-radius: 99px; padding: 0 10px; background: var(--hover); color: var(--fg); border: 0; font: inherit; font-size: 12px; }
 .td-skip { width: 30px; height: 30px; flex: none; }
 .td-empty { text-align: center; color: var(--mut); margin-top: 18vh; }
-.td-empty h2 { color: var(--fg); font-size: 22px; font-weight: 650; letter-spacing: -.02em; margin: 0 0 6px; }
+.td-empty h2 { color: var(--fg); font-family: var(--font-display); font-size: 20px; font-weight: 500; letter-spacing: -.02em; margin: 0 0 6px; }
 .td-empty p { max-width: 420px; margin: 0 auto; }
 /* the properties panel floats over the wall (body.overlay): this screen runs to the right edge like the grid, not short
    of it by the panel's width (audit 29.10) */

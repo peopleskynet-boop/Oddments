@@ -2,6 +2,20 @@
 
 # Changelog
 
+## 1.1.0 — 3 November 2026
+
+- A new start screen: the prism from the icon condenses in a drop of liquid glass, the drop spreads into the icon's
+  tile and the glass's rim splits the prism into colour. When the glass lets go, “Oddments” comes up under the icon,
+  a light runs across it, and the icon flies into the sidebar's mark. With animations off there is no start screen.
+- Screen headings, the file name in the properties panel and the “Oddments” wordmark are set in Unbounded; the
+  interface text stays Golos Text.
+- The Chrome and Edge extension 1.6 records a video of an area: draw a frame over part of a page and whatever happens
+  inside it is recorded to MP4 with the tab's sound (pause, stop, up to 5 minutes). The video goes to Oddments, or to
+  the browser's downloads when Oddments is closed. Right click › Oddments › “Area video”, the button in the
+  extension's window, or your own shortcut in edge://extensions/shortcuts. To update the extension: Oddments ›
+  Plugins › “Save the extension…”, then “Update” on the extensions page — the browser asks to allow tab capture and
+  downloads.
+
 ## 1.0.2 — 30 October 2026
 
 - AI search: on the first run the AI could answer “Session already started” or hang when a search or AI tags came

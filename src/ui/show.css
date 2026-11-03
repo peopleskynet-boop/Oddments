@@ -14,7 +14,7 @@
 .shw-m { position: absolute; translate: -50% -50%; width: 28px; height: 28px; border-radius: 50% 50% 50% 4px; background: #d7ff63; color: #111; font: 700 12px/28px var(--mono); text-align: center; }
 .shw-cap { display: flex; gap: 40px; align-items: flex-start; padding: 8px 56px 96px; min-height: 120px; }
 .shw-cap > div { flex: 1 1 auto; min-width: 0; }
-.shw-t { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shw-t { margin: 0; font-family: var(--font-display); font-size: 25px; font-weight: 500; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shw-s { margin: 6px 0 0; color: #8b8d98; font-size: 14px; }
 .shw-notes { flex: 0 1 460px; margin: 4px 0 0; padding-left: 22px; display: grid; gap: 6px; font-size: 15px; line-height: 1.45; }
 .shw-notes:empty { display: none; }

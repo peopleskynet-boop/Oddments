@@ -40,4 +40,3 @@
 :root[data-theme="marathon"] body.motion .card:hover::before, :root[data-theme="marathon"] body.motion .card:hover::after { translate: 0 -3px; }
 /* the picture lifts but does not lean here: a tilt moves its corners into the brackets that frame it */
 :root[data-theme="marathon"] body.motion .card:hover .ph { transform: translateY(-3px); }
-:root[data-theme="marathon"] .head h1 { text-transform: uppercase; letter-spacing: -.03em; }

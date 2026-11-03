@@ -58,6 +58,13 @@
     .area { position: fixed; inset: 0; width: 100vw; height: 100vh; cursor: crosshair; background: rgba(0,0,0,.28); }
     .area b { position: fixed; border: 1.5px solid var(--acc); border-radius: 4px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.28); }
     .area span { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: var(--bg); color: var(--fg); font-size: 12px; }
+    .rec-frame { position: fixed; pointer-events: none; border-radius: 2px; box-shadow: 0 0 0 2px var(--acc), 0 0 0 100vmax rgba(0,0,0,.22); }
+    .rec-bar { position: fixed; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; padding: 6px 6px 6px 14px; border-radius: 999px;
+      background: var(--bg); color: var(--fg); font-size: 13px; backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 40px rgba(0,0,0,.35), inset 0 0 0 1px var(--line); }
+    .rec-bar i { width: 10px; height: 10px; border-radius: 50%; background: #ff2d6f; animation: pulse 1.2s infinite; }
+    .rec-bar.paused i { animation: none; opacity: .35; }
+    .rec-bar b { min-width: 38px; font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
+    .rec-bar .x { width: 34px; padding: 0; font-size: 18px; line-height: 1; }
     .gal { position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(6,7,5,.86); backdrop-filter: blur(10px); color: var(--fg);
       display: flex; flex-direction: column; }
     .gal header { display: flex; gap: 12px; align-items: center; padding: 18px 24px; flex-wrap: wrap; }
@@ -130,7 +137,9 @@
       fetch(msg.url).then((r) => r.blob()).then((b) => new Promise((res) => { const f = new FileReader(); f.onload = () => res(f.result); f.readAsDataURL(b); }))
         .then((data) => reply({ data }), () => reply({}));
       return true;
-    } else if (msg.t === 'pickArea') { pickArea().then(reply); return true; }
+    } else if (msg.t === 'pickArea') { pickArea(msg.label).then(reply); return true; }
+    else if (msg.t === 'recUi') { recUi(msg); reply(true); }
+    else if (msg.t === 'recEnd') { recEnd(); reply(true); }
     else if (msg.t === 'gallery') { gallery(); reply(true); }
     else if (msg.t === 'pageHtml') reply({ html: '<!doctype html>' + document.documentElement.outerHTML, title: document.title, url: location.href });
   });
@@ -354,7 +363,7 @@
   const VIMEO = /^https:\/\/player\.vimeo\.com\/video\/\d+/i;
   const isEmbed = (el) => el && el.tagName === 'IFRAME' && VIMEO.test(el.src);
   addEventListener('mouseover', (e) => {
-    if (!alive || !prefs.hoverBtn) return;
+    if (!alive || !prefs.hoverBtn || recording) return;
     const img = e.target.closest && e.target.closest('img');
     if (!img || img === hovImg) return;
     const r = img.getBoundingClientRect();
@@ -385,7 +394,7 @@
   /* ---------- drag to the dock ---------- */
   let dragged = null;
   addEventListener('dragstart', (e) => {
-    if (!alive) return;
+    if (!alive || recording) return;
     const t = e.target.nodeType === 1 ? e.target : e.target.parentElement;
     if (!t) return;
     const img = t.tagName === 'IMG' ? t : t.querySelector && t.querySelector('img');
@@ -411,12 +420,13 @@
   });
 
   /* ---------- area screenshot ---------- */
-  function pickArea() {
+  function pickArea(label) {
     return new Promise((resolve) => {
       mount();
       const ov = document.createElement('div');
       ov.className = 'area';
-      ov.innerHTML = '<b hidden></b><span>' + T('Выделите область · Esc — отмена') + '</span>';
+      ov.innerHTML = '<b hidden></b><span></span>';
+      ov.querySelector('span').textContent = label || T('Выделите область · Esc — отмена');
       root.appendChild(ov);
       const box = ov.querySelector('b');
       let x0 = 0, y0 = 0, rect = null;
@@ -440,8 +450,60 @@
         rect = { x: Math.min(x0, e.clientX), y: Math.min(y0, e.clientY), w: Math.abs(e.clientX - x0), h: Math.abs(e.clientY - y0) };
         Object.assign(box.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
       });
-      ov.addEventListener('pointerup', () => done(rect && rect.w > 4 && rect.h > 4 ? { ...rect, vw: innerWidth } : null));
+      ov.addEventListener('pointerup', () => done(rect && rect.w > 4 && rect.h > 4 ? { ...rect, vw: innerWidth, vh: innerHeight, dpr: devicePixelRatio || 1 } : null));
     });
+  }
+
+  /* ---------- a video of an area: the frame and the bar ---------- */
+  // The recording itself runs in the extension (offscreen.js); here the frame shows what is recorded and the bar
+  // pauses and stops it. The frame is drawn just outside the area and the bar beside it, so neither is in the video;
+  // the page inside stays live (clicks, scrolling). The «В Oddments» button and the dock stay away meanwhile.
+  let recording = null;
+  function recUi({ rect, elapsed = 0, paused = false, max = 300000 }) {
+    recEnd();
+    mount();
+    const ui = document.createElement('div');
+    ui.className = 'rec';
+    ui.innerHTML = `<div class="rec-frame"></div><div class="rec-bar"><i></i><b>0:00</b>
+      <button class="btn" data-r="pause"></button><button class="btn pri" data-r="stop">${T('Стоп')}</button>
+      <button class="btn x" data-r="cancel" aria-label="${T('Отменить запись')}" title="${T('Отменить запись')}">×</button></div>`;
+    root.appendChild(ui);
+    Object.assign(ui.querySelector('.rec-frame').style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
+    const bar = ui.querySelector('.rec-bar');
+    // below the area, else above it, else inside its lower edge (then it is in the video)
+    const bh = 46, gap = 12;
+    const top = rect.y + rect.h + gap + bh <= innerHeight ? rect.y + rect.h + gap : rect.y - gap - bh >= 0 ? rect.y - gap - bh : rect.y + rect.h - bh - gap;
+    bar.style.top = top + 'px';
+    bar.style.left = Math.round(rect.x + rect.w / 2) + 'px';
+    const s = { ui, bar, paused, base: elapsed, from: performance.now(), max, tick: 0 };
+    recording = s;
+    const time = () => (s.paused ? s.base : s.base + performance.now() - s.from);
+    const show = () => {
+      const t = Math.floor(time() / 1000);
+      bar.querySelector('b').textContent = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+      bar.classList.toggle('paused', s.paused);
+      bar.querySelector('[data-r=pause]').textContent = s.paused ? T('Продолжить') : T('Пауза');
+      if (time() >= s.max && recording === s) send({ t: 'recCtl', do: 'stop' });
+    };
+    show();
+    s.tick = setInterval(show, 250);
+    bar.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-r]');
+      if (!b) return;
+      e.preventDefault(); e.stopPropagation();
+      let what = b.dataset.r;
+      if (what === 'pause' && s.paused) what = 'resume';
+      if (what === 'pause') { s.base = time(); s.paused = true; } else if (what === 'resume') { s.from = performance.now(); s.paused = false; }
+      show();
+      send({ t: 'recCtl', do: what });
+    });
+    $('.hov').classList.remove('on');
+  }
+  function recEnd() {
+    if (!recording) return;
+    clearInterval(recording.tick);
+    recording.ui.remove();
+    recording = null;
   }
 
   /* ---------- all pictures of the page ---------- */

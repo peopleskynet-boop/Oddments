@@ -5,7 +5,7 @@
 .scn[hidden] { display: none; }
 .scn-top { display: flex; align-items: center; gap: 16px; padding: 22px 28px 10px; }
 .scn-top > div:first-child { margin-right: auto; min-width: 0; }
-.scn-t { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.03em; }
+.scn-t { margin: 0; font-family: var(--font-display); font-size: 25px; font-weight: 500; letter-spacing: -.02em; }
 .scn-sub { color: var(--mut); }
 .scn-seg { display: inline-flex; padding: 4px; border-radius: 99px; background: var(--hover); }
 .scn-seg button { height: 34px; padding: 0 16px; border: 0; border-radius: 99px; background: none; color: var(--mut); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }

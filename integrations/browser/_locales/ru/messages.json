@@ -17,6 +17,9 @@
   "cmd_save_article": {
     "message": "Сохранить статью в Oddments — читать там"
   },
+  "cmd_record_area": {
+    "message": "Видео выбранной области в Oddments (ещё раз — стоп)"
+  },
   "cmd_grab_block": {
     "message": "Забрать блок интерфейса в Oddments"
   }

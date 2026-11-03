@@ -149,6 +149,61 @@ async function shotArea(tab) {
   return name;
 }
 
+/* ---------- a video of an area ---------- */
+// The tab is captured (tabCapture) in an offscreen page (offscreen.js) that crops every frame to the frame drawn on
+// the page and records it with the tab's sound; the page shows the frame and a bar (time, pause, stop, cancel). The
+// recording's state lives in the offscreen page — this worker may be stopped meanwhile. The file goes to Oddments
+// like any other; when Oddments is not there, to the browser's downloads.
+const toOff = (msg) => chrome.runtime.sendMessage({ ...msg, target: 'offscreen' });
+const offOpen = () => (chrome.offscreen ? chrome.offscreen.hasDocument() : Promise.resolve(false));
+const recState = async () => ((await offOpen()) ? (await toOff({ t: 'recState' }).catch(() => null)) || { on: false } : { on: false });
+const closeOff = () => chrome.offscreen.closeDocument().catch(() => {});
+
+async function recordArea(tab) {
+  if ((await recState()).on) { await toOff({ t: 'recCtl', do: 'stop' }); return null; } // the same command again stops
+  if (!chrome.tabCapture || !chrome.offscreen) throw new PerchError(T('Этот браузер не умеет записывать вкладку'));
+  const pick = await ask(tab, { t: 'pickArea', label: T('Выделите область для видео · Esc — отмена') });
+  if (!pick || !pick.w || !pick.h) return null; // cancelled
+  // the id lives a few seconds: taken after the frame is drawn
+  let streamId;
+  try { streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id }); } catch (e) { throw new PerchError(T('Эту вкладку не записать: ') + ((e && e.message) || e)); }
+  if (!(await offOpen())) await chrome.offscreen.createDocument({ url: 'offscreen.html', reasons: ['USER_MEDIA'], justification: 'Records a selected area of the tab as a video' });
+  const name = T('Видео {site} {time}', { site: hostOf(tab.url), time: stamp() });
+  const r = await toOff({ t: 'recStart', streamId, pick, tabId: tab.id, name, page: tab.url });
+  if (!r || r.error) throw new PerchError(T('Запись не началась: ') + ((r && r.error) || ''));
+  await ask(tab, { t: 'recUi', rect: pick, elapsed: 0, paused: false, max: 5 * 60 * 1000 });
+  return null; // the toast comes with the file
+}
+
+// the recording has stopped (offscreen.js): the file to Oddments, or to the downloads when Oddments is not there
+async function recordingDone(m) {
+  const tab = await chrome.tabs.get(m.tabId).catch(() => null);
+  if (tab) await ask(tab, { t: 'recEnd' });
+  if (m.cancelled) { await closeOff(); return; }
+  if (!m.size) { await say(tab, T('Запись пустая'), 'err'); await closeOff(); return; }
+  const name = cleanName(m.name) + (/mp4/.test(m.type) ? '.mp4' : '.webm');
+  if (tab) await ask(tab, { t: 'toast', text: T('Сохраняю видео…'), kind: 'busy' });
+  try {
+    await sendBlob(await (await fetch(m.url)).blob(), name, m.page);
+    await say(tab, T('В Oddments: ') + name);
+    await closeOff();
+  } catch (e) {
+    if (!(e instanceof PerchError && e.fatal)) { await failed(tab, e); await closeOff(); return; }
+    // Oddments is off or not paired: the video is not lost
+    const id = await chrome.downloads.download({ url: m.url, filename: name });
+    await say(tab, e.message + T(' — видео в загрузках'), 'err');
+    const done = (d) => { if (d.id === id && d.state && d.state.current !== 'in_progress') { chrome.downloads.onChanged.removeListener(done); closeOff(); } };
+    chrome.downloads.onChanged.addListener(done);
+  }
+}
+
+// a page of the recorded tab opened anew (a link was followed): the frame and the bar come back on it
+chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
+  if (info.status !== 'complete') return;
+  const s = await recState();
+  if (s.on && s.tabId === tabId) ask(tab, { t: 'recUi', rect: s.rect, elapsed: s.elapsed, paused: s.paused, max: s.max });
+});
+
 /* ---------- the page side ---------- */
 // a message to the tab's content script; scripts that were not there yet (tabs opened before the install) are injected
 async function ask(tab, msg) {
@@ -299,6 +354,7 @@ const MENUS = [
   { id: 'sep', type: 'separator', contexts: ['page', 'image', 'link', 'video'] },
   { id: 'all', title: 'Все картинки страницы…', contexts: ['page', 'image', 'link'] },
   { id: 'area', title: 'Снимок области', contexts: ['page', 'image', 'link', 'video'] },
+  { id: 'rec', title: 'Видео области', contexts: ['page', 'image', 'link', 'video'] },
   { id: 'shot', title: 'Снимок видимой части', contexts: ['page', 'image', 'link', 'video'] },
   { id: 'block', title: 'Забрать блок интерфейса…', contexts: ['page', 'image', 'link', 'video', 'selection'] },
 ];
@@ -388,6 +444,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     case 'article': return run(tab, () => saveArticle(tab), (n) => T('Статья в Oddments: ') + n);
     case 'all': return ask(tab, { t: 'gallery' });
     case 'area': return run(tab, () => shotArea(tab), (n) => T('В Oddments: ') + n);
+    case 'rec': return run(tab, () => recordArea(tab), (n) => n);
     case 'shot': return run(tab, () => shotVisible(tab), (n) => T('В Oddments: ') + n);
     case 'block': return ask(tab, { t: 'pickBlock' });
   }
@@ -401,6 +458,7 @@ chrome.commands.onCommand.addListener(async (cmd, tab) => {
   if (cmd === 'save-all') ask(tab, { t: 'gallery' });
   if (cmd === 'save-article') run(tab, () => saveArticle(tab), (n) => T('Статья в Oddments: ') + n);
   if (cmd === 'grab-block') ask(tab, { t: 'pickBlock' });
+  if (cmd === 'record-area') run(tab, () => recordArea(tab), (n) => n);
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -457,12 +515,16 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       // Alt+click inside a Vimeo frame (embed.js), or the hover button over its iframe (content.js)
       case 'saveEmbed': return run(tab, () => saveEmbed(tab, msg.src ? null : sender.frameId, msg.src || (sender.url || ''), tab && tab.url), (n) => T('В Oddments: ') + n);
       case 'embedInfo': return embedInfo(msg.ids || []);
+      // «Видео области»: the bar on the page (pause, resume, stop, cancel) and the finished file from offscreen.js
+      case 'recCtl': return toOff({ t: 'recCtl', do: msg.do }).catch(() => ({ on: false }));
+      case 'recDone': return recordingDone(msg);
       // from the popup: act on the active tab
       case 'popup': {
         const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!t) return;
         if (msg.do === 'shot') return run(t, () => shotVisible(t), (n) => T('В Oddments: ') + n);
         if (msg.do === 'area') return run(t, () => shotArea(t), (n) => T('В Oddments: ') + n);
+        if (msg.do === 'rec') return run(t, () => recordArea(t), (n) => n);
         if (msg.do === 'page') return run(t, () => saveLink(t.url, t.title), (n) => T('В Oddments: ') + n);
         if (msg.do === 'all') return ask(t, { t: 'gallery' });
         if (msg.do === 'article') return run(t, () => saveArticle(t), (n) => T('Статья в Oddments: ') + n);

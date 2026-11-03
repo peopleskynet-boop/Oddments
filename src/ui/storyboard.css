@@ -5,7 +5,7 @@
 .sb-layer[hidden] { display: none; }
 .sb-top { display: flex; align-items: center; gap: 16px; padding: 22px 28px 10px; }
 .sb-top > div:first-child { margin-right: auto; min-width: 0; }
-.sb-t { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-t { margin: 0; font-family: var(--font-display); font-size: 25px; font-weight: 500; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-sub { color: var(--mut); }
 .sb-seg { display: flex; padding: 3px; border-radius: 99px; background: var(--hover); }
 .sb-seg button { height: 34px; padding: 0 16px; border: 0; border-radius: 99px; background: none; color: var(--mut); font: inherit; font-weight: 600; cursor: pointer; }
