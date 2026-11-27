@@ -87,8 +87,10 @@ export function urlFromShortcut(text) {
   return m ? m[1].trim() : '';
 }
 
-// Card for a link: Figma links get the Figma mark and the file name, other links their domain.
-export function linkCard(url, W = 640, H = 480) {
+// Card for a link: Figma links get the Figma mark and the file name; a page without a picture gets its name in big
+// letters and the site under it (`o`: { title, site, tint } — tint: the site icon's colour, a faint wash); the wall
+// draws the latter itself in the theme's colours (grid.js), this picture is for the panel, Figma and the share page
+export function linkCard(url, W = 640, H = 480, o = {}) {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const x = c.getContext('2d');
@@ -96,6 +98,16 @@ export function linkCard(url, W = 640, H = 480) {
   const g = x.createLinearGradient(0, 0, W, H);
   g.addColorStop(0, f ? '#1e1e24' : '#202024'); g.addColorStop(1, f ? '#2c2235' : '#2a2a2f');
   x.fillStyle = g; x.fillRect(0, 0, W, H);
+  if (!f && o.title) {
+    if (o.tint) { const r = x.createRadialGradient(W * 0.15, 0, 0, W * 0.15, 0, W); r.addColorStop(0, o.tint + '55'); r.addColorStop(1, o.tint + '00'); x.fillStyle = r; x.fillRect(0, 0, W, H); }
+    x.fillStyle = '#f5f5f7';
+    x.font = '600 44px "Golos Text Variable", "Segoe UI", sans-serif';
+    wrap(x, o.title, 56, 104, W - 112, 54, 5);
+    x.fillStyle = '#a3a3ab';
+    x.font = '500 26px "Golos Text Variable", "Segoe UI", sans-serif';
+    x.fillText(o.site || (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return t('Ссылка'); } })(), 56, H - 52);
+    return c;
+  }
   if (f) {
     // the Figma mark: five rounded shapes
     const s = 46, ox = 56, oy = 60;

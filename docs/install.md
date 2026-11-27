@@ -61,7 +61,12 @@ Edit › Preferences › Add-ons › Install from Disk. В обоих случа
 
 ## Плагины и Claude
 
-Все интеграции — в Oddments › левая панель › Инструменты › «Плагины»: Blender, Figma, Chrome и Edge, Safari и Claude.
+Все интеграции — в Oddments › левая панель › Инструменты › «Плагины»: Blender, Figma, Chrome и Edge, Zen и Firefox, Safari и Claude.
+Расширение для Zen и Firefox — файл .xpi из «Плагинов» › «Zen и Firefox». Zen ставит его после одной настройки:
+about:config › `xpinstall.signatures.required` = `false`, затем about:addons › ⚙ › «Установить дополнение из файла…».
+Обычный Firefox принимает неподписанные расширения только в Developer Edition и Nightly. Как пользоваться расширением —
+кнопка «?» внизу его окна.
+
 Для Claude Desktop кнопка «Для Claude Desktop» копирует настройку — вставьте её в `claude_desktop_config.json`
 (Claude › Settings › Developer › Edit Config) и перезапустите Claude. Для Claude Code — кнопка копирует команду
 `claude mcp add …`. После этого можно просить Claude: «найди в Oddments референсы со стеклом и фиолетовым светом».

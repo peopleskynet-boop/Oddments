@@ -4,10 +4,12 @@ import { $ } from '../util.js';
 import { ic } from './icons.js';
 import { HOTKEYS } from './hotkeys.js';
 import { pushLayer, popLayer } from './layers.js';
+import { LITE } from '../lib/lite.js';
 
 // the wall's keys come from the table main.js runs (hotkeys.js); the layers' own keys are listed here
 const LAYER_KEYS = [
   ['Просмотр', [['← →', 'соседний файл'], ['колесо', 'масштаб'], ['Esc', 'закрыть']]],
+  ['Эффекты', [['1–4', 'рисунок'], ['Shift 1–3', 'носитель'], ['← →', 'граница до / после'], ['Ctrl S', 'сохранить копию'], ['Esc', 'закрыть']]],
   ['3D', [['1–5', 'режим: рендер, глина, мэткап, нормали, UV'], ['W', 'каркас'], ['G', 'сетка пола'], ['F', 'сбросить вид'], ['I', 'информация']]],
   ['Конструктор иконок (как в Figma)', [
     ['V R O C', 'выбор, прямоугольник, эллипс, капсула'], ['Enter', 'править точки контура'],
@@ -23,7 +25,7 @@ const LAYER_KEYS = [
 function groups() {
   const g = new Map();
   for (const r of HOTKEYS) if (r.keys) { if (!g.has(r.group)) g.set(r.group, []); g.get(r.group).push([r.keys, r.what]); }
-  return [...g, ...LAYER_KEYS];
+  return [...g, ...LAYER_KEYS.filter(([n]) => !LITE || !/^(Эффекты|Конструктор иконок)/.test(n))]; // Oddments Web has neither
 }
 
 let el = null, back = null;

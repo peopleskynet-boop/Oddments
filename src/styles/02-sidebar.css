@@ -50,6 +50,10 @@ body.side-off .side { transform: translateX(calc(-100% - 24px)); opacity: 0; poi
 /* the new-files count is a note, not an alarm: a tinted chip quieter than the selected row */
 /* the «new» count is quiet (#7 of the night list): red is kept for errors and the card's own «new» dot */
 .nav .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--hover); color: var(--fg); font-size: 11px; font-weight: 600; display: grid; place-items: center; }
+/* a collection shared by a link (share.js): the mark next to its name; a dot when it changed since the upload */
+.nav .nav-link { position: relative; flex: none; display: grid; place-items: center; color: var(--mut); }
+.nav .nav-link svg.i { width: 13px; height: 13px; }
+.nav .nav-link.chg::after { content: ''; position: absolute; top: -1px; right: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--acc); }
 .nav.on .badge { background: color-mix(in srgb, var(--acc-fg) 14%, transparent); color: var(--acc-fg); }
 .nav .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; margin: 0 3.5px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15); }
 .nav { position: relative; }

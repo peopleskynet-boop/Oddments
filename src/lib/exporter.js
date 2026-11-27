@@ -8,6 +8,7 @@ import { zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import { S } from '../state.js';
 import { absPath } from './library.js';
 import { t } from './i18n.js';
+import { LITE } from './lite.js';
 
 const SEP = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform) ? '\\' : '/';
 const clean = (n) => (n || 'Файл').replace(/[\\/:*?"<>|\u0000-\u001f‪-‮⁦-⁩]+/g, '_').trim().replace(/^\.+/, '').slice(0, 120) || 'Файл';
@@ -35,6 +36,8 @@ export function folderItems(fid) {
 // the whole run with its progress and result, for menus and buttons
 export async function runExport(items, title, asZip) {
   const { busy, busyDone, toast } = await import('../ui/dialogs.js');
+  // Oddments Web: a zip the browser downloads (ui/liteui.js); a folder is the desktop app's
+  if (LITE) { (await import('../ui/liteui.js')).zipItems(items, names(items), title); return; }
   if (typeof window !== 'undefined' && !window.__TAURI_INTERNALS__) { toast('Экспорт — в приложении Oddments'); return; }
   // personal data on some pictures (pii.js): asked first — hidden in the exported copies, or as they are
   const pii = items.filter((i) => i.pii && i.pii.length && !i.masked && !i.trashed);
@@ -58,7 +61,7 @@ export async function runExport(items, title, asZip) {
 
 // → { n, where } or null when the dialog was cancelled; onProgress(done, total)
 // the pictures with their personal data hidden, as PNG bytes by item id (masker.js; regions found by the text reader)
-async function maskedFiles(items, onProgress) {
+export async function maskedFiles(items, onProgress) {
   const { findRegions, maskToBlob } = await import('./masker.js');
   const out = new Map();
   for (let i = 0; i < items.length; i++) {

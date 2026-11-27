@@ -8,6 +8,7 @@ import { esc, DEC, LOC } from '../util.js';
 import { toast } from './dialogs.js';
 import { readPref, writePref } from '../lib/prefs.js';
 import { t } from '../lib/i18n.js';
+import { LITE } from '../lib/lite.js';
 
 export const BG = { dark: 0x1c1c1f, light: 0xe6e6e8 };
 export const prefs = readPref('perch.viewer3d', {});
@@ -69,11 +70,29 @@ const LIGHTS = [
   { id: 'empty_warehouse_01', label: 'Склад', css: 'linear-gradient(#6f6a62, #d8d2c6 40%, #8e877c 55%, #3b3731)' },
   { id: 'moonless_golf', label: 'Ночь', css: 'linear-gradient(#05070d, #1b2233 46%, #39415a 50%, #0b0d10)' },
 ];
+// The library's own HDRIs (kind «hdri», panoramas 2 : 1) join the list after the built-in ones: the file itself lights
+// the scene, id «lib:<item id>». The library is reached lazily (this viewer also runs where it is not loaded yet).
+let lib = null; // { S, assetUrl } once a viewer has mounted
+const isPano = (i) => i.kind === 'hdri' && !i.trashed && i.w && i.h && Math.abs(i.w / i.h - 2) < 0.05;
+const libLights = () => (lib ? lib.S.items.filter(isPano).map((i) => ({ id: 'lib:' + i.id, label: i.name, css: i.thumb ? `center / cover no-repeat url('${lib.assetUrl(i.thumb)}')` : '#3a3a41' })) : []);
+const lightsList = () => LIGHTS.concat(libLights());
+
 // a prefiltered environment for `renderer` (each WebGL context needs its own); «Сплат из модели» bakes with it too
 export async function envTexture(T, renderer, id) {
   const { THREE } = T, pm = new THREE.PMREMGenerator(renderer);
   try {
     if (id === 'room') return pm.fromScene(new T.RoomEnvironment(), 0.04).texture;
+    if (id.startsWith('lib:')) {
+      const [{ S }, { assetUrl }] = await Promise.all([import('../state.js'), import('../lib/library.js')]);
+      const it = S.byId.get(id.slice(4));
+      if (!it) throw new Error('HDRI нет в библиотеке');
+      const Loader = it.ext === 'exr' ? (await import('three/examples/jsm/loaders/EXRLoader.js')).EXRLoader : (await import('three/examples/jsm/loaders/HDRLoader.js')).HDRLoader;
+      const hdr = await new Loader().loadAsync(assetUrl(it.file));
+      hdr.mapping = THREE.EquirectangularReflectionMapping;
+      const t = pm.fromEquirectangular(hdr).texture;
+      hdr.dispose();
+      return t;
+    }
     const { HDRLoader } = await import('three/examples/jsm/loaders/HDRLoader.js');
     const hdr = await new HDRLoader().loadAsync(await hdrUrl(id));
     hdr.mapping = THREE.EquirectangularReflectionMapping;
@@ -91,7 +110,30 @@ function getEnv(T, renderer, id) {
   return envs[id];
 }
 // the lighting the 3D view shows now (its own settings): what «Сплат из модели» bakes into the splats
-export const viewLight = () => ({ id: LIGHTS.some((l) => l.id === prefs.light) ? prefs.light : 'room', rot: prefs.lightRot || 0, ev: prefs.ev || 0, label: (LIGHTS.find((l) => l.id === prefs.light) || LIGHTS[0]).label });
+export const viewLight = () => {
+  const id = prefs.light || 'room', l = lightsList().find((x) => x.id === id);
+  const base = { rot: prefs.lightRot || 0, ev: prefs.ev || 0 };
+  if (l) return { ...base, id, label: l.label };
+  // a library HDRI before any viewer has opened (the library is not reached here yet): envTexture finds it itself
+  if (id.startsWith('lib:')) { const it = lib && lib.S.byId.get(id.slice(4)); return { ...base, id, label: it ? it.name : 'HDRI' }; }
+  return { ...base, id: 'room', label: LIGHTS[0].label };
+};
+
+// What an HDRI is looked at with (preview.js hdriView): the classic three balls of a lighting check — chrome shows the
+// panorama itself, white the light's colour and softness, mid-grey (18 %) the exposure
+export function hdriBalls(T) {
+  const { THREE } = T, g = new THREE.Group(), geo = new THREE.SphereGeometry(0.5, 96, 64);
+  [
+    new THREE.MeshStandardMaterial({ name: 'Хром', color: 0xffffff, metalness: 1, roughness: 0.04 }),
+    new THREE.MeshStandardMaterial({ name: 'Белый', color: 0xd8d8d8, metalness: 0, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ name: 'Серый 18 %', color: 0x777777, metalness: 0, roughness: 0.35 }),
+  ].forEach((m, i) => {
+    // in a row across the view: frameObject looks from (1, 0.7, 1.25), so the row runs along its right-hand side
+    const s = new THREE.Mesh(geo, m), k = ((i - 1) * 1.25) / Math.hypot(1.25, 1);
+    s.name = m.name; s.position.set(1.25 * k, 0, -k); g.add(s);
+  });
+  return g;
+}
 const evText = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1).replace('.', DEC);
 
 // Matcaps are shaded per pixel on a sphere (normal from x/y), so they look like real ones:
@@ -174,11 +216,15 @@ const fmtLen = (v) => (v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toPre
 
 // opts (from the preview): { lib: { libraryMaterials, readItem, saveFromViewer }, itemId, name } — the library side of
 // materials: a model can try on a library material and be saved with it; a material can be edited and saved as new.
+// An HDRI is looked at with opts.make (builds the scene instead of a file: hdriBalls) and opts.env (the lighting it is
+// shown in, «lib:<id>»): the view keeps to lighting — no render modes, wireframe, model info — and changes no saved choice.
 export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   const T = await loadThree();
   if (isStale()) return () => {};
   const { THREE } = T;
-  let obj = await parseModel(T, ext, buf);
+  if (!lib) { try { const [{ S }, { assetUrl }] = await Promise.all([import('../state.js'), import('../lib/library.js')]); lib = { S, assetUrl }; } catch (e) { /* no library here */ } }
+  const look = !!opts.make; // an HDRI's look: the scene is ours, only the light is the subject
+  let obj = look ? opts.make(T) : await parseModel(T, ext, buf);
   if (isStale()) { disposeObject(obj); return () => {}; }
   let info = modelInfo(T, obj, ext, buf);
 
@@ -278,6 +324,8 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   };
   const reset = () => {
     frame = frameObject(THREE, obj, cam, 1.3);
+    // an HDRI's look: eye level, so the horizon and the sky are in the view, not the ground under the balls
+    if (look) { cam.position.set(frame.center.x + frame.dist * 0.62, frame.center.y + frame.dist * 0.1, frame.center.z + frame.dist * 0.78); cam.lookAt(frame.center); }
     controls.target.copy(frame.center);
     controls.minDistance = frame.dist / 50;
     controls.maxDistance = frame.dist * 20;
@@ -292,18 +340,20 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     grid.position.set(frame.center.x, frame.minY, frame.center.z);
     scene.add(grid);
   };
+  // «Окружение как фон»: an HDRI's look shows its panorama sharp around the balls, and it is not a saved choice there
+  let hdrBg = look ? true : !!prefs.hdrBg;
   const applyBg = () => {
     const c = prefs.bg === 'light' ? BG.light : BG.dark;
-    // «Окружение как фон»: the environment itself, softly blurred so the model stays the subject
-    if (prefs.hdrBg && envTex) { scene.background = envTex; scene.backgroundBlurriness = 0.35; }
+    // the environment itself, softly blurred so the model stays the subject
+    if (hdrBg && envTex) { scene.background = envTex; scene.backgroundBlurriness = look ? 0 : 0.35; }
     else scene.background = new THREE.Color(c);
     renderer.setClearColor(c, 1);
     canvas.style.background = hex(c);
-    holder.classList.toggle('light', prefs.bg === 'light' && !prefs.hdrBg);
+    holder.classList.toggle('light', prefs.bg === 'light' && !hdrBg);
   };
 
   // lighting: which environment, its turn around the model, exposure in stops
-  let light = LIGHTS.some((l) => l.id === prefs.light) ? prefs.light : 'room', envTex = null, lightSeq = 0;
+  let light = opts.env || (lightsList().some((l) => l.id === prefs.light) ? prefs.light : 'room'), envTex = null, lightSeq = 0;
   const applyLightParams = () => {
     const r = ((prefs.lightRot || 0) * Math.PI) / 180;
     scene.environmentRotation.set(0, r, 0);
@@ -314,7 +364,13 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   const applyLight = async () => {
     const id = light, my = ++lightSeq;
     let t;
-    try { t = await getEnv(T, renderer, id); } catch (e) { console.warn('hdri', id, e); toast('Освещение не скачалось (нет сети?) — пока «Комната»', 3500); t = await getEnv(T, renderer, 'room'); }
+    try { t = await getEnv(T, renderer, id); } catch (e) {
+      console.warn('hdri', id, e);
+      // a library HDRI that is gone (deleted) or did not read is not a network problem
+      toast(id.startsWith('lib:') ? 'Этот HDRI не открылся (его нет в библиотеке?) — пока «Комната»' : 'Освещение не скачалось (нет сети?) — пока «Комната»', 3500);
+      if (id.startsWith('lib:') && prefs.light === id && !look) { prefs.light = 'room'; savePrefs(); }
+      t = await getEnv(T, renderer, 'room');
+    }
     if (my !== lightSeq || isStale()) return;
     envTex = t;
     scene.environment = t;
@@ -350,21 +406,21 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   let lpOpen = false, mpOpen = false;
   const drawBar = () => {
     bar.innerHTML =
-      `<div class="m3d-seg" role="radiogroup" aria-label="Режим отображения">${MODES.map((m) =>
+      (look ? '' : `<div class="m3d-seg" role="radiogroup" aria-label="Режим отображения">${MODES.map((m) =>
         `<button type="button" role="radio" aria-checked="${mode === m.id}" class="${mode === m.id ? 'on' : ''}" data-mode="${m.id}" title="${m.label} (${m.key}) — ${m.hint}">${m.label}</button>`).join('')}</div>` +
       (mode === 'matcap' ? `<div class="m3d-caps" role="radiogroup" aria-label="Мэткап">${MATCAPS.map((m) =>
         `<button type="button" role="radio" aria-checked="${matcap === m.id}" class="${matcap === m.id ? 'on' : ''}" data-cap="${m.id}" title="${m.label}" aria-label="${m.label}" style="background:${CAP_CSS[m.id]}"></button>`).join('')}</div>` : '') +
       '<span class="m3d-sep"></span>' +
       btn('wire', ic('wire'), 'Каркас (W)', !!prefs.wire) +
-      btn('grid', ic('gridfloor'), 'Пол-сетка (G)', !!prefs.grid) +
+      btn('grid', ic('gridfloor'), 'Пол-сетка (G)', !!prefs.grid)) +
       (!isMat && opts.lib ? btn('mat', ic('sphere'), 'Материал из библиотеки (M)', mpOpen) : '') +
       btn('light', ic('bulb'), 'Освещение (L)', lpOpen) +
       // the background as a half-filled circle: a sun next to the light bulb read as one more light (audit 29.10)
       btn('bg', ic('contrast'), prefs.bg === 'light' ? 'Фон: светлый — сделать тёмным' : 'Фон: тёмный — сделать светлым') +
       btn('reset', ic('restore'), 'Сбросить вид (F)') +
-      btn('info', ic(isMat ? 'sphere' : 'info'), isMat ? 'Настройки материала (I)' : 'Информация о модели (I)', prefs[infoKey] !== false) +
-      // a file of the library goes on to Blender from here, not only from its menu (audit 29.10)
-      (opts.lib && opts.itemId ? '<span class="m3d-sep"></span>' + btn('blender', ic('external') + '<span>В Blender</span>', 'Отправить в Blender — аддон Oddments примет', null, 'm3d-tob') : '');
+      (look ? '' : btn('info', ic(isMat ? 'sphere' : 'info'), isMat ? 'Настройки материала (I)' : 'Информация о модели (I)', prefs[infoKey] !== false)) +
+      // a file of the library goes on to Blender from here, not only from its menu (audit 29.10); an HDRI — as the World
+      ((opts.lib || look) && opts.itemId && !LITE ? '<span class="m3d-sep"></span>' + btn('blender', ic('external') + '<span>В Blender</span>', 'Отправить в Blender — аддон Oddments примет', null, 'm3d-tob') : '');
   };
   drawBar();
   holder.appendChild(bar);
@@ -389,22 +445,22 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
       <button type="button" data-anim="pause" class="pz">${ic('pause')}<span>Пауза</span></button></div>` : '');
   };
   fillPanel();
-  panel.hidden = prefs[infoKey] === false;
+  panel.hidden = look || prefs[infoKey] === false;
   holder.appendChild(panel);
-  if (!isMat) setTimeout(() => { if (alive) runCheck(); }, 60); // after the first frame: the walk over the mesh takes a moment
+  if (!isMat && !look) setTimeout(() => { if (alive) runCheck(); }, 60); // after the first frame: the walk over the mesh takes a moment
 
   /* ---------- «Проверка» and «Развернуть UV» (../lib/modelcheck.js, ../lib/uvatlas.js, Blender) ---------- */
   function checkHtml() {
     if (!checks) return '<b class="m3d-h">Проверка</b><p class="m3d-note">Проверяю…</p>';
     const bad = checks.filter((c) => c.level !== 'ok').length;
     return `<b class="m3d-h">Проверка${bad ? ` · ${bad}` : ''}</b><ul class="m3d-chk">${checks.map((c) => `<li class="${c.level}"><span>${esc(c.text)}</span>${c.how ? `<small>${esc(c.how)}</small>` : ''}</li>`).join('')}</ul>
-      <div class="m3d-uvrow"><button type="button" class="m3d-save" data-uv="go"${uvBusy ? ' disabled' : ''} title="Швы по форме модели, развёртка с малым растяжением, острова упакованы. Через ваш Blender, если он есть; иначе прямо здесь (xatlas)">${uvBusy || 'Развернуть UV'}</button>
-      ${uvDirty ? '<button type="button" class="m3d-save" data-uv="save">Сохранить с новой UV</button>' : ''}</div>`;
+      ${LITE ? '' : `<div class="m3d-uvrow"><button type="button" class="m3d-save" data-uv="go"${uvBusy ? ' disabled' : ''} title="Швы по форме модели, развёртка с малым растяжением, острова упакованы. Через ваш Blender, если он есть; иначе прямо здесь (xatlas)">${uvBusy || 'Развернуть UV'}</button>
+      ${uvDirty ? '<button type="button" class="m3d-save" data-uv="save">Сохранить с новой UV</button>' : ''}</div>`}`;
   }
   const runCheck = async () => {
     try { checks = (await import('../lib/modelcheck.js')).checkModel(THREE, obj, info); } catch (e) { console.warn('check', e); checks = []; }
-    // the team's own limits (brand.js): polygons, size, UV, materials, names by default
-    try {
+    // the team's own limits (brand.js): polygons, size, UV, materials, names by default (not in Oddments Web)
+    if (!LITE) try {
       const [{ checkModelRules }, { brandRules }] = await Promise.all([import('../lib/brand.js'), import('../lib/brandrules.js')]);
       const objects = [], materialNames = new Set();
       obj.traverse((o) => { if (o.isMesh) { objects.push(o.name || ''); (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m && m.name && materialNames.add(m.name)); } });
@@ -644,12 +700,15 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   lp.setAttribute('aria-label', 'Освещение');
   lp.hidden = true;
   const drawLp = () => {
-    lp.innerHTML = `<div class="m3d-lights" role="radiogroup" aria-label="Сцена освещения">${LIGHTS.map((l) =>
-      `<button type="button" role="radio" aria-checked="${light === l.id}" class="${light === l.id ? 'on' : ''}" data-light="${l.id}"><i style="background:${l.css}"></i><span>${l.label}</span></button>`).join('')}</div>
+    // the library's HDRIs on a row of their own under a label: next to the built-in ones the same names («Небо») could
+    // not be told apart (critique 15.11)
+    lp.innerHTML = `<div class="m3d-lights" role="radiogroup" aria-label="Сцена освещения">${lightsList().map((l, i, a) =>
+      (l.id.startsWith('lib:') && !(a[i - 1] && a[i - 1].id.startsWith('lib:')) ? '<span class="m3d-lsep" aria-hidden="true">Из библиотеки</span>' : '') +
+      `<button type="button" role="radio" aria-checked="${light === l.id}" class="${light === l.id ? 'on' : ''}" data-light="${esc(l.id)}" title="${esc(l.label)}"><i style="background:${l.css}"></i><span>${esc(l.label)}</span></button>`).join('')}</div>
       <div class="m3d-sls">
         <label class="m3d-sl"><span>Поворот</span><input type="range" min="0" max="360" step="1" value="${prefs.lightRot || 0}" data-lp="rot"><output>${prefs.lightRot || 0}°</output></label>
         <label class="m3d-sl"><span>Экспозиция</span><input type="range" min="-3" max="3" step="0.1" value="${prefs.ev || 0}" data-lp="ev"><output>${evText(prefs.ev || 0)}</output></label>
-        <label class="m3d-ck"><input type="checkbox" class="switch" role="switch" data-lp="bg"${prefs.hdrBg ? ' checked' : ''}> Окружение как фон</label>
+        <label class="m3d-ck"><input type="checkbox" class="switch" role="switch" data-lp="bg"${hdrBg ? ' checked' : ''}> Окружение как фон</label>
       </div>`;
   };
   const placeLp = () => { lp.style.bottom = (40 + bar.offsetHeight + 10) + 'px'; };
@@ -667,7 +726,8 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     if (open) mp.style.bottom = (40 + bar.offsetHeight + 10) + 'px';
   };
   const setLight = (id) => {
-    light = id; prefs.light = id; savePrefs();
+    light = id;
+    if (!look) { prefs.light = id; savePrefs(); } // an HDRI's look tries other lights without changing the models' one
     lp.querySelectorAll('[data-light]').forEach((b) => { const on = b.dataset.light === id; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     applyLight();
   };
@@ -680,7 +740,7 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
     const k = e.target.dataset.lp, out = e.target.nextElementSibling;
     if (k === 'rot') { prefs.lightRot = +e.target.value; out.textContent = prefs.lightRot + '°'; applyLightParams(); }
     else if (k === 'ev') { prefs.ev = +e.target.value; out.textContent = evText(prefs.ev); applyLightParams(); }
-    else if (k === 'bg') { prefs.hdrBg = e.target.checked; applyBg(); buildGrid(); buildWire(); }
+    else if (k === 'bg') { hdrBg = e.target.checked; if (!look) prefs.hdrBg = hdrBg; applyBg(); buildGrid(); buildWire(); }
     savePrefs();
   });
   holder.appendChild(lp);
@@ -766,17 +826,17 @@ export async function mountViewer(holder, buf, ext, isStale, opts = {}) {
   // keys work while the preview is open; they are swallowed so the app's own shortcuts do not fire
   const onKey = (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) return;
-    const m = MODES.find((x) => x.key === e.key);
+    const m = !look && MODES.find((x) => x.key === e.key); // an HDRI's look has no render modes, wireframe or info
     let hit = true;
     if (m) setMode(m.id);
-    else if (e.code === 'KeyW') toggle('wire');
-    else if (e.code === 'KeyG') toggle('grid');
-    else if (e.code === 'KeyI') toggle('info');
+    else if (e.code === 'KeyW' && !look) toggle('wire');
+    else if (e.code === 'KeyG' && !look) toggle('grid');
+    else if (e.code === 'KeyI' && !look) toggle('info');
     else if (e.code === 'KeyF') toggle('reset');
     else if (e.code === 'KeyL') { // next lighting scene (Shift — previous)
-      const i = LIGHTS.findIndex((l) => l.id === light), n = LIGHTS.length;
-      setLight(LIGHTS[(i + (e.shiftKey ? n - 1 : 1)) % n].id);
-      if (!lpOpen) flash('Освещение: ' + LIGHTS.find((l) => l.id === light).label);
+      const L = lightsList(), i = L.findIndex((l) => l.id === light), n = L.length;
+      setLight(L[(i + (e.shiftKey ? n - 1 : 1)) % n].id);
+      if (!lpOpen) flash('Освещение: ' + (L.find((l) => l.id === light) || L[0]).label);
     }
     else if (e.code === 'KeyM' && !isMat && opts.lib) setMp(!mpOpen);
     else if (e.key === 'Escape' && lpOpen) setLp(false);

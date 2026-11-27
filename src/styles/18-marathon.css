@@ -40,3 +40,6 @@
 :root[data-theme="marathon"] body.motion .card:hover::before, :root[data-theme="marathon"] body.motion .card:hover::after { translate: 0 -3px; }
 /* the picture lifts but does not lean here: a tilt moves its corners into the brackets that frame it */
 :root[data-theme="marathon"] body.motion .card:hover .ph { transform: translateY(-3px); }
+/* the corner brackets are for pictures: a list row lights up instead */
+:root[data-theme="marathon"] .card.row::before, :root[data-theme="marathon"] .card.row::after { display: none; }
+:root[data-theme="marathon"] body.motion .card.row:hover .ph { transform: none; }

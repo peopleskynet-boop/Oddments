@@ -1,0 +1,49 @@
+/* Oddments for browsers: the look of the extension's own pages (the popup, «Как пользоваться») — the app's «Марафон»
+   with the Prism glass: near-black, the Oddments lime for what acts, a gradient rim (lavender → sky → pink) on glass,
+   pills and big radii. The pages on sites draw in a shadow root of their own (content.js) with the same tokens. */
+@font-face { font-family: "Golos Text"; font-style: normal; font-display: swap; font-weight: 400 900; src: url(fonts/golos-cyrillic.woff2) format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Golos Text"; font-style: normal; font-display: swap; font-weight: 400 900; src: url(fonts/golos-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+:root {
+  --bg: #0b0c10; --panel: #12141b; --card: #181d2a; --fg: #eceaf2; --mut: #9a9bab; --acc: #d7ff63; --acc-fg: #0b0c10;
+  --red: #ff2e88; --line: rgba(215, 255, 99, .1); --line-2: rgba(215, 255, 99, .22); --field: rgba(236, 234, 242, .05);
+  --hover: rgba(215, 255, 99, .07); --hover-2: rgba(215, 255, 99, .12);
+  --rim-a: #d6b4ff; --rim-b: #a7c7ff; --rim-c: #ffc7e8;
+  --mono: "Geist Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.4 "Golos Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+
+/* glass with the Prism rim: a 1px gradient border by mask, a soft bloom on hover */
+.glass { position: relative; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.012) 40%, rgba(255,255,255,.025)), rgba(16, 19, 30, .62);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 18px 50px rgba(0,0,0,.4); border-radius: 22px; }
+.glass::after { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--rim-a) 55%, transparent), color-mix(in srgb, var(--rim-b) 28%, transparent) 28%, rgba(255,255,255,.04) 52%, rgba(255,255,255,.03) 70%, color-mix(in srgb, var(--rim-c) 36%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+
+/* labels: the app's «//» mono caps */
+.lab { margin: 16px 6px 8px; font: 500 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+.lab::before { content: "// "; color: var(--acc); }
+
+.pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border: 0; border-radius: 999px;
+  background: var(--field); color: var(--fg); transition: background .15s, transform .15s; }
+.pill:hover { background: var(--hover-2); }
+.pill:active { transform: scale(.97); }
+.pill.pri { background: var(--acc); color: var(--acc-fg); font-weight: 500;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.65), inset 0 -2px 6px rgba(0,0,0,.12), 0 0 22px rgba(215,255,99,.22); }
+.pill:disabled { opacity: .4; cursor: default; transform: none; }
+
+kbd { font: 10.5px var(--mono); color: var(--mut); padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); white-space: nowrap; }
+
+input[type=text], input[type=password], select { width: 100%; height: 36px; border: 0; border-radius: 999px; background: var(--field); padding: 0 14px; outline: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+input:focus, select:focus { box-shadow: inset 0 0 0 1.5px var(--acc); }
+select option { background: var(--panel); }
+input[type=checkbox] { accent-color: var(--acc); width: 16px; height: 16px; margin: 0; }

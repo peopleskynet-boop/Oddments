@@ -4,7 +4,7 @@
 schema_version = "1.0.0"
 
 id = "oddments"
-version = "1.22.0"
+version = "1.24.0"
 name = "Oddments"
 tagline = "Material library, smart UV and a bridge to the Oddments app"
 maintainer = "Oddments <peopleskynet@gmail.com>"

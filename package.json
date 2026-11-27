@@ -1,6 +1,6 @@
 {
   "name": "oddments",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Oddments — настольный менеджер визуальных референсов: картинки, видео, 3D, шрифты, иконки",
   "license": "MIT",
   "repository": {
@@ -12,7 +12,11 @@
   "scripts": {
     "dev": "vite",
     "web": "vite --mode web",
-    "build": "vite build",
+    "lite": "vite --mode lite",
+    "build:lite": "vite build --mode lite",
+    "preview:lite": "vite preview --mode lite --outDir dist-lite --port 5185 --strictPort --host 127.0.0.1",
+    "build": "vite build && vite build --mode lite --outDir dist/viewer",
+    "build:viewer": "vite build --mode lite --outDir dist/viewer",
     "preview": "vite preview",
     "tauri": "tauri",
     "test:e2e": "playwright test",

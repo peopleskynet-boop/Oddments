@@ -10,6 +10,21 @@ import { saveIndex, trashItems, restoreItems } from '../lib/library.js';
 import { setView } from '../lib/filter.js';
 import { ask, toast } from './dialogs.js';
 import { closeOverlays, isOverlayOpen, isTidyOpen, openTidy, openFeed, openNews } from './lazy.js';
+import { LITE, SHARE } from '../lib/lite.js';
+import { SHARE_LINKS } from '../lib/shareon.js';
+import { readPref } from '../lib/prefs.js';
+import { changesOf, expired } from '../lib/sharecore.js';
+
+// the collections shared by a link that still lives: folder id → { n: cards changed since the upload }
+function sharedFolders() {
+  const out = new Map();
+  if (!SHARE_LINKS) return out;
+  for (const r of Object.values(readPref('perch.shares', {}))) {
+    if (!r || !r.source || !r.source.folder || expired(r)) continue;
+    try { out.set(r.source.folder, { n: changesOf(r, S) }); } catch (e) { out.set(r.source.folder, { n: 0 }); }
+  }
+  return out;
+}
 const pickSvgFor3d = () => import('./svg3d.js').then((m) => m.pickSvgFor3d());
 const remeshSelected = () => import('./svg3d.js').then((m) => m.remeshSelected());
 
@@ -47,7 +62,7 @@ function row(vt, id, label, icon, count, o = {}) {
   const on = !isOverlayOpen() && S.view.type === vt && (S.view.id || null) === (id == null ? null : id);
   // the screen reader hears «Подборка, 12 файлов» — not the label glued to a bare number and a nested button
   const say = esc(label) + (o.badge ? `, новых: ${o.badge}` : count !== '' && count != null ? `, ${count} ${plural(+count || 0, ['файл', 'файла', 'файлов'])}` : '');
-  return `<div class="nav${on ? ' on' : ''}" role="button" tabindex="0" aria-label="${say}"${o.title ? ` title="${esc(o.title)}"` : ''}${on ? ' aria-current="page"' : ''}${o.expanded != null ? ` aria-expanded="${o.expanded}"` : ''} data-vt="${vt}"${id != null ? ` data-id="${esc(id)}"` : ''}${o.drop ? ` data-drop="${o.drop}"` : ''} style="padding-left:${8 + (o.depth || 0) * 14}px">${o.pre || ''}${icon === 'dot' ? '<span class="tagdot"></span>' : icon && icon[0] === '#' ? `<span class="sw" style="background:${icon}"></span>` : ic(icon)}<span class="lb">${esc(label)}</span>${o.badge ? `<span class="badge" title="Новые файлы">${o.badge}</span>` : `<span class="ct">${count}</span>`}${o.acts || ''}</div>`;
+  return `<div class="nav${on ? ' on' : ''}" role="button" tabindex="0" aria-label="${say}"${o.title ? ` title="${esc(o.title)}"` : ''}${on ? ' aria-current="page"' : ''}${o.expanded != null ? ` aria-expanded="${o.expanded}"` : ''} data-vt="${vt}"${id != null ? ` data-id="${esc(id)}"` : ''}${o.drop ? ` data-drop="${o.drop}"` : ''} style="padding-left:${8 + (o.depth || 0) * 14}px">${o.pre || ''}${icon === 'dot' ? '<span class="tagdot"></span>' : icon && icon[0] === '#' ? `<span class="sw" style="background:${icon}"></span>` : ic(icon)}<span class="lb">${esc(label)}</span>${o.tail || ''}${o.badge ? `<span class="badge" title="Новые файлы">${o.badge}</span>` : `<span class="ct">${count}</span>`}${o.acts || ''}</div>`;
 }
 
 let groups = (() => { try { return JSON.parse(localStorage.getItem('perch.sideGroups') || '{}'); } catch (e) { return {}; } })();
@@ -57,18 +72,20 @@ export function renderSide() {
   const c = counts();
   let h = '';
   h += row('all', null, 'Все файлы', 'all', c.all);
-  h += row('recent', null, 'Недавние', 'clock', c.recent, { badge: c.fresh });
-  h += row('fav', null, 'Избранное', 'heart', c.fav);
+  // a shared link (lite.js SHARE) has no history, favourites or trash of the visitor's
+  if (!SHARE) h += row('recent', null, 'Недавние', 'clock', c.recent, { badge: c.fresh });
+  if (!SHARE) h += row('fav', null, 'Избранное', 'heart', c.fav);
   // app screens (screens.js): the product designer's daily «how do others do it» — by app, kind, pattern; flows side by side
   // names a newcomer understands without the manual (audit 29.10: «Экраны», «Разобрать», «Ремеш» meant nothing to them)
-  h += row('tool-screens', null, 'Экраны приложений', 'phone', S.items.filter((i) => i.scr && !i.trashed).length || '', { title: 'Скриншоты и записи экранов приложений — по приложению, типу экрана и паттерну; сценарии рядом' });
+  if (!LITE) h += row('tool-screens', null, 'Экраны приложений', 'phone', S.items.filter((i) => i.scr && !i.trashed).length || '', { title: 'Скриншоты и записи экранов приложений — по приложению, типу экрана и паттерну; сценарии рядом' });
   // duplicates are found from the trash (that is where the extra copies go)
-  h += row('trash', null, 'Корзина', 'trash', c.trash, { drop: 'trash' });
+  if (!SHARE) h += row('trash', null, 'Корзина', 'trash', c.trash, { drop: 'trash' });
   // connected team libraries (team.js): each its own place, next to one's own
   for (const t of S.teams || []) h += row('team', t.id, t.name, 'team', S.teamItems.filter((i) => i.team === t.id && !i.trashed).length);
 
   // file types live in the tabs above the grid; the sidebar keeps places and collections
 
+  const shared = sharedFolders();
   h += `<div class="grp" role="heading" aria-level="2">Подборки<button data-act="newroot" aria-label="Новая подборка" title="Новая подборка">${ic('plus')}</button></div>`;
   (function walk(parent, depth) {
     S.folders.filter((f) => (f.parent || null) === parent).forEach((f) => {
@@ -76,7 +93,11 @@ export function renderSide() {
       const pre = `<span class="chev${kids ? (f.open ? ' open' : '') : ' none'}" data-act="tog">${ic('chev')}</span>`;
       // one quiet «⋯» instead of four buttons side by side (delete sat next to export — easy to misclick, bug #90)
       const acts = `<span class="acts"><button data-act="more" aria-hidden="true" tabindex="-1" title="Действия с подборкой (Shift+F10)">${ic('more')}</button></span>`;
-      h += row('folder', f.id, f.name, c.swatch[f.id] || 'folder', c.folder[f.id] || 0, { pre, acts, depth, drop: 'folder', expanded: kids ? !!f.open : null });
+      // shared by a link (lib/share.js): a link mark, with a dot when the collection changed since the upload
+      const lk = shared.get(f.id);
+      const tip = lk && lk.n ? `Есть ссылка · изменилось ${lk.n} — «Поделиться…» › «Обновить»` : 'Есть ссылка на эту подборку';
+      const tail = lk ? `<span class="nav-link${lk.n ? ' chg' : ''}" title="${esc(tip)}">${ic('link')}</span>` : '';
+      h += row('folder', f.id, f.name, c.swatch[f.id] || 'folder', c.folder[f.id] || 0, { pre, acts, depth, drop: 'folder', expanded: kids ? !!f.open : null, tail });
       if (kids && f.open) walk(f.id, depth + 1);
     });
   })(null, 0);
@@ -141,9 +162,13 @@ export function renderSide() {
   const inTools = S.view.type === 'kind' && (S.view.id === 'model' || S.view.id === 'material');
   // tags sit right after the collections (as before), folding like the groups below
   h = h.replace('<!--tags-->', fold('tags', 'Теги', tg, S.view.type === 'tag' || S.view.type === 'notag', true));
-  h += fold('news', 'Новости', news, false);
-  h += fold('d3', '3D', d3, inTools, true);
-  h += fold('tools', 'Инструменты', tools, false);
+  // Oddments Web: 3D is looking at models only; no news, no tools (src/lib/lite.js)
+  if (LITE) { if (c.kind.model) h += fold('d3', '3D', row('kind', 'model', '3D-модели', 'cube', c.kind.model), inTools, true); }
+  else {
+    h += fold('news', 'Новости', news, false);
+    h += fold('d3', '3D', d3, inTools, true);
+    h += fold('tools', 'Инструменты', tools, false);
+  }
 
   const sc = $('#sideScroll'), top = sc.scrollTop;
   const f = document.activeElement && sc.contains(document.activeElement) && document.activeElement.closest('.nav');
@@ -357,7 +382,9 @@ function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
 function rowMenu(btn, id) {
   if (menuEl && menuEl.dataset.for === id) { closeRowMenu(); return; }
   closeRowMenu();
-  const items = [['sub', 'plus', 'Вложенная подборка'], ['ren', 'edit', 'Переименовать'], ['exp', 'download', 'Экспорт в папку…'], ['expzip', 'download', 'Экспорт в zip…'], ['link', 'link', 'Ссылка на задачу или страницу…'], ['md', 'copy', 'Текст для Confluence / Jira'], ['del', 'trash', 'Удалить подборку']];
+  const items = [...(SHARE_LINKS ? [['share', 'link', 'Поделиться ссылкой…']] : []), ['sub', 'plus', 'Вложенная подборка'], ['ren', 'edit', 'Переименовать'], ['exp', 'download', 'Экспорт в папку…'], ['expzip', 'download', 'Экспорт в zip…'], ['link', 'link', 'Ссылка на задачу или страницу…'], ['md', 'copy', 'Текст для Confluence / Jira'], ['del', 'trash', 'Удалить подборку']]
+    .filter(([a]) => !LITE || !['exp', 'link', 'md'].includes(a)) // Oddments Web: a zip, no work links
+    .filter(([a]) => !SHARE || a === 'expzip'); // a shared link: only taking it away
   menuEl = document.createElement('div');
   menuEl.className = 'ctx glass side-menu';
   menuEl.setAttribute('role', 'menu');
@@ -371,6 +398,7 @@ function rowMenu(btn, id) {
     const m = e.target.closest('[data-fa]');
     if (!m) return;
     closeRowMenu();
+    if (m.dataset.fa === 'share') { closeRowMenu(); import('./share.js').then((x) => x.openShare({ folder: id })); return; }
     folderAct(m.dataset.fa === 'expzip' ? 'exp' : m.dataset.fa, id, m.dataset.fa === 'expzip');
   });
   menuEl.querySelector('.mi').focus();

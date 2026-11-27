@@ -122,6 +122,13 @@ const ADAPTED = `## Code adapted from open projects · Код из открыт�
 \`\`\`text
 ${MIT('2026 Zanwei Guo')}
 \`\`\`
+
+- **UTIF.js** (github.com/photopea/UTIF.js, MIT, © 2017 Photopea) — comes inside the three package
+  (\`three/examples/jsm/libs/utif.module.js\`, through its TIFFLoader) and reads TIFF files for their preview.
+
+\`\`\`text
+${MIT('2017 Photopea')}
+\`\`\`
 `;
 const NO_FILE = {
   '@crabnebula/tauri-plugin-drag': { licence: 'MIT OR Apache-2.0', text: MIT('2023 CrabNebula Ltd.') + '\n\n(Dual-licensed MIT OR Apache-2.0; distributed here under MIT.)' },
@@ -216,7 +223,8 @@ ${textsSection(tree, 'Licence texts of the npm packages · Тексты лице
 
 function writeRust(metaFile) {
   const meta = JSON.parse(read(metaFile));
-  const list = meta.packages.filter((p) => p.source) // published crates; the app's own package has no source
+  // everything but the app's own package: a patched crate (src-tauri/patches) has no source either, but it is still someone else's
+  const list = meta.packages.filter((p) => !meta.workspace_members.includes(p.id))
     .map((p) => {
       const dir = dirname(p.manifest_path);
       const texts = licenceTexts(dir);

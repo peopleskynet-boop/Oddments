@@ -7,7 +7,7 @@
 // — optional fields, no migration. Pictures without text get `ocr: ''`, so they are not read again.
 import * as fs from '@tauri-apps/plugin-fs';
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
-import { S, ui } from '../state.js';
+import { S, ui, bareLink } from '../state.js';
 import { assetUrl, saveIndex } from './library.js';
 import { readPref, writePref } from './prefs.js';
 import { workerRpc } from './workerrpc.js';
@@ -39,7 +39,7 @@ export const ocrOn = () => prefs.on;
 const SKIP = new Set(['model', 'material', 'font', 'audio']); // their pictures are renders and samples, not text
 const RAW = /\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i;
 export function ocrSource(it) {
-  if (it.trashed || SKIP.has(it.kind)) return '';
+  if (it.trashed || SKIP.has(it.kind) || bareLink(it)) return '';
   if (it.kind === 'image' && it.file && RAW.test(it.file)) return it.file; // the original: thumbnails lose small text
   if (it.preview) return it.preview; // PSD: the full render
   return it.thumb || ''; // video frame, PDF page, link cover

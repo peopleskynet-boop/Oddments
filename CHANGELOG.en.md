@@ -2,6 +2,13 @@
 
 # Changelog
 
+## 1.2.0 — 27 November 2026
+
+- Saved links show a cover and the site's icon. Collections remember their view and can open as a list with previews.
+- Import HDRI, TIFF and TGA files. Apply ANSI, dithering, halftone and CRT effects to images.
+- The browser extension saves page covers and captures boards. It also supports Firefox and Zen.
+- The Windows clipboard shortcut can save references while the app is in the background.
+
 ## 1.1.0 — 3 November 2026
 
 - A new start screen: the prism from the icon condenses in a drop of liquid glass, the drop spreads into the icon's

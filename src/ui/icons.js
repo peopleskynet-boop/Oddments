@@ -29,6 +29,8 @@ import masonry from '@phosphor-icons/core/assets/regular/columns.svg?raw';
 import flow from '@phosphor-icons/core/assets/regular/flow-arrow.svg?raw';
 import journey from '@phosphor-icons/core/assets/regular/path.svg?raw';
 import grid from '@phosphor-icons/core/assets/regular/grid-four.svg?raw';
+import rows from '@phosphor-icons/core/assets/regular/rows.svg?raw';
+import refresh from '@phosphor-icons/core/assets/regular/arrows-clockwise.svg?raw';
 import left from '@phosphor-icons/core/assets/regular/caret-left.svg?raw';
 import right from '@phosphor-icons/core/assets/regular/caret-right.svg?raw';
 import arrowd from '@phosphor-icons/core/assets/regular/arrow-down.svg?raw';
@@ -112,12 +114,13 @@ import flipV from '@phosphor-icons/core/assets/regular/flip-vertical.svg?raw';
 import contrast from '@phosphor-icons/core/assets/regular/circle-half.svg?raw';
 import plugs from '@phosphor-icons/core/assets/regular/plugs-connected.svg?raw';
 import puzzle from '@phosphor-icons/core/assets/regular/puzzle-piece.svg?raw';
+import crt from '@phosphor-icons/core/assets/regular/television-simple.svg?raw';
 
 const P = {
-  flow, journey, bezier, splat, flipV, contrast, plugs, puzzle, scissors, brush, eraser, phone, shield, chat, present, team, seal, compare, note, mic, book,
-  all, grip, folder, nofolder, notag, tag, trash, clock, search, plus, chev, filter, menu, x, edit, masonry, grid,
+  flow, journey, bezier, splat, flipV, contrast, plugs, puzzle, crt, scissors, brush, eraser, phone, shield, chat, present, team, seal, compare, note, mic, book,
+  all, grip, folder, nofolder, notag, tag, trash, clock, search, plus, chev, filter, menu, x, edit, masonry, grid, rows, refresh,
   left, right, arrowd, arrowu, restore, zoom, gear, paste, folderplus, image, film, music, type, doc, file,
   sideL, info, palette, play, heart, heartOn, scan, cube, sun, moon, gridfloor, planet, wire, pause, figma, link, check, external, download, undo, redo, alL, alC, alR, alT, alM, alB, tCursor, tRect, tCircle, tPill, tDiamond, tTriangle, tSlash, tDot, eye, eyeOff, megaphone, magnet, fitView, soundOn, soundOff, copy, bulb, sphere, pin, minus, square, restoreWin, more, warnC, sparkle, caretD, bookmark, news, article, back, users, userPlus,
 };
 export const ic = (n) => (P[n] || '').replace('<svg ', '<svg class="i" aria-hidden="true" ');
-export const KIND_ICONS = { image: 'image', gif: 'image', video: 'film', audio: 'music', font: 'type', pdf: 'doc', psd: 'doc', model: 'cube', material: 'sphere', other: 'file', figma: 'figma', link: 'link' };
+export const KIND_ICONS = { image: 'image', gif: 'image', video: 'film', audio: 'music', font: 'type', pdf: 'doc', psd: 'doc', model: 'cube', hdri: 'sun', material: 'sphere', other: 'file', figma: 'figma', link: 'link' };

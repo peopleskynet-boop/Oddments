@@ -145,9 +145,10 @@ export function toast(msg, ms = 2000, undo = null) {
 
 // Text prompt (window.prompt is unavailable in the webview).
 // Import progress: a glass pill under the toolbar with a bar. frac < 0 means "working, unknown how long".
-// The pill leads with the pixel loader (pixload.js) and, after two seconds, counts the time up.
+// The pill leads with the pixel loader (pixload.js) and, after two seconds, counts the time up. `stop`: a long job in
+// the background (link covers) gets a × that ends it.
 let busyHide = null, busyT0 = 0, busyTick = 0;
-export function busy(text, frac = -1) {
+export function busy(text, frac = -1, stop = null) {
   const el = $('#busy');
   clearTimeout(busyHide);
   if (el.hidden || !busyTick) {
@@ -162,11 +163,14 @@ export function busy(text, frac = -1) {
   el.classList.toggle('indet', frac < 0);
   $('#busyT').textContent = text;
   $('#busyP').style.transform = frac < 0 ? '' : `scaleX(${Math.max(0.03, Math.min(1, frac)).toFixed(3)})`;
+  const x = $('#busyX');
+  if (x) { x.hidden = !stop; x.onclick = stop ? () => { x.hidden = true; stop(); } : null; }
 }
 export function busyDone(text) {
   const el = $('#busy');
   if (text) { el.classList.remove('indet'); $('#busyT').textContent = text; $('#busyP').style.transform = 'scaleX(1)'; }
   clearInterval(busyTick); busyTick = 0;
+  const x = $('#busyX'); if (x) { x.hidden = true; x.onclick = null; }
   if (text) $('#busyI').innerHTML = ic('check');
   busyHide = setTimeout(() => { el.hidden = true; }, text ? 1400 : 0);
 }

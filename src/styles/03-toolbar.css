@@ -58,6 +58,9 @@ body:not(.side-off):not(.clean) #sideTog { display: none; }
 .busy-ic { flex: none; width: 16px; height: 16px; display: grid; place-items: center; color: var(--acc); }
 .busy-ic svg.i { width: 16px; height: 16px; }
 #busyT { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.busy-x { flex: none; width: 28px; height: 28px; margin-right: -8px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; color: var(--mut); background: transparent; }
+.busy-x:hover { color: var(--fg); background: var(--hover-2); }
+.busy-x svg.i { width: 14px; height: 14px; }
 .busy > i { position: absolute; left: 14px; right: 14px; bottom: 6px; height: 3px; border-radius: 99px; background: var(--hover-2); overflow: hidden; }
 .busy > i > b { display: block; height: 100%; width: 100%; transform: scaleX(.03); transform-origin: left; background: var(--fg); transition: transform .3s var(--ease); }
 .busy.indet > i > b { width: 35%; transform: none; animation: indet 1.2s ease-in-out infinite; }

@@ -16,6 +16,7 @@ import { motionOn } from './motion.js';
 import { SPRINGS } from './spring.js';
 import { openDupes, closeOverlays, openTidy, openFeed, openNews } from './lazy.js';
 import { sfx } from './sound.js';
+import { LITE } from '../lib/lite.js';
 
 let root = null, input, list, frame, hl, rows = [], active = 0, back = null;
 
@@ -50,6 +51,7 @@ function actions() {
     { icon: 'bookmark', label: 'Сохранённые статьи', keys: 'новости читать статьи reader закладки', run: () => openNews('saved') },
     { icon: 'masonry', label: 'Мозаика', keys: 'вид раскладка', run: click('#lyM') },
     { icon: 'grid', label: 'Сетка', keys: 'вид раскладка', run: click('#lyG') },
+    { icon: 'rows', label: 'Список', keys: 'вид раскладка строки ссылки list', run: click('#lyL') },
     { icon: 'sideL', label: cleanOn() ? 'Выключить чистый экран' : 'Чистый экран', hint: '\\', keys: 'интерфейс скрыть панели', run: () => setClean(!cleanOn()) },
     { icon: 'gear', label: 'Настройки', keys: 'параметры', run: toggleSettings },
     { icon: 'download', label: 'Проверить обновления', keys: 'обновить версия update новая версия о программе', run: () => import('../lib/updater.js').then((m) => m.checkUpdates()) },
@@ -70,6 +72,7 @@ function pickTools() {
     a.push({ icon: 'scissors', label: 'Убрать фон — выберите картинку…', keys: 'вырезать объект фон прозрачный png remove background cutout маска', run: pickRun('Убрать фон', isPic, (x) => import('./cutout.js').then((m) => m.openCutout(x))) });
     a.push({ icon: 'shield', label: 'Скрыть личные данные — выберите картинку…', keys: 'маскировка карта телефон фио размыть пд безопасность', run: pickRun('Скрыть личные данные', isPic, (x) => import('./mask.js').then((m) => m.openMask([x]))) });
   }
+  if (!(it && isPic(it) && it.ext !== 'svg')) a.push({ icon: 'crt', label: 'Эффекты — выберите картинку…', keys: 'ретро эффекты ansi ascii текст терминал дизеринг 1 бит dither bayer atkinson crt кинескоп люминофор микрофиша плёнка полутон halftone cmyk', run: pickRun('Эффекты', (i) => isPic(i) && i.ext !== 'svg', (x) => import('./effects.js').then((m) => m.openEffects(x))) });
   if (!(it && isPic(it) && it.ext !== 'svg')) a.push({ icon: 'sparkle', label: 'Увеличить ×2 / ×4 — выберите картинку…', keys: 'апскейл upscale разрешение качество esrgan крупнее', run: pickRun('Увеличить', (i) => isPic(i) && i.ext !== 'svg', (x) => import('./upscale.js').then((m) => m.openUpscale(x))) });
   return a;
 }
@@ -86,6 +89,7 @@ function forSelection() {
     if (it.ext === 'svg') a.push({ icon: 'cube', label: 'Сделать 3D из SVG…', keys: 'модель blender', run: () => import('./svg3d.js').then((m) => m.openFromItem(it)) });
     if (((it.kind === 'image' && it.ext !== 'gif') || (it.kind === 'psd' && it.preview))) a.push({ icon: 'scissors', label: 'Убрать фон…', keys: 'вырезать объект фон прозрачный png remove background cutout маска', run: () => import('./cutout.js').then((m) => m.openCutout(it)) });
     if (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview))) a.push({ icon: 'sparkle', label: 'Увеличить ×2 / ×4…', keys: 'апскейл upscale разрешение качество esrgan крупнее', run: () => import('./upscale.js').then((m) => m.openUpscale(it)) });
+    if (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview))) a.push({ icon: 'crt', label: 'Эффекты…', hint: 'E', keys: 'ретро эффекты ansi ascii текст терминал дизеринг 1 бит dither bayer atkinson crt кинескоп люминофор микрофиша плёнка полутон halftone cmyk', run: () => import('./effects.js').then((m) => m.openEffects(it)) });
     a.push({ icon: 'edit', label: 'Переименовать', hint: 'F2', keys: 'имя', run: () => import('./rename.js').then((m) => m.openRename([it])) });
   }
   const pics = ids.map((id) => S.byId.get(id)).filter((i) => i && ((i.kind === 'image' && i.ext !== 'gif') || (i.kind === 'psd' && i.preview)));
@@ -151,14 +155,18 @@ function score(text, q) {
   return s;
 }
 
+// Oddments Web: the commands of what it does not have (src/lib/lite.js)
+const LITE_DROP = /^(Перенести из Eagle|Картинки с доски PureRef|SVG в 3D|Сплат|Сделать сплат|Сделать 3D|Плагины|Командная|Показ|Экраны приложений|Сравнить два|Сценарий из записи|Конструктор иконок|Материал из текстур|Лента новостей|Сводка дня|Сохранённые статьи|Проверить обновления|Убрать фон|Скрыть личные|Эффекты|Увеличить|В Blender)/;
+const liteKeep = (x) => !LITE || !LITE_DROP.test(x.label);
+
 function build() {
   const q = input.value.trim().toLowerCase();
   // in English the label is matched as shown too (the labels are written in Russian, i18n.js translates them on screen)
   const pick = (arr) => (q ? arr.map((x) => [score(x.label + ' ' + t(x.label) + ' ' + (x.keys || '') + ' ' + (x.sub || ''), q), x]).filter((p) => p[0]).sort((a, b) => b[0] - a[0]).map((p) => p[1]) : arr);
-  const acts = actions();
+  const acts = actions().filter(liteKeep);
   const recent = q ? [] : recentLabels().map((l) => acts.find((x) => x.label === l)).filter(Boolean);
   const groups = [
-    ['Выделенное', pick(forSelection())],
+    ['Выделенное', pick(forSelection().filter(liteKeep))],
     ['Недавние', recent],
     ['Действия', pick(acts.filter((x) => !recent.includes(x))).slice(0, q ? 6 : 8)],
     ['Перейти', pick(places()).slice(0, q ? 8 : 6)],

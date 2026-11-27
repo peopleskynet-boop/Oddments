@@ -79,11 +79,13 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: oddments-mac-dmg
+          retention-days: 7 # the private repository has 500 MB for artifacts; builds to keep go to E:/Perch/builds
           path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: oddments-safari
+          retention-days: 7
           path: build-safari/oddments-safari.zip
           if-no-files-found: ignore
       # a pushed tag v* publishes a draft GitHub Release with the installer attached

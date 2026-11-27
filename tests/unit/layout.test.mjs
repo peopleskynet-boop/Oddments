@@ -15,6 +15,18 @@ for (const mode of ['masonry', 'grid']) {
   });
 }
 
+test('list: one full-width row per file, the slider sets the height', () => {
+  const { boxes, height, cols, colW } = computeLayout(items.slice(0, 10), 900, 220, 14, 24, 'list');
+  assert.equal(cols, 1);
+  assert.equal(colW, 900);
+  assert.equal(boxes[0].h, 80);
+  assert.ok(boxes.every((b, i) => b.x === 0 && b.w === 900 && (i === 0 || b.y === boxes[i - 1].y + 80 + 7)));
+  assert.equal(height, 10 * 80 + 9 * 7);
+  assert.equal(computeLayout(items.slice(0, 1), 900, 120, 14, 0, 'list').boxes[0].h, 60);
+  assert.equal(computeLayout(items.slice(0, 1), 900, 460, 14, 0, 'list').boxes[0].h, 128);
+  assert.equal(computeLayout([], 900, 220, 14, 0, 'list').height, 0);
+});
+
 test('a window narrower than one card still lays out one column', () => {
   const { cols, boxes } = computeLayout(items.slice(0, 3), 100, 220, 14, 0, 'masonry');
   assert.equal(cols, 1);

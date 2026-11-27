@@ -103,3 +103,30 @@ export function scanImages(b) {
   }
   return out;
 }
+
+// «Забрать доску целиком» in the browser extension (1.7): its `folder` is not an id but JSON —
+//   { path: [[key, name], …], src, note }
+// path — the collections from the service down to the board's section («Pinterest › Board › Section»), each found by its
+// key (the optional `src` field of a collection), else by name under the same parent, else made; src — the file's id at
+// the service ('pinterest:pin:123'), kept in the optional `src` field of the item, so a second import of the same board
+// adds only what is new (and never brings back what was deleted); note — the description, which search reads.
+// The receiver (bridge.rs) passes `folder` through as text: no Rust change, index.json needs no migration.
+export function boardMeta(raw) {
+  if (typeof raw !== 'string' || raw[0] !== '{') return null;
+  try {
+    const m = JSON.parse(raw);
+    if (!m || !Array.isArray(m.path) || !m.path.length) return null;
+    const path = m.path.filter((p) => Array.isArray(p) && p[0] && p[1]).map(([k, n]) => [String(k).slice(0, 200), String(n).trim().slice(0, 120)]).filter((p) => p[1]);
+    if (!path.length) return null;
+    return { path, src: m.src ? String(m.src).slice(0, 200) : '', note: m.note ? String(m.note).slice(0, 2000) : '' };
+  } catch (e) { return null; }
+}
+export function boardFolder(path, folders, makeId) {
+  let parent = null;
+  for (const [key, name] of path) {
+    let f = folders.find((x) => x.src === key) || folders.find((x) => !x.src && (x.parent || null) === parent && x.name === name);
+    if (!f) { f = { id: makeId(), name, parent, open: false, src: key }; folders.push(f); }
+    parent = f.id;
+  }
+  return parent;
+}

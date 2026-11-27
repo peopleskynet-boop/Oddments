@@ -2,7 +2,7 @@
 // time, while the window is idle, saving the index every 20. Models and materials keep theirs (made from a transparent
 // render without the backdrop); fonts and audio have none.
 import * as fs from '@tauri-apps/plugin-fs';
-import { S, ui } from '../state.js';
+import { S, ui, bareLink } from '../state.js';
 import { absPath, saveIndex } from './library.js';
 import { extractPalette, PALETTE_V } from './palette.js';
 
@@ -13,7 +13,7 @@ export async function refreshPalettes() {
   if (running) return;
   running = true;
   try {
-    const todo = S.items.filter((it) => !it.trashed && it.thumb && KINDS.has(it.kind) && it.palV !== PALETTE_V);
+    const todo = S.items.filter((it) => !it.trashed && it.thumb && KINDS.has(it.kind) && !bareLink(it) && it.palV !== PALETTE_V);
     let n = 0, touchedSel = false;
     for (const it of todo) {
       if (document.hidden) await new Promise((r) => document.addEventListener('visibilitychange', r, { once: true }));

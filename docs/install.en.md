@@ -62,7 +62,12 @@ Edit › Preferences › Add-ons › Install from Disk. Either way, paste the to
 
 ## Plugins and Claude
 
-Every integration is in Oddments › the sidebar › Tools › «Plugins»: Blender, Figma, Chrome and Edge, Safari and Claude.
+Every integration is in Oddments › the sidebar › Tools › «Plugins»: Blender, Figma, Chrome and Edge, Zen and Firefox, Safari and Claude.
+The extension for Zen and Firefox is an .xpi file from «Plugins» › «Zen and Firefox». Zen takes it after one setting:
+about:config › `xpinstall.signatures.required` = `false`, then about:addons › ⚙ › «Install Add-on From File…».
+Regular Firefox takes unsigned extensions only in Developer Edition and Nightly. How to use the extension — the «?» button
+at the bottom of its window.
+
 For Claude Desktop the «For Claude Desktop» button copies the settings — paste them into `claude_desktop_config.json`
 (Claude › Settings › Developer › Edit Config) and restart Claude. For Claude Code the button copies the
 `claude mcp add …` command. Then you can ask Claude: «find references with glass and violet light in Oddments».

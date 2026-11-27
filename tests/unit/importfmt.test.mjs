@@ -1,7 +1,7 @@
 // Importing from Eagle and PureRef (src/lib/importfmt.js): Eagle's folders and records, pictures found inside a .pur
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { eagleFolders, eagleItem, eagleOriginal, scanImages } from '../../src/lib/importfmt.js';
+import { eagleFolders, eagleItem, eagleOriginal, scanImages, boardMeta, boardFolder } from '../../src/lib/importfmt.js';
 
 test('Eagle folders come parents first', () => {
   const f = eagleFolders({ folders: [{ id: 'A', name: 'Плакаты', children: [{ id: 'B', name: 'Швейцарский стиль', children: [] }] }, { id: 'C', name: '3D' }] });
@@ -51,4 +51,29 @@ test('pictures inside a PureRef file are found whole, in order', () => {
 test('a cut-off picture is not taken', () => {
   const a = png();
   assert.deepEqual(scanImages(Uint8Array.from(a.slice(0, a.length - 6))), []);
+});
+
+test('a board import from the extension: its JSON in `folder`, anything else is not one', () => {
+  const m = boardMeta(JSON.stringify({ path: [['pinterest', 'Pinterest'], ['pinterest:board:9', ' Posters '], ['x', '']], src: 'pinterest:pin:1', note: 'Swiss' }));
+  assert.deepEqual(m, { path: [['pinterest', 'Pinterest'], ['pinterest:board:9', 'Posters']], src: 'pinterest:pin:1', note: 'Swiss' });
+  assert.equal(boardMeta('f123'), null);
+  assert.equal(boardMeta(''), null);
+  assert.equal(boardMeta('{broken'), null);
+  assert.equal(boardMeta(JSON.stringify({ path: [] })), null);
+});
+
+test('board collections: found by key, else by name under the parent, else made', () => {
+  let n = 0;
+  const id = () => 'n' + ++n;
+  const folders = [{ id: 'own', name: 'Pinterest', parent: null }];
+  const a = boardFolder([['pinterest', 'Pinterest'], ['pinterest:board:9', 'Posters']], folders, id);
+  assert.equal(folders.length, 2);
+  assert.deepEqual(folders[1], { id: a, name: 'Posters', parent: 'own', open: false, src: 'pinterest:board:9' });
+  // renamed in Oddments: still the same collection, by its key
+  folders[1].name = 'Плакаты';
+  assert.equal(boardFolder([['pinterest', 'Pinterest'], ['pinterest:board:9', 'Posters']], folders, id), a);
+  // a section goes under its board
+  const s = boardFolder([['pinterest', 'Pinterest'], ['pinterest:board:9', 'Posters'], ['pinterest:section:3', 'Swiss']], folders, id);
+  assert.equal(folders.find((f) => f.id === s).parent, a);
+  assert.equal(folders.length, 3);
 });

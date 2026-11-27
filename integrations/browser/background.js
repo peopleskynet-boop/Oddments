@@ -1,7 +1,9 @@
-// Oddments for Chrome and Edge: the service worker. Everything goes to the Oddments window on this computer
-// through its local receiver (127.0.0.1, ports 47215–47219, the token from Oddments › Настройки › Интеграции):
-//   POST /import?name&source&token&folder&tags — one file; the folder and tags chosen in the popup go along.
-//   GET  /library?token — folders and tags for the popup's picker.
+// Oddments for Chrome, Edge, Zen and Firefox: the background (a service worker in Chrome, an event page in Gecko — the
+// same file). Everything goes to the Oddments window on this computer through its local receiver (127.0.0.1, ports
+// 47215–47219, the token from Oddments › Настройки › Интеграции):
+//   POST /import?name&source&token&folder&tags — one file; the folder and tags chosen in the popup go along. A board
+//        import (1.7) puts JSON into `folder` instead of an id: the collections of the board and the file's id there.
+//   GET  /library?token — folders and tags for the popup's picker, the app's language, the ids of boards' files already in.
 // Pictures are downloaded here (host permissions: no CORS), so the page's own scripts never see the token.
 
 import './i18n.js';
@@ -43,8 +45,10 @@ async function endpoint(path, params = {}) {
   return { url: `http://127.0.0.1:${at}${path}?${q}`, p };
 }
 
-async function sendBlob(blob, name, source, tags) {
-  const { url } = await endpoint('/import', await target({ name: cleanName(name), source: source || '' }, tags));
+async function sendBlob(blob, name, source, tags, folder) {
+  const params = await target({ name: cleanName(name), source: source || '' }, tags);
+  if (folder != null) params.folder = folder;
+  const { url } = await endpoint('/import', params);
   let r;
   try { r = await fetch(url, { method: 'POST', body: blob }); } catch (e) { port = null; throw new PerchError(T('Oddments не ответил'), true); }
   if (r.status === 401) throw new PerchError(T('Токен не подошёл: скопируйте его заново в Oddments › Настройки'), true);
@@ -65,7 +69,10 @@ export async function status() {
   try {
     const r = await fetch(`http://127.0.0.1:${at}/library?token=${encodeURIComponent(p.token)}`);
     if (r.status === 401) return { state: 'bad' };
-    return { state: 'ok', catalog: await r.json() };
+    const catalog = await r.json();
+    // the extension speaks the app's language unless the popup chose one (i18n.js)
+    if (catalog.lang && (await chrome.storage.local.get('appLang')).appLang !== catalog.lang) chrome.storage.local.set({ appLang: catalog.lang });
+    return { state: 'ok', catalog };
   } catch (e) { return { state: 'off' }; }
 }
 
@@ -104,7 +111,48 @@ async function saveFile(url, page, hint, named) {
   return name;
 }
 
-const shortcut = (url) => new Blob([`[InternetShortcut]\r\nURL=${url}\r\n`], { type: 'application/x-url' });
+// A .url shortcut. [Oddments] carries what the open page showed (pageInfo): the picture, title, description, site and
+// icon — Oddments draws the link's card from them (src/lib/linkmeta.js reads the same section; Windows ignores it). The
+// person's browser gets past Cloudflare and bot walls (ArtStation, Dribbble) that stop Oddments' own request.
+const one = (s) => String(s || '').replace(/[\r\n]+/g, ' ').trim();
+const shortcut = (url, o = {}) => {
+  const extra = [['Title', o.title], ['Description', o.desc], ['Site', o.site], ['Icon', o.icon], ['Image', o.image]].filter(([, v]) => one(v));
+  return new Blob([`[InternetShortcut]\r\nURL=${one(url)}\r\n` + (extra.length ? '[Oddments]\r\n' + extra.map(([k, v]) => `${k}=${one(v)}\r\n`).join('') : '')], { type: 'application/x-url' });
+};
+const samePage = (a, b) => { try { const x = new URL(a), y = new URL(b); x.hash = y.hash = ''; return x.href === y.href; } catch (e) { return false; } };
+
+// what the open page says about itself, read in the page: Open Graph and Twitter cards, the title, the sharpest icon
+async function pageInfo(tab) {
+  try {
+    const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
+      const m = (k) => { const e = document.querySelector(`meta[property="${k}"], meta[name="${k}"]`); return e ? (e.getAttribute('content') || '').trim() : ''; };
+      const abs = (u) => { try { const x = new URL(u, location.href); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch (e) { return ''; } };
+      const px = (s) => { const k = /(\d+)x\d+/i.exec(s || ''); return k ? +k[1] : 0; };
+      const icons = [...document.querySelectorAll('link[rel~="icon"], link[rel~="apple-touch-icon"], link[rel~="apple-touch-icon-precomposed"]')]
+        .map((l) => ({ href: abs(l.getAttribute('href') || ''), score: /apple-touch/.test(l.rel) ? 300 : /svg/.test(l.type || l.getAttribute('href') || '') ? 250 : Math.min(px(l.getAttribute('sizes')), 256) }))
+        .filter((i) => i.href).sort((a, b) => b.score - a.score);
+      return {
+        image: abs(m('og:image:secure_url') || m('og:image') || m('og:image:url') || m('twitter:image') || m('twitter:image:src')),
+        title: m('og:title') || m('twitter:title') || document.title || '',
+        desc: m('og:description') || m('twitter:description') || m('description'),
+        site: m('og:site_name') || m('application-name'),
+        icon: (icons[0] && icons[0].href) || abs('/favicon.ico'),
+      };
+    } });
+    return (r && r.result) || null;
+  } catch (e) { return null; } // a page the extension cannot read (the store, a PDF viewer): the address alone
+}
+// a page without a picture of its own: the visible part of it, as a JPEG up to 1280 px (the cover of the card)
+async function pageShot(tab) {
+  const data = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 80 });
+  const bmp = await createImageBitmap(await (await fetch(data)).blob());
+  const s = Math.min(1, 1280 / bmp.width), c = new OffscreenCanvas(Math.round(bmp.width * s), Math.round(bmp.height * s));
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const bytes = new Uint8Array(await (await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })).arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return 'data:image/jpeg;base64,' + btoa(bin);
+}
 const videoOf = (u) => { for (const v of VIDEO_URLS) { const m = (u || '').match(v.re); if (m) return { url: m[0], site: v.site, id: m[1] }; } return null; };
 
 async function videoTitle(v) {
@@ -113,14 +161,24 @@ async function videoTitle(v) {
   try { const r = await fetch(api + encodeURIComponent(v.url)); return r.ok ? ((await r.json()).title || '').trim() : ''; } catch (e) { return ''; }
 }
 
-// a link card: YouTube / Vimeo / Pinterest get their cover in Oddments, any other page a link card
-async function saveLink(url, title) {
+// a link card: YouTube / Vimeo / Pinterest get their cover in Oddments; any other page — when it is the page open in
+// the tab, with what the page showed (pageInfo), and a shot of it if it has no picture; a link to another page — the
+// address alone (Oddments reads that page itself)
+async function saveLink(url, title, tab) {
   // only web addresses: a javascript:, file: or search-ms: link would become a .url that Windows hands to its handler
   if (!/^https?:\/\//i.test(url || '')) throw new PerchError(T('Сохраняются только веб-ссылки (http/https)'));
   const v = videoOf(url);
   if (v) title = (await videoTitle(v)) || title || `${v.site} ${v.id}`;
   title = cleanName((title || '').replace(/\s+[-–—|]\s+(YouTube|Vimeo|Pinterest)$/i, '') || hostOf(url));
-  await sendBlob(shortcut(v ? v.url : url), title + '.url', url);
+  let info = null;
+  if (!v) {
+    tab = tab || (await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []))[0];
+    if (tab && samePage(tab.url, url)) {
+      info = await pageInfo(tab);
+      if (info && !info.image) info.image = await pageShot(tab).catch(() => '');
+    }
+  }
+  await sendBlob(shortcut(v ? v.url : url, info || {}), title + '.url', url);
   return title;
 }
 const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return T('Ссылка'); } };
@@ -150,28 +208,37 @@ async function shotArea(tab) {
 }
 
 /* ---------- a video of an area ---------- */
-// The tab is captured (tabCapture) in an offscreen page (offscreen.js) that crops every frame to the frame drawn on
-// the page and records it with the tab's sound; the page shows the frame and a bar (time, pause, stop, cancel). The
-// recording's state lives in the offscreen page — this worker may be stopped meanwhile. The file goes to Oddments
-// like any other; when Oddments is not there, to the browser's downloads.
+// Chrome and Edge: the tab is captured (tabCapture) in an offscreen page (offscreen.js) that crops every frame to the
+// frame drawn on the page and records it with the tab's sound; the page shows the frame and a bar (time, pause, stop,
+// cancel). The recording's state lives in the offscreen page — this worker may be stopped meanwhile.
+// Zen and Firefox have neither tabCapture nor offscreen pages: the page itself asks for «show the screen» on the click
+// of «Начать запись», finds the frame on what it gets and records it there (content.js recLocal) — WebM, no sound.
+// The file goes to Oddments like any other; when Oddments is not there, to the browser's downloads.
+const MAX_REC = 5 * 60 * 1000;
 const toOff = (msg) => chrome.runtime.sendMessage({ ...msg, target: 'offscreen' });
 const offOpen = () => (chrome.offscreen ? chrome.offscreen.hasDocument() : Promise.resolve(false));
 const recState = async () => ((await offOpen()) ? (await toOff({ t: 'recState' }).catch(() => null)) || { on: false } : { on: false });
-const closeOff = () => chrome.offscreen.closeDocument().catch(() => {});
+const closeOff = () => (chrome.offscreen ? chrome.offscreen.closeDocument().catch(() => {}) : Promise.resolve());
 
 async function recordArea(tab) {
   if ((await recState()).on) { await toOff({ t: 'recCtl', do: 'stop' }); return null; } // the same command again stops
-  if (!chrome.tabCapture || !chrome.offscreen) throw new PerchError(T('Этот браузер не умеет записывать вкладку'));
-  const pick = await ask(tab, { t: 'pickArea', label: T('Выделите область для видео · Esc — отмена') });
+  const name = T('Видео {site} {time}', { site: hostOf(tab.url), time: stamp() });
+  if (!chrome.tabCapture || !chrome.offscreen) {
+    const r = await ask(tab, { t: 'recLocal', max: MAX_REC, name, page: tab.url });
+    if (r === undefined) throw new PerchError(T('Здесь браузер не даёт записывать — откройте обычную страницу сайта'));
+    if (r && r.error) throw new PerchError(r.error);
+    return null; // the toast comes with the file
+  }
+  // the frame, then «Начать запись» (or «Вся вкладка»): the area can be moved and resized before the recording starts
+  const pick = await ask(tab, { t: 'pickArea', video: true, label: T('Выделите область для видео · Esc — отмена') });
   if (!pick || !pick.w || !pick.h) return null; // cancelled
   // the id lives a few seconds: taken after the frame is drawn
   let streamId;
   try { streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id }); } catch (e) { throw new PerchError(T('Эту вкладку не записать: ') + ((e && e.message) || e)); }
   if (!(await offOpen())) await chrome.offscreen.createDocument({ url: 'offscreen.html', reasons: ['USER_MEDIA'], justification: 'Records a selected area of the tab as a video' });
-  const name = T('Видео {site} {time}', { site: hostOf(tab.url), time: stamp() });
   const r = await toOff({ t: 'recStart', streamId, pick, tabId: tab.id, name, page: tab.url });
   if (!r || r.error) throw new PerchError(T('Запись не началась: ') + ((r && r.error) || ''));
-  await ask(tab, { t: 'recUi', rect: pick, elapsed: 0, paused: false, max: 5 * 60 * 1000 });
+  await ask(tab, { t: 'recUi', rect: pick, elapsed: 0, paused: false, max: MAX_REC });
   return null; // the toast comes with the file
 }
 
@@ -217,7 +284,7 @@ async function ask(tab, msg) {
 async function say(tab, text, kind = 'ok') {
   if (tab && tab.id != null && (await ask(tab, { t: 'toast', text, kind })) !== undefined) return;
   // pages without the script (chrome://, the web store): the badge says it
-  chrome.action.setBadgeBackgroundColor({ color: kind === 'err' ? '#ff2d6f' : '#c6ff00' });
+  chrome.action.setBadgeBackgroundColor({ color: kind === 'err' ? '#ff2e88' : '#d7ff63' });
   chrome.action.setBadgeText({ text: kind === 'err' ? '!' : '✓' });
   setTimeout(() => chrome.action.setBadgeText({ text: '' }), 2500);
 }
@@ -342,21 +409,276 @@ async function saveArticle(tab) {
   return title;
 }
 
+/* ---------- «Забрать доску целиком»: Pinterest, Cosmos, Are.na, Savee ---------- */
+// What the tab is, from its address only: a board (a Pinterest board or its section, a Cosmos cluster, an Are.na
+// channel, a Savee page) or a profile (its boards are offered with checkboxes). Pinterest, Cosmos and Savee are read
+// from the page as the person sees it, scrolled by boards.js at a person's pace; Are.na through its official API
+// (open channels without a token, closed ones with the person's own token from the popup's settings).
+// Everything collected is shown for a last look (what is already in Oddments is unticked), then sent two files at a time.
+// Each file carries its collections (Сервис › Доска › Раздел) and its id at the service, so a second run adds only
+// what is new — Oddments keeps that id (bridge.js), and deleted files do not come back.
+const SKIP = {
+  pinterest: /^(pin|search|ideas|today|explore|settings|business|login|signup|password|about|categories|topics|videos|shopping|news_hub|notifications|inbox|homefeed|following|creator-hub|analytics|convert|secure|oauth|resource|edit|offsite|idea-pin-builder|pin-builder|pin-creation-tool)$/i,
+  arena: /^(explore|about|blog|editorial|settings|search|notifications|feed|pricing|login|log_in|sign_up|signup|register|block|share|tools|terms|privacy|faq|groups|community|api|developers|oauth|premium|supporters|gift|gifts|support|channels|new|import|reset-password|forgot-password|marks|following|followers|annual-report)$/i,
+  cosmos: /^(explore|sequence|login|start|e|settings|shop|home|search|about|privacy|terms|pricing|pro|download|onboarding|notifications|api|blog|careers|discover|signup|invite|saved|legal|help|apps|extension)$/i,
+  savee: /^(features|team|upgrade|login|join|mcp|marketplace|course|site|shortcuts|students|faq|contact|terms|privacy|copyright-policy|i|search|settings|explore|pro|discover|api|logout|password|_next)$/i,
+};
+const pretty = (slug) => { try { return decodeURIComponent(slug || '').replace(/[-_]+/g, ' ').trim(); } catch (e) { return String(slug || ''); } };
+export function boardOf(url) {
+  let u;
+  try { u = new URL(url); } catch (e) { return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  const host = u.hostname.replace(/^www\./, '').toLowerCase();
+  const seg = u.pathname.split('/').filter(Boolean);
+  const at = (path) => u.origin + '/' + path.join('/') + '/';
+  if (/^([a-z]{2,3}\.)?pinterest\.[a-z.]+$/.test(host)) {
+    if (!seg.length || SKIP.pinterest.test(seg[0]) || seg[0].startsWith('_')) return null;
+    if (seg.length === 1 || (seg.length === 2 && /^_(saved|created|boards|profile)$/.test(seg[1]))) return { service: 'Pinterest', kind: 'profile', user: seg[0], name: '@' + seg[0], url: at([seg[0]]) };
+    if (seg[1].startsWith('_') || seg.length > 3) return null;
+    return { service: 'Pinterest', kind: 'board', user: seg[0], board: seg[1], section: seg[2] || '', name: pretty(seg[2] || seg[1]), url: at(seg) };
+  }
+  if (host === 'are.na') {
+    if (!seg.length || SKIP.arena.test(seg[0])) return null;
+    if (seg.length === 2 && !/^(channels|blocks|followers|following|groups|index|table|about)$/i.test(seg[1])) return { service: 'Are.na', kind: 'board', user: seg[0], board: seg[1], name: pretty(seg[1]), url: u.origin + '/' + seg.join('/') };
+    if (seg.length <= 2) return { service: 'Are.na', kind: 'profile', user: seg[0], name: pretty(seg[0]), url: u.origin + '/' + seg[0] };
+    return null;
+  }
+  if (host === 'cosmos.so') {
+    if (!seg.length || SKIP.cosmos.test(seg[0])) return null;
+    if (seg.length === 1 || (seg.length === 2 && /^(collections|clusters)$/i.test(seg[1]))) return { service: 'Cosmos', kind: 'profile', user: seg[0], name: '@' + seg[0], url: u.origin + '/' + seg[0] + '/collections' };
+    if (seg.length === 2) return { service: 'Cosmos', kind: 'board', user: seg[0], board: seg[1], name: pretty(seg[1]), url: u.origin + '/' + seg.join('/') };
+    return null;
+  }
+  if (/^savee\.(com|it)$/.test(host)) {
+    if (!seg.length || SKIP.savee.test(seg[0])) return null;
+    return { service: 'Savee', kind: 'board', user: seg[0], board: seg.slice(1).join('/'), name: pretty(seg[seg.length - 1]), url: at(seg) };
+  }
+  return null;
+}
+
+let boardJob = null;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// a tab of the board: the page's own scripts are there after every load (content.js by the manifest, boards.js here)
+async function boardsIn(tab) {
+  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['i18n.js', 'content.js', 'block.js', 'boards.js'] }).catch(() => {});
+}
+async function goTo(tab, url) {
+  const loaded = new Promise((res) => {
+    const on = (id, info) => { if (id === tab.id && info.status === 'complete') { chrome.tabs.onUpdated.removeListener(on); res(); } };
+    chrome.tabs.onUpdated.addListener(on);
+    setTimeout(() => { chrome.tabs.onUpdated.removeListener(on); res(); }, 30000);
+  });
+  await chrome.tabs.update(tab.id, { url });
+  await loaded;
+  await wait(1800); // the site's own script draws the grid after the load
+  await boardsIn(tab);
+}
+const sameUrl = (a, b) => String(a || '').replace(/[?#].*$/, '').replace(/\/+$/, '') === String(b || '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+
+async function grabBoards(tab) {
+  if (boardJob) { await say(tab, T('Доска уже забирается — дождитесь конца или нажмите «Остановить»'), 'err'); return null; }
+  const where = boardOf(tab.url);
+  if (!where) throw new PerchError(T('Здесь нет доски: откройте доску Pinterest, кластер Cosmos, канал Are.na или доску Savee'));
+  // Oddments must be there before minutes of scrolling, not after
+  const st = await status();
+  if (st.state === 'off') throw new PerchError(T('Oddments не запущен: откройте приложение'), true);
+  if (st.state !== 'ok') throw new PerchError(T('Нет токена: вставьте его в окне расширения'), true);
+  boardJob = { stop: false, tab: tab.id };
+  // the worker sleeps after 30 s without the extension's own calls: a long walk keeps it awake
+  const keep = setInterval(() => chrome.runtime.getPlatformInfo().catch(() => {}), 20000);
+  try {
+    await boardsIn(tab);
+    const groups = where.service === 'Are.na' ? await arenaGroups(tab, where) : await pageGroups(tab, where);
+    await ask(tab, { t: 'boardProgress', done: true });
+    if (!groups) return null;
+    const all = groups.reduce((n, g) => n + g.items.length, 0);
+    if (!all) throw new PerchError(T('На доске не нашлось картинок и видео'));
+    const known = ((await status()).catalog || {}).boards || [];
+    const picked = await ask(tab, { t: 'boardReview', groups, known });
+    if (!picked || !picked.length) return null;
+    return await sendBoard(tab, picked, groups.reduce((n, g) => n + (g.skipped || 0), 0));
+  } finally { clearInterval(keep); boardJob = null; }
+}
+
+// Pinterest, Cosmos, Savee: the boards are visited in this tab one by one; a Pinterest board's sections after it
+async function pageGroups(tab, where) {
+  let boards = [{ url: where.url, path: null }];
+  if (where.kind === 'profile') {
+    if (where.service === 'Cosmos' && !sameUrl(tab.url, where.url)) await goTo(tab, where.url);
+    const list = await ask(tab, { t: 'boardList', where });
+    if (!list || !list.length) throw new PerchError(T('На странице профиля не нашлось досок'));
+    const chosen = await ask(tab, { t: 'boardChoose', where, boards: list });
+    if (!chosen || !chosen.length) return null;
+    boards = chosen.map((b) => ({ url: b.url, path: null }));
+  }
+  const groups = [];
+  for (let i = 0; i < boards.length && !boardJob.stop; i++) {
+    const b = boards[i];
+    const cur = await chrome.tabs.get(tab.id).catch(() => null);
+    if (!cur) break; // the tab was closed
+    if (!sameUrl(cur.url, b.url)) await goTo(tab, b.url);
+    const r = await ask(tab, { t: 'boardCollect', where: boardOf(b.url), parent: b.path, step: i + 1, steps: boards.length });
+    if (!r) continue;
+    groups.push({ name: r.name, path: r.path, items: r.items, skipped: r.skipped || 0, expect: r.expect || 0 });
+    for (const s of r.sections || []) boards.push({ url: s.url, path: r.path });
+  }
+  // a pin that is both on the board and in its section belongs to the section (the later, deeper group)
+  const owner = new Map();
+  for (const g of groups) for (const it of g.items) owner.set(it.src, g);
+  for (const g of groups) g.items = g.items.filter((it) => owner.get(it.src) === g);
+  return groups.filter((g) => g.items.length);
+}
+
+// Are.na: the official API (api.are.na/v3), paced under its limits (30 requests a minute without a token). The requests
+// go from the Are.na page itself (boards.js arenaApi): the API turns an extension's own origin away.
+async function arenaGroups(tab, where) {
+  const tok = ((await chrome.storage.local.get('arenaToken')).arenaToken || '').trim();
+  const gap = tok ? 700 : 2100;
+  let last = 0;
+  const api = async (path) => {
+    for (let tries = 0; ; tries++) {
+      const pause = last + gap - Date.now();
+      if (pause > 0) await wait(pause);
+      last = Date.now();
+      const r = (await ask(tab, { t: 'arenaApi', path, token: tok })) || { status: 0 };
+      if (r.status === 429 && tries < 3) { await wait(30000); continue; }
+      if (r.status === 401 || r.status === 403) throw new PerchError(tok ? T('Are.na не принял токен — проверьте его в настройках расширения') : T('Это закрытый канал: вставьте свой токен Are.na в настройках расширения'));
+      if (r.status === 404) return null;
+      if (r.status !== 200 || !r.json) throw new PerchError(T('Are.na ответил ') + (r.status || r.error || '?'));
+      return r.json;
+    }
+  };
+  const pages = async (path, onPage) => {
+    const out = [];
+    for (let page = 1; page < 200 && !boardJob.stop; page++) {
+      const j = await api(path + (path.includes('?') ? '&' : '?') + 'per=100&page=' + page);
+      if (!j) return page === 1 ? null : out;
+      out.push(...(j.data || []));
+      if (onPage) await onPage(out.length, (j.meta && j.meta.total_count) || 0);
+      if (!(j.meta && j.meta.has_more_pages)) break;
+    }
+    return out;
+  };
+  let channels = [{ slug: where.board, title: where.name }];
+  if (where.kind === 'profile') {
+    await ask(tab, { t: 'boardProgress', text: T('Are.na: читаю каналы…') });
+    const list = (await pages(`/users/${encodeURIComponent(where.user)}/contents?type=Channel`)) || (await pages(`/groups/${encodeURIComponent(where.user)}/contents?type=Channel`)) || [];
+    const boards = list.filter((c) => c.type === 'Channel').map((c) => ({
+      url: `https://www.are.na/${(c.owner && c.owner.slug) || where.user}/${c.slug}`, name: c.title, count: (c.counts && c.counts.contents) || 0, slug: c.slug }));
+    await ask(tab, { t: 'boardProgress', done: true });
+    if (!boards.length) throw new PerchError(T('У этого профиля Are.na нет открытых каналов'));
+    const chosen = await ask(tab, { t: 'boardChoose', where, boards });
+    if (!chosen || !chosen.length) return null;
+    channels = chosen.map((c) => ({ slug: c.slug || c.url.split('/').pop(), title: c.name }));
+  }
+  const groups = [];
+  for (let i = 0; i < channels.length && !boardJob.stop; i++) {
+    const c = channels[i];
+    const info = await api(`/channels/${encodeURIComponent(c.slug)}`);
+    if (!info) throw new PerchError(tok ? T('Канал Are.na не нашёлся') : T('Канал Are.na не открылся: если он закрытый, вставьте свой токен Are.na в настройках расширения'));
+    const title = info.title || c.title || pretty(c.slug);
+    const path = [['arena', 'Are.na'], ['arena:channel:' + info.id, title]];
+    const blocks = await pages(`/channels/${encodeURIComponent(c.slug)}/contents`, (n, all) =>
+      ask(tab, { t: 'boardProgress', text: T('Are.na · {name}: {n} из {all}', { name: title, n, all: all || n }), n, all, step: i + 1, steps: channels.length }));
+    const items = [];
+    let skipped = 0;
+    for (const b of blocks || []) {
+      const it = arenaItem(b);
+      if (it) items.push({ ...it, path }); else skipped++;
+    }
+    groups.push({ name: title, path, items, skipped });
+  }
+  return groups;
+}
+// an Are.na block as a file to send: pictures and attachments as files, links and embeds as link cards; text blocks
+// and channels inside the channel are counted and left
+export function arenaItem(b) {
+  const src = 'arena:block:' + b.id;
+  const note = (b.description && b.description.plain) || '';
+  const page = `https://www.are.na/block/${b.id}`;
+  const thumb = b.image ? ((b.image.small && b.image.small.src) || (b.image.medium && b.image.medium.src) || b.image.src) : '';
+  const size = b.image ? { w: b.image.width || 0, h: b.image.height || 0 } : {};
+  if (b.type === 'Image' && b.image && b.image.src) return { kind: 'file', url: b.image.src, name: b.title || b.image.filename || 'Are.na ' + b.id, note, link: (b.source && b.source.url) || page, src, thumb, ...size };
+  if (b.type === 'Attachment' && b.attachment && b.attachment.url) return { kind: 'file', url: b.attachment.url, name: b.attachment.filename || b.title || 'Are.na ' + b.id, note, link: page, src, thumb, file: true };
+  const href = b.type === 'Link' ? b.source && b.source.url : b.type === 'Embed' ? (b.embed && (b.embed.source_url || b.embed.url)) || (b.source && b.source.url) : '';
+  if (href && /^https?:/i.test(href)) return { kind: 'link', url: href, name: b.title || (b.source && b.source.title) || hostOf(href), note, link: href, src, thumb, ...size };
+  return null;
+}
+
+// the files, two at a time; a fatal error (Oddments closed, the token) stops the rest
+async function sendBoard(tab, items, skipped) {
+  let ok = 0, bad = 0;
+  const total = items.length;
+  const queue = items.slice();
+  const show = () => ask(tab, { t: 'toast', text: T('В Oddments: {n} из {all}…', { n: ok + bad, all: total }), kind: 'busy' });
+  await show();
+  const worker = async () => {
+    for (let it; (it = queue.shift());) {
+      if (boardJob && boardJob.stop) { queue.length = 0; break; }
+      try { await sendBoardItem(it); ok++; } catch (e) { bad++; if (e instanceof PerchError && e.fatal) { queue.length = 0; throw e; } }
+      if ((ok + bad) % 3 === 0 || !queue.length) await show();
+    }
+  };
+  try { await Promise.all([worker(), worker()]); } catch (e) { await failed(tab, e); return null; }
+  const parts = [T('В Oddments: ') + ok];
+  if (bad) parts.push(T('не скачалось: ') + bad);
+  if (skipped) parts.push(T('без текстовых блоков и вложенных каналов: ') + skipped);
+  await say(tab, parts.join(' · '), bad && !ok ? 'err' : 'ok');
+  return null;
+}
+// the board's JSON goes in `folder`; the receiver reads one line of at most 8 KB, so a long description is cut
+export function boardFolderParam(it) {
+  let note = (it.note || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+  for (;;) {
+    const json = JSON.stringify({ path: it.path, src: it.src, ...(note ? { note } : {}) });
+    if (encodeURIComponent(json).length + encodeURIComponent(it.name || '').length + encodeURIComponent(it.link || '').length < 6000 || !note) return json;
+    note = note.slice(0, Math.floor(note.length * 0.6));
+  }
+}
+async function sendBoardItem(it) {
+  const folder = boardFolderParam(it);
+  const base = cleanName(it.name || 'image').slice(0, 100);
+  const link = /^https?:/i.test(it.link || '') ? it.link : '';
+  if (it.kind === 'link') return sendBlob(shortcut(it.url), base + '.url', link || it.url, null, folder);
+  if (it.kind === 'hls') {
+    try { return await sendBlob(new Blob([await pinterestHls(it.hls, (u) => fetch(u))], { type: 'video/mp4' }), base + '.mp4', link, null, folder); } catch (e) {
+      if (e instanceof PerchError && e.fatal) throw e;
+      if (!it.url) throw e; // no cover to fall back to
+    }
+  }
+  // the original first, smaller copies if it is not there (a Pinterest original may be PNG under a .jpg name)
+  let got = null, last = null;
+  for (const u of [it.url, ...(it.alt || [])].filter(Boolean)) {
+    try { got = await download(u); if (got.type !== 'text/html' && got.blob.size) break; got = null; } catch (e) { last = e; }
+  }
+  if (!got) throw last || new PerchError(T('Сайт не отдал файл'));
+  const own = (nameFromUrl(it.url).match(/\.([a-z0-9]{1,5})$/i) || [])[1] || '';
+  const real = EXT[got.type] || own || 'jpg';
+  // an attachment keeps its own name and extension; a picture gets the extension of what the site really sent
+  const name = it.file && own ? base.replace(/\.[a-z0-9]{1,5}$/i, '') + '.' + own.toLowerCase() : base.replace(/\.[a-z0-9]{1,5}$/i, '') + '.' + real.toLowerCase();
+  return sendBlob(got.blob, name, link, null, folder);
+}
+
 /* ---------- menus, keys, messages ---------- */
+// the right-click menu, grouped the way the popup is: what is under the pointer, the page, «Снять», «Забрать»
+const PIN_HOSTS = ['com', 'ru', 'de', 'fr', 'co.uk', 'ca', 'es', 'it', 'jp', 'com.au', 'com.mx', 'at', 'ch', 'nz', 'ie', 'pt', 'se', 'dk', 'cl', 'ph', 'co.kr', 'nl', 'pl', 'cz'];
+const BOARD_SITES = [...PIN_HOSTS.map((d) => `*://*.pinterest.${d}/*`), '*://*.are.na/*', '*://*.cosmos.so/*', '*://*.savee.com/*', '*://*.savee.it/*'];
 const MENUS = [
-  { id: 'img', title: 'Сохранить картинку в Oddments', contexts: ['image'] },
-  { id: 'video', title: 'Сохранить видео в Oddments', contexts: ['video'] },
-  { id: 'link', title: 'Сохранить ссылку в Oddments', contexts: ['link'] },
-  { id: 'page', title: 'Сохранить страницу в Oddments', contexts: ['page', 'selection'] },
-  { id: 'article', title: 'Сохранить статью в Oddments — читать там', contexts: ['page', 'selection'] },
+  { id: 'img', title: 'Картинку в Oddments', contexts: ['image'] },
+  { id: 'video', title: 'Видео в Oddments', contexts: ['video'] },
+  { id: 'link', title: 'Ссылку в Oddments', contexts: ['link'] },
   // inside a Vimeo player frame (Behance animations): the video itself
-  { id: 'embed', title: 'Сохранить это видео в Oddments', contexts: ['page', 'frame', 'video', 'image', 'link'], documentUrlPatterns: ['https://player.vimeo.com/video/*'] },
-  { id: 'sep', type: 'separator', contexts: ['page', 'image', 'link', 'video'] },
-  { id: 'all', title: 'Все картинки страницы…', contexts: ['page', 'image', 'link'] },
-  { id: 'area', title: 'Снимок области', contexts: ['page', 'image', 'link', 'video'] },
-  { id: 'rec', title: 'Видео области', contexts: ['page', 'image', 'link', 'video'] },
-  { id: 'shot', title: 'Снимок видимой части', contexts: ['page', 'image', 'link', 'video'] },
-  { id: 'block', title: 'Забрать блок интерфейса…', contexts: ['page', 'image', 'link', 'video', 'selection'] },
+  { id: 'embed', title: 'Это видео в Oddments', contexts: ['page', 'frame', 'video', 'image', 'link'], documentUrlPatterns: ['https://player.vimeo.com/video/*'] },
+  { id: 'page', title: 'Страницу закладкой', contexts: ['page', 'selection'] },
+  { id: 'article', title: 'Страницу текстом для чтения', contexts: ['page', 'selection'] },
+  { id: 'sep1', type: 'separator', contexts: ['page', 'image', 'link', 'video', 'selection'] },
+  { id: 'area', title: 'Снимок области', contexts: ['page', 'image', 'link', 'video', 'selection'] },
+  { id: 'shot', title: 'Снимок всего, что видно', contexts: ['page', 'image', 'link', 'video', 'selection'] },
+  { id: 'rec', title: 'Видео области', contexts: ['page', 'image', 'link', 'video', 'selection'] },
+  { id: 'sep2', type: 'separator', contexts: ['page', 'image', 'link', 'video', 'selection'] },
+  { id: 'all', title: 'Все картинки страницы…', contexts: ['page', 'image', 'link', 'video'] },
+  { id: 'block', title: 'Кусок вёрстки: картинка и код…', contexts: ['page', 'image', 'link', 'video', 'selection'] },
+  { id: 'board', title: 'Забрать доску целиком…', contexts: ['page', 'image', 'link', 'video'], documentUrlPatterns: BOARD_SITES },
 ];
 
 /* ---------- a block of a page's layout (block.js) ---------- */
@@ -417,8 +739,16 @@ async function makeMenus() {
   });
 }
 // the language chosen in the popup: the menus follow at once
-chrome.storage.onChanged.addListener((ch) => { if (ch.lang) setTimeout(makeMenus, 0); });
+chrome.storage.onChanged.addListener((ch) => { if (ch.lang || ch.appLang) setTimeout(makeMenus, 0); });
 chrome.runtime.onInstalled.addListener(makeMenus);
+// «Как пользоваться» opens once: after the install, and after the update to 1.7 (the version that brought it)
+chrome.runtime.onInstalled.addListener(async ({ reason, previousVersion }) => {
+  const seen = (await chrome.storage.local.get('helpSeen')).helpSeen;
+  const old = reason === 'update' && /^1\.[0-6](\.|$)/.test(previousVersion || '');
+  if (seen || (reason !== 'install' && !old)) return;
+  await chrome.storage.local.set({ helpSeen: chrome.runtime.getManifest().version });
+  chrome.tabs.create({ url: chrome.runtime.getURL('help.html') });
+});
 chrome.runtime.onStartup.addListener(makeMenus);
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -436,17 +766,18 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     }, (n) => T('В Oddments: ') + n);
     case 'video': return run(tab, async () => {
       const v = videoOf(page);
-      if (v || !info.srcUrl || /^blob:/i.test(info.srcUrl)) return saveLink(v ? v.url : page, tab.title);
+      if (v || !info.srcUrl || /^blob:/i.test(info.srcUrl)) return saveLink(v ? v.url : page, tab.title, tab);
       return saveFile(info.srcUrl, page, tab.title);
     }, (n) => T('В Oddments: ') + n);
     case 'link': return run(tab, () => (KNOWN.test(nameFromUrl(info.linkUrl)) ? saveFile(info.linkUrl, page) : saveLink(info.linkUrl, info.selectionText || info.linkText || '')), (n) => T('В Oddments: ') + n);
-    case 'page': return run(tab, () => saveLink(page, tab.title), (n) => T('В Oddments: ') + n);
+    case 'page': return run(tab, () => saveLink(page, tab.title, tab), (n) => T('В Oddments: ') + n);
     case 'article': return run(tab, () => saveArticle(tab), (n) => T('Статья в Oddments: ') + n);
     case 'all': return ask(tab, { t: 'gallery' });
     case 'area': return run(tab, () => shotArea(tab), (n) => T('В Oddments: ') + n);
     case 'rec': return run(tab, () => recordArea(tab), (n) => n);
     case 'shot': return run(tab, () => shotVisible(tab), (n) => T('В Oddments: ') + n);
     case 'block': return ask(tab, { t: 'pickBlock' });
+    case 'board': return run(tab, () => grabBoards(tab), (n) => n);
   }
 });
 
@@ -459,7 +790,16 @@ chrome.commands.onCommand.addListener(async (cmd, tab) => {
   if (cmd === 'save-article') run(tab, () => saveArticle(tab), (n) => T('Статья в Oddments: ') + n);
   if (cmd === 'grab-block') ask(tab, { t: 'pickBlock' });
   if (cmd === 'record-area') run(tab, () => recordArea(tab), (n) => n);
+  if (cmd === 'save-page') run(tab, () => saveLink(tab.url, tab.title, tab), (n) => T('В Oddments: ') + n);
+  if (cmd === 'grab-board') run(tab, () => grabBoards(tab), (n) => n);
 });
+
+// the browser's own page for the keys: Chrome and Edge by address, Firefox and Zen by their API (137+)
+async function openShortcuts() {
+  if (chrome.commands.openShortcutSettings) return chrome.commands.openShortcutSettings();
+  const edge = /Edg\//.test(navigator.userAgent);
+  return chrome.tabs.create({ url: edge ? 'edge://extensions/shortcuts' : 'chrome://extensions/shortcuts' });
+}
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const tab = sender.tab;
@@ -468,7 +808,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       case 'status': return status();
       case 'prefs': return prefs();
       case 'saveFile': return run(tab, () => saveFile(msg.url, msg.page || (tab && tab.url), msg.alt, msg.name), (n) => T('В Oddments: ') + n);
-      case 'saveLink': return run(tab, () => saveLink(msg.url, msg.title), (n) => T('В Oddments: ') + n);
+      case 'saveLink': return run(tab, () => saveLink(msg.url, msg.title, tab), (n) => T('В Oddments: ') + n);
       // «Забрать блок» (block.js): the window's picture for its shot, its fonts, the finished file
       case 'blockCapture': try { return { data: await captureFor(tab) }; } catch (e) { return { error: (e && e.message) || String(e) }; }
       case 'blockFonts': return { css: await blockFonts(msg.faces, msg.far, msg.want).catch(() => '') };
@@ -518,6 +858,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       // «Видео области»: the bar on the page (pause, resume, stop, cancel) and the finished file from offscreen.js
       case 'recCtl': return toOff({ t: 'recCtl', do: msg.do }).catch(() => ({ on: false }));
       case 'recDone': return recordingDone(msg);
+      // Zen, Firefox: the page recorded it (content.js recLocal) and hands over the file itself
+      case 'recFile': return recordingDone({ ...msg, url: URL.createObjectURL(msg.blob), size: msg.blob.size, type: msg.blob.type, tabId: tab && tab.id });
+      case 'boardHere': { const [t] = await chrome.tabs.query({ active: true, currentWindow: true }); return t ? boardOf(t.url) : null; }
+      case 'boardStop': if (boardJob) boardJob.stop = true; return true;
+      case 'openShortcuts': return openShortcuts();
       // from the popup: act on the active tab
       case 'popup': {
         const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -529,6 +874,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (msg.do === 'all') return ask(t, { t: 'gallery' });
         if (msg.do === 'article') return run(t, () => saveArticle(t), (n) => T('Статья в Oddments: ') + n);
         if (msg.do === 'block') return ask(t, { t: 'pickBlock' });
+        if (msg.do === 'board') return run(t, () => grabBoards(t), (n) => n);
       }
     }
   })().then(reply, () => reply(undefined));

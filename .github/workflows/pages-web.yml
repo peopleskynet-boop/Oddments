@@ -1,0 +1,51 @@
+name: Oddments Web на GitHub Pages
+
+# Oddments Web (`npm run build:lite`, src/lib/lite.js) as a page of the public repository: a PWA that installs from
+# Chrome and Edge and works offline. Only by hand (Actions › «Oddments Web на GitHub Pages» › Run workflow), and only in
+# the public peopleskynet-boop/Oddments: the private working copy never publishes a page. Before the first run there:
+# Settings › Pages › Source: GitHub Actions. The page lands at https://peopleskynet-boop.github.io/Oddments/ — the build
+# uses relative addresses (vite base './'), so the subfolder needs nothing more.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'peopleskynet-boop/Oddments'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Проверки без браузера
+        run: npm run test:unit
+      - name: Сборка Oddments Web
+        run: npm run build:lite
+      # GitHub Pages runs Jekyll on what it serves unless told not to (files and folders starting with «_» would vanish)
+      - run: touch dist-lite/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist-lite
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

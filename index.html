@@ -7,11 +7,12 @@
     <link rel="icon" type="image/png" href="/src/assets/oddments-mark.png" />
     <!-- the first frame, before the styles: dark (no white flash on start or on the reload a language switch makes), and
          the layout hidden until boot knows whether the first-run window covers it (main.js adds body.booted; a broken
-         start still shows the window after 6 s). In the styles' own layers, so the themes keep their colours. -->
+         start still shows the window after 6 s). In the styles' own layers, so the themes keep their colours: the dark
+         background sits in «tokens», before 00-tokens.css's body rule (in «base» it beat the light themes' --bg). -->
     <style>
       @layer tokens, base, components, screens, themes;
+      @layer tokens { html, body { background: #0b0c10; } }
       @layer base {
-        html, body { background: #0b0c10; }
         #app { visibility: hidden; animation: app-shown 0s 6s forwards; }
         body.booted #app { visibility: visible; animation: none; }
         @keyframes app-shown { to { visibility: visible; } }
@@ -58,7 +59,7 @@
         <div class="capg glass wctl" id="wctl" hidden><button class="ib" id="wMin" tabindex="-1" aria-label="Свернуть окно" title="Свернуть окно"></button><button class="ib" id="wMax" tabindex="-1" aria-label="Развернуть" title="Развернуть"></button><button class="ib" id="wClose" tabindex="-1" aria-label="Закрыть" title="Закрыть"></button></div>
       </div>
       <div class="cpop glass" id="pop" role="dialog" aria-label="Поиск по цвету" hidden></div>
-      <div class="busy glass" id="busy" role="status" aria-live="polite" hidden><span class="busy-ic" id="busyI" aria-hidden="true"></span><span id="busyT"></span><span class="pxl-t" id="busyS"></span><i aria-hidden="true"><b id="busyP"></b></i></div>
+      <div class="busy glass" id="busy" role="status" aria-live="polite" hidden><span class="busy-ic" id="busyI" aria-hidden="true"></span><span id="busyT"></span><span class="pxl-t" id="busyS"></span><button type="button" class="busy-x" id="busyX" hidden aria-label="Остановить" title="Остановить"></button><i aria-hidden="true"><b id="busyP"></b></i></div>
 
       <!-- content layer: the grid runs under the floating glass panels -->
       <main class="main" id="main">
@@ -99,6 +100,7 @@
         <div class="seg">
           <button class="ib on" id="lyM" aria-label="Мозаика" title="Мозаика"></button>
           <button class="ib" id="lyG" aria-label="Сетка" title="Сетка"></button>
+          <button class="ib" id="lyL" aria-label="Список" title="Список"></button>
         </div>
         <label class="zoom" title="Размер превью"><input type="range" class="elastic" data-unit=" px" id="zoom" min="120" max="460" step="10" value="220" aria-label="Размер превью" /></label>
         <span class="cap-sm">Размер</span>

@@ -43,5 +43,6 @@ jobs:
         if: failure()
         with:
           name: e2e-report
+          retention-days: 7 # the private repository has 500 MB for artifacts; builds to keep go to E:/Perch/builds
           path: test-results
 

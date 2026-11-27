@@ -14,6 +14,7 @@ import { markStep } from './onboard.js';
 import { similarTo } from '../lib/similar.js';
 import { pushLayer, popLayer } from './layers.js';
 import { isOffline } from '../lib/net.js';
+import { LITE } from '../lib/lite.js';
 // the player (player.js + embedmedia.js) loads on first use or quietly after start (lazy.js preloadLazy): once it is
 // here it mounts at once, as before; the very first time it waits a few milliseconds, and a file switched meanwhile wins
 let P = null;
@@ -191,7 +192,8 @@ function draw() {
 
   switch (it.kind) {
     case 'image': case 'gif': zoomImage(holder, assetUrl(it.file)); break;
-    case 'psd': if (it.preview) zoomImage(holder, assetUrl(it.preview)); else other(holder, it, 'Нет встроенного превью. Сохраните PSD с опцией «Максимальная совместимость».'); break;
+    case 'psd': if (it.preview) zoomImage(holder, assetUrl(it.preview)); else other(holder, it, it.ext === 'psd' || it.ext === 'psb' ? 'Нет встроенного превью. Сохраните PSD с опцией «Максимальная совместимость».' : 'Этот файл не прочитался — откройте его в программе.'); break;
+    case 'hdri': hdriView(holder, it, my); break;
     case 'video': videoView(holder, it); break;
     case 'audio': holder.innerHTML = `<div class="aud">${it.thumb ? `<img src="${assetUrl(it.thumb)}" alt="">` : ''}<audio controls autoplay src="${assetUrl(it.file)}"></audio></div>`; break;
     case 'font': fontView(holder, it, my); break;
@@ -363,9 +365,13 @@ async function linkView(holder, it) {
     }, null, [{ icon: 'external', label: 'Открыть на ' + vid.site, fn: () => openUrl(url).catch(() => {}) }], { site: vid.site, id: vid.id, ar });
     return;
   }
-  const label = isFig ? 'Открыть в Figma' : /figma\.com/.test(url) ? 'Открыть в Figma' : 'Открыть ссылку';
-  const note = isFig && !it.thumb ? '<p>В этом .fig нет встроенного превью: так бывает со старыми файлами.</p>' : url ? `<p class="lnk-url">${esc(url)}</p>` : '';
-  holder.innerHTML = `<div class="pv-other blend">${it.thumb ? `<img src="${assetUrl(it.thumb)}" alt="">` : `<b>${isFig ? 'FIG' : 'URL'}</b>`}${note}<button type="button" class="pv-btn" data-open>${label}</button></div>`;
+  // a page: its site on the button, and what the page says about itself above the address (linkpage.js)
+  const pg = !isFig && it.page && it.page.cover !== 'figma' ? it.page : null;
+  const label = isFig ? 'Открыть в Figma' : /figma\.com/.test(url) ? 'Открыть в Figma' : pg && pg.host ? 'Открыть на ' + pg.host : 'Открыть ссылку';
+  const words = pg && (pg.desc || (pg.title && pg.title !== it.name)) ? `<p class="lnk-desc">${esc(pg.desc || pg.title)}</p>` : '';
+  const note = isFig && !it.thumb ? '<p>В этом .fig нет встроенного превью: так бывает со старыми файлами.</p>' : url ? `${words}<p class="lnk-url">${esc(url)}</p>` : '';
+  // the card (cover or the name in big letters) on the left, the page's words, the address and «Открыть на …» beside it
+  holder.innerHTML = `<div class="pv-other blend lnk-card">${it.thumb ? `<img class="lnk-pic" src="${assetUrl(it.thumb)}" alt="">` : `<b>${isFig ? 'FIG' : 'URL'}</b>`}<div class="bl-info">${note}<button type="button" class="pv-btn pri" data-open>${label}</button></div></div>`;
   holder.querySelector('[data-open]').addEventListener('click', async (e) => {
     e.stopPropagation();
     // a link card opens only http(s); a .fig file opens in Figma (audit #39)
@@ -407,6 +413,18 @@ function blockView(holder, it, my) {
 }
 
 function other(holder, it, msg) {
+  // Oddments Web: no program and no file manager to hand the file to — the original downloads (a link opens)
+  if (LITE) {
+    holder.innerHTML = `<div class="pv-other"><b>${esc((it.ext || 'file').toUpperCase())}</b><p>${esc(msg || 'Для этого типа нет встроенного просмотра.')}</p>` +
+      `<div class="pv-acts"><button type="button" class="pill" data-pva="get">${ic(it.kind === 'link' ? 'external' : 'download')}<span>${it.kind === 'link' ? 'Открыть ссылку' : 'Скачать файл'}</span></button></div></div>`;
+    holder.querySelector('[data-pva="get"]').addEventListener('click', async () => {
+      if (it.kind === 'link') { (await import('./ctxmenu.js')).openInApp(it); return; }
+      const a = document.createElement('a');
+      a.href = assetUrl(it.file); a.download = it.name + (it.ext ? '.' + it.ext : '');
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+    return;
+  }
   holder.innerHTML = `<div class="pv-other"><b>${esc((it.ext || 'file').toUpperCase())}</b><p>${esc(msg || 'Для этого типа нет встроенного просмотра.')}</p>` +
     `<div class="pv-acts"><button type="button" class="pill" data-pva="app">${ic('external')}<span>Открыть в программе</span><kbd>Ctrl Enter</kbd></button>` +
     `<button type="button" class="pill ghost" data-pva="reveal">${ic('folder')}<span>Показать в папке</span></button></div></div>`;
@@ -495,7 +513,9 @@ async function fontView(holder, it, my) {
 // .blend / .abc not yet exported: offer to show the scene through the user's Blender, or open it there
 function blendView(holder, it, my, err) {
   const abc = it.ext === 'abc';
-  const note = err || (abc
+  const note = err || (LITE
+    ? 'Сцену Blender браузер не открывает — здесь превью из файла. Целиком её покажет настольный Oddments (через ваш Blender) или сам Blender.'
+    : abc
     ? 'Alembic — кэш из Blender, Houdini или Maya. Oddments покажет его через ваш Blender: он один раз сохранит сцену в GLB.'
     : 'Oddments покажет сцену целиком через ваш Blender: он один раз сохранит её в GLB, дальше открывается сразу.');
   // a file card, not an error screen: Blender's own preview at its real size, what the file is, and the way into
@@ -503,7 +523,8 @@ function blendView(holder, it, my, err) {
   const meta = [(it.ext || '').toUpperCase(), fmtSize(it.size), dateFmt.format(it.added)].filter(Boolean).join(' · ');
   holder.innerHTML = `<div class="pv-other blend"><div class="bl-pic">${it.thumb ? `<img src="${assetUrl(it.thumb)}" alt="">` : `<b>${abc ? 'ABC' : 'BLEND'}</b>`}</div>
     <div class="bl-info"><h3>${esc(it.name)}</h3><span class="bl-meta">${esc(meta)}</span><p${err ? ' class="err"' : ''}>${esc(note)}</p>
-    <div class="pv-acts"><button type="button" class="pv-btn pri" data-blend>Открыть в Blender</button><button type="button" class="pv-btn" data-scene>Показать сцену здесь</button></div></div></div>`;
+    ${LITE ? '' : '<div class="pv-acts"><button type="button" class="pv-btn pri" data-blend>Открыть в Blender</button><button type="button" class="pv-btn" data-scene>Показать сцену здесь</button></div>'}</div></div>`;
+  if (LITE) return;
   holder.querySelector('[data-blend]').addEventListener('click', async (e) => {
     e.stopPropagation();
     try { await openPath(absPath(it.file)); } catch (er) { console.warn(er); }
@@ -541,7 +562,8 @@ async function modelView(holder, it, my) {
       if (my !== token) done(); else cleanup = done;
       return;
     }
-    const [{ mountViewer }, lib] = await Promise.all([import('./viewer3d.js'), import('./materials.js')]);
+    // Oddments Web looks at the model: no materials library to put on it (lib: null)
+    const [{ mountViewer }, lib] = await Promise.all([import('./viewer3d.js'), LITE ? null : import('./materials.js')]);
     const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
     if (my !== token) return;
     const done = await mountViewer(holder, buf, scene ? 'glb' : it.ext, () => my !== token, { lib, itemId: it.id, name: it.name, wear: openOpts.wear });
@@ -550,6 +572,25 @@ async function modelView(holder, it, my) {
   } catch (e) {
     console.warn(e);
     if (my === token) other(holder, it, 'Не удалось показать модель. Для .gltf с отдельными файлами (bin, текстуры) лучше сохранить GLB.');
+  }
+}
+
+// An HDRI is looked at by what it does: three balls — chrome, white, grey — lit by it, with the HDRI itself around them
+// (turn the view to look around, Shift + drag turns the light, the lighting panel has the exposure). A picture that is
+// not a panorama (2 : 1) — a texture, a render pass — is shown flat, tone-mapped at import.
+async function hdriView(holder, it, my) {
+  const pano = it.w && it.h && Math.abs(it.w / it.h - 2) < 0.05;
+  if (!pano) { if (it.preview) zoomImage(holder, assetUrl(it.preview)); else other(holder, it, 'Этот файл не прочитался — откройте его в программе.'); return; }
+  holder.innerHTML = '<div class="pv-other"><p>Загружаю HDRI…</p></div>';
+  try {
+    const { mountViewer, hdriBalls } = await import('./viewer3d.js');
+    if (my !== token) return;
+    const done = await mountViewer(holder, null, 'hdri', () => my !== token, { make: hdriBalls, env: 'lib:' + it.id, itemId: it.id, name: it.name, infoKey: 'hdriInfo' });
+    if (my !== token) done(); else cleanup = done;
+  } catch (e) {
+    console.warn(e);
+    if (my !== token) return;
+    if (it.preview) zoomImage(holder, assetUrl(it.preview)); else other(holder, it, 'Не удалось показать HDRI.');
   }
 }
 

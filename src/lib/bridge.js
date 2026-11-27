@@ -5,6 +5,11 @@ import { invoke } from '@tauri-apps/api/core';
 import * as fs from '@tauri-apps/plugin-fs';
 import { S } from '../state.js';
 import { absPath, getRoot } from './library.js';
+import { uid } from '../util.js';
+import { boardMeta, boardFolder as folderOf } from './importfmt.js';
+import { lang } from './i18n.js';
+
+const known = (src) => !!src && S.items.some((i) => i.src === src);
 
 const inApp = () => typeof window !== 'undefined' && !!window.__TAURI_INTERNALS__;
 
@@ -26,7 +31,8 @@ export async function initBridge(importPaths, importLink) {
     const groups = batch; batch = new Map(); timer = null;
     for (const g of groups.values()) {
       const rest = [];
-      for (const p of g.paths) {
+      // a board's files are plain files: no article, splat or pin-link handling (a pin link would be fetched again)
+      for (const p of g.board ? [] : g.paths) {
         let done = null;
         // an article from the browser extension («Сохранить статью в Oddments»): to «Новости», not to the library
         if (/\.perch-article\.html$/i.test(p)) {
@@ -48,8 +54,19 @@ export async function initBridge(importPaths, importLink) {
         if (done) fs.remove(p.replace(/[\\/][^\\/]+$/, ''), { recursive: true }).catch(() => {});
         else rest.push(p);
       }
-      g.paths = rest;
-      if (!rest.length) continue;
+      if (!g.board) g.paths = rest;
+      if (!g.paths.length) continue;
+      // a board import: the collections are made now (not when the first file only arrived), each file keeps its id
+      if (g.board) {
+        g.paths = g.paths.filter((p) => {
+          const m = g.metas.get(p);
+          if (m && known(m.src)) { fs.remove(p.replace(/[\\/][^\\/]+$/, ''), { recursive: true }).catch(() => {}); return false; }
+          return true;
+        });
+        if (!g.paths.length) continue;
+        g.ctx.folder = folderOf(g.board, S.folders, uid);
+        g.ctx.meta = (p) => { const m = g.metas.get(p); return m ? { url: m.url, ...(m.src ? { src: m.src } : {}), ...(m.note ? { note: m.note } : {}) } : {}; };
+      }
       try { await importPaths(g.paths, g.ctx); }
       finally {
         // the copies now live in the library; drop the inbox folders they came in
@@ -62,7 +79,11 @@ export async function initBridge(importPaths, importLink) {
     try { p = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload; } catch (er) { return; }
     if (!p || !p.path) return;
     let ctx;
-    if ('folder' in p || 'tags' in p) {
+    const board = boardMeta(p.folder);
+    if (board) {
+      // the source link differs file by file: the batch keeps them per path, like the board's ids and notes
+      ctx = { folder: null, tags: (p.tags || '').split('\n').map((t) => t.trim()).filter(Boolean) };
+    } else if ('folder' in p || 'tags' in p) {
       const folder = p.folder && S.folders.some((f) => f.id === p.folder) ? p.folder : null;
       ctx = { folder, tags: (p.tags || '').split('\n').map((t) => t.trim()).filter(Boolean), url: p.source || '' };
     } else {
@@ -70,9 +91,11 @@ export async function initBridge(importPaths, importLink) {
       ctx = v.type === 'folder' ? { folder: v.id } : v.type === 'tag' ? { tag: v.id } : {};
       if (p.source) ctx.url = p.source;
     }
-    const key = JSON.stringify([ctx.folder || ctx.tag || '', ctx.tags || []]);
-    if (!batch.has(key)) batch.set(key, { ctx, paths: [] });
-    batch.get(key).paths.push(p.path);
+    const key = JSON.stringify([board ? board.path.map((x) => x[0]) : ctx.folder || ctx.tag || '', ctx.tags || []]);
+    if (!batch.has(key)) batch.set(key, { ctx, paths: [], ...(board ? { board: board.path, metas: new Map() } : {}) });
+    const g = batch.get(key);
+    g.paths.push(p.path);
+    if (board) g.metas.set(p.path, { src: board.src, note: board.note, url: p.source || '' });
     clearTimeout(timer);
     timer = setTimeout(flush, 500);
   });
@@ -89,7 +112,10 @@ export function pushCatalog() {
     for (const it of S.items) if (!it.trashed) for (const t of it.tags || []) count.set(t, (count.get(t) || 0) + 1);
     const tags = [...count].sort((a, b) => b[1] - a[1]).slice(0, 300).map(([t]) => t);
     const folders = S.folders.map((f) => ({ id: f.id, name: f.name, parent: f.parent || null, ...(f.flow ? { flow: true, order: f.order || [], ...(f.cjm ? { cjm: f.cjm } : {}) } : {}) }));
-    const json = JSON.stringify({ folders, tags });
+    // lang: the extension speaks the app's language (1.7); boards: what the extension already brought in, trash too
+    // (a second «Забрать доску целиком» skips them, and something deleted on purpose does not come back)
+    const boards = S.items.filter((it) => it.src).map((it) => it.src);
+    const json = JSON.stringify({ folders, tags, lang, boards });
     const items = JSON.stringify(S.items.filter((it) => !it.trashed).map((it) => ({
       id: it.id, name: it.name, kind: it.kind, ext: it.ext, w: Math.round(it.w || 0), h: Math.round(it.h || 0),
       tags: it.tags, ai: it.aiTags || [], folders: it.folders, fav: !!it.fav, added: it.added,

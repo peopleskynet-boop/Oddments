@@ -1,6 +1,6 @@
 // Appearance settings. Everything is a CSS variable or a body class, so the whole look
 // can be changed live — and "Свой CSS" lets you override anything.
-import { $, esc, isDarkColor, DEC } from '../util.js';
+import { $, esc, isDarkColor, DEC, isMac } from '../util.js';
 import { ui } from '../state.js';
 import { ic } from './icons.js';
 import { enhanceAll, syncSelect } from './gselect.js';
@@ -11,6 +11,8 @@ import { redrawFrame } from './frame.js';
 import { MODEL_MB as AI_MB } from '../lib/ai.js';
 const OCR_MB = 13; // ocr.js OCR_MB, without loading the module at start
 import { LANGS, lang, setLang } from '../lib/i18n.js';
+import { LITE } from '../lib/lite.js';
+import { SHARE_LINKS } from '../lib/shareon.js';
 
 // v2: redesign defaults (dark, monochrome accent, Onest). Older saved looks are reset once.
 const VERSION = 3;
@@ -24,6 +26,7 @@ export const DEFAULTS = {
   aiAutoName: false, // AI through the API: files named like «IMG_2034» get Claude's English name
   sound: 40, // interface sounds, 0–100; 0 = off
   tray: true, // the window's close button hides Oddments to the tray (the receiver keeps working)
+  pasteKey: true, // Ctrl+Alt+V from any program: the clipboard's picture into the library (hotkey.rs)
   rough: 45, // how frosted the glass panels are, 0–100 (the blur under them)
   rim: 'prism', // the rim light of the glass in «Марафон»: 'prism' | 'accent' | 'mist' | '#hex'
 };
@@ -62,9 +65,25 @@ function syncTray(on) {
   import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_close_to_tray', { on: !!on })).catch(() => {});
 }
 
+// Ctrl+Alt+V from any program (hotkey.rs): held by Rust while the setting is on. Another program may hold the same key
+// already — then the setting says so (pasteKeyErr) and a toast tells once. Asked only when the choice changes.
+let pasteKeyOn = null;
+export let pasteKeyErr = '';
+const PASTE_KEY = isMac ? '⌘⌥V' : 'Ctrl Alt V';
+function syncPasteKey(on) {
+  if (!window.__TAURI_INTERNALS__ || pasteKeyOn === !!on) return;
+  pasteKeyOn = !!on;
+  import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_paste_hotkey', { on: !!on })).then(() => { pasteKeyErr = ''; }, (e) => {
+    pasteKeyErr = String((e && e.message) || e);
+    pasteKeyOn = null;
+    if (on) import('./dialogs.js').then((d) => d.toast(`${PASTE_KEY} уже занята другой программой — вставка в Oddments из любой программы не работает. Её можно выключить в Настройках › Библиотека.`, 9000));
+  });
+}
+
 export function applySettings() {
   const r = document.documentElement, s = settings;
   syncTray(s.tray);
+  syncPasteKey(s.pasteKey);
   if (s.theme === 'system') delete r.dataset.theme; else r.dataset.theme = s.theme;
   if (s.accent === 'mono') {
     r.dataset.accent = 'mono';
@@ -99,10 +118,7 @@ export function applySettings() {
   let st = document.getElementById('user-css');
   if (!st) { st = document.createElement('style'); st.id = 'user-css'; document.head.appendChild(st); }
   st.textContent = s.css || '';
-  $('#lyM').classList.toggle('on', s.layout === 'masonry');
-  $('#lyG').classList.toggle('on', s.layout === 'grid');
-  $('#lyM').setAttribute('aria-pressed', s.layout === 'masonry');
-  $('#lyG').setAttribute('aria-pressed', s.layout === 'grid');
+  // the layout buttons follow the place being looked at: grid.js layoutGrid → viewlayout.js syncLayoutBtns
   $('#zoom').value = s.zoom;
 }
 
@@ -113,11 +129,17 @@ function row(label, control) {
 
 // The drawer in pages (it used to be one long scroll): tabs under the title, a search over every setting. The groups
 // of the markup above are sorted into pages by their titles; a search shows matching rows from all pages at once.
-const PAGES = [
+const PAGES = LITE ? [
+  // Oddments Web: no AI, Blender, plugins, team or updates (src/lib/lite.js)
+  ['look', 'Вид', ['Язык · Language', 'Цвета', 'Форма', 'Эффекты', 'Файлы']],
+  ['lib', 'Библиотека', ['Библиотека']],
+  ['about', 'О программе', ['Oddments Web', 'Лицензии']],
+] : [
   ['look', 'Вид', ['Язык · Language', 'Цвета', 'Форма', 'Эффекты', 'Файлы']],
   ['lib', 'Библиотека', ['Библиотека', 'Правила бренда', 'Словарь тегов']],
   ['ai', 'ИИ', ['ИИ', 'Текст на картинках', 'Ключ Anthropic', 'ИИ для иконок']],
   ['apps', 'Blender и плагины', ['Blender', 'Интеграции']],
+  ...(SHARE_LINKS ? [['links', 'Ссылки', ['Ссылки']]] : []),
   ['about', 'О программе', ['Обновления', 'Приватность', 'Отчёт о сбоях', 'Лицензии']],
 ];
 const PAGE_KEY = 'perch.settingsPage';
@@ -186,7 +208,7 @@ export function openSettings(section) {
   <div class="sp-head"><h2>Настройки</h2><button class="ibtn" id="spX" aria-label="Закрыть">${ic('x')}</button></div>
   <div class="sp-body">
     <!-- the product's own links come first: AI search, Blender and the add-ons, then the look -->
-    <div class="sgrp">ИИ</div>
+    ${LITE ? '' : `    <div class="sgrp">ИИ</div>
     <div class="srow col"><span>Поиск по смыслу («рука с наушниками», «персонаж с голубыми волосами»), ИИ-теги и сортировка «По смыслу».</span>
       <select id="sAiEng" aria-label="Где работает ИИ"><option value="local">На компьютере — бесплатно, без интернета</option><option value="api">Через API — Claude и Voyage, платно</option></select>
       <span class="snote" id="sAiNote"></span>
@@ -216,6 +238,9 @@ export function openSettings(section) {
       <code class="path" id="sIntSt">проверяю…</code>
       <div class="int-acts"><button class="ibtn pri" id="sPlug">Плагины…</button><button class="ibtn" id="sTok">Скопировать токен</button></div>
     </div>
+    ${SHARE_LINKS ? `<div class="sgrp" id="sgShare">Ссылки</div>
+    <div class="srow col sh-box" id="sShare"></div>` : ''}
+    `}
     <div class="sgrp">Язык · Language</div>
     ${row('Интерфейс · Interface', `<select id="sLang" aria-label="Язык интерфейса · Interface language">${LANGS.map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>`)}
     <div class="sgrp">Цвета</div>
@@ -242,8 +267,12 @@ export function openSettings(section) {
     ${row('Подписи под превью', `<input type="checkbox" id="sCap" ${s.captions ? 'checked' : ''}>`)}
     ${row('Анимация GIF и видео при наведении', `<input type="checkbox" id="sHov" ${s.hover ? 'checked' : ''}>`)}
     ${row('Видео в сетке', `<select id="sVplay"><option value="hover">При наведении</option><option value="always">Всегда</option></select>`)}
-    <div class="sgrp">Библиотека</div>
+${LITE ? `    <div class="sgrp">Библиотека</div>
+    <div class="srow col lt-lib" id="sLite"><span>Проверяю, где лежит библиотека…</span></div>
+    <div class="srow"><span>Знакомство с Oddments</span><button class="ibtn" id="sOnb">Показать</button></div>
+    ` : `    <div class="sgrp">Библиотека</div>
     ${row('Крестик окна убирает Oddments в трей', `<input type="checkbox" id="sTray" ${s.tray ? 'checked' : ''}>`)}
+    ${row(`${PASTE_KEY} из любой программы — картинка из буфера в Oddments<small class="hint s-under">Скопируйте картинку (снимок ${isMac ? '⇧⌃⌘4' : 'Win Shift S'}, «Копировать картинку» в браузере, Telegram) и нажмите ${PASTE_KEY} — окно Oddments открывать не нужно, придёт уведомление.${isMac ? '' : ' В Word и Excel это «Специальная вставка»: пока Oddments запущен, сочетание у него.'}${pasteKeyErr ? ` <b class="s-warn">Сейчас не работает: клавиша занята другой программой.</b>` : ''}</small>`, `<input type="checkbox" id="sPasteKey" ${s.pasteKey ? 'checked' : ''}>`)}
     <div class="srow"><span>Знакомство с Oddments</span><button class="ibtn" id="sOnb">Показать</button></div>
     <div class="srow col"><span>Папка с файлами</span><code class="path">${esc(getRoot())}</code><button class="ibtn" id="sRoot">Выбрать другую папку…</button></div>
     <div class="srow col" id="sTeams"><span>Командные библиотеки</span><small class="hint">Общая папка команды (сетевой диск, OneDrive, Яндекс Диск): у каждого своя библиотека, общие файлы — рядом. Кто может добавлять, решают права на папку.</small><div class="watch-list"></div><button class="ibtn" id="sTeamAdd">Подключить папку команды…</button></div>
@@ -283,8 +312,12 @@ export function openSettings(section) {
     <div class="srow col" id="sCrash"><span>Ошибки окна и сбои программы записываются в файл на этом компьютере и никуда не отправляются. Если что-то сломалось, скопируйте отчёт и пришлите его сами — на почту, в Telegram или в Issues на GitHub. Имя пользователя и путь к библиотеке в отчёт не попадают.</span>
       <code class="path" id="sCrashSt">…</code>
       <div class="int-acts"><button class="ibtn" id="sCrashCopy">Скопировать отчёт</button><button class="ibtn" id="sCrashOpen">Открыть папку</button><button class="ibtn flat" id="sCrashClear">Очистить</button></div></div>
+    `}
+    ${LITE ? `<div class="sgrp">Oddments Web</div>
+    <div class="srow col"><span>Oddments в браузере — для сбора референсов: стена, подборки, теги, поиск по цвету, просмотр. ИИ, Blender, плагины, конструктор иконок и лента — в настольном Oddments.</span>
+      <small class="hint">Библиотека, оригиналы, теги и заметки остаются в этом браузере или в открытой папке и никуда не отправляются. В сеть Oddments Web ходит только за освещением HDRI для 3D (Poly Haven) и обложками ссылок YouTube и Vimeo — когда вы их добавляете.</small></div>` : ''}
     <div class="sgrp">Лицензии</div>
-    <div class="srow col"><span>Oddments — свободная программа под лицензией MIT. Внутри — библиотеки, шрифты и модели других авторов под их лицензиями: three.js, Spark, onnxruntime, SigLIP 2, PaddleOCR, Real-ESRGAN, BEN2, AutoRemesher и другие.</span>
+    <div class="srow col"><span>${LITE ? 'Oddments — свободная программа под лицензией MIT. Внутри — библиотеки и шрифты других авторов под их лицензиями: three.js, pdf.js, ag-psd и другие.' : 'Oddments — свободная программа под лицензией MIT. Внутри — библиотеки, шрифты и модели других авторов под их лицензиями: three.js, Spark, onnxruntime, SigLIP 2, PaddleOCR, Real-ESRGAN, BEN2, AutoRemesher и другие.'}</span>
       <div class="int-acts"><button class="ibtn" id="sLic">Лицензии и авторы</button></div></div>
     <details class="adv"${s.css ? ' open' : ''}><summary>Для продвинутых: свой CSS</summary>
       <p>Правила CSS поверх оформления Oddments — для того, чего нет в настройках. Например, <code>--acc</code> меняет акцент, <code>.card .ph</code> — карточки.</p>
@@ -328,8 +361,13 @@ export function openSettings(section) {
   $('#sAcc').oninput = (e) => { upd({ accent: e.target.value }); el.querySelectorAll('[data-acc]').forEach((b) => b.classList.remove('on')); el.querySelector('.own').classList.add('on'); };
   el.querySelectorAll('[data-acc]').forEach((b) => { b.onclick = () => { upd({ accent: b.dataset.acc }); $('#sAcc').value = b.dataset.acc; el.querySelectorAll('[data-acc]').forEach((x) => x.classList.toggle('on', x === b)); el.querySelector('.own').classList.remove('on'); }; });
   $('#sCss').oninput = (e) => upd({ css: e.target.value });
-  $('#sRoot').onclick = () => changeLibrary();
   $('#sOnb').onclick = () => import('./onboard.js').then((m) => { m.showOnboard(); closeSettings(); });
+  // Oddments Web: where the library lives, the zip there and back (ui/liteui.js); the licences
+  if (LITE) {
+    import('./liteui.js').then((m) => m.bindLiteSettings($('#sLite')));
+    $('#sLic').onclick = () => import('./licenses.js').then((m) => { closeSettings(); m.openLicenses(); });
+  } else {
+  $('#sRoot').onclick = () => changeLibrary();
   // Blender: shows the found or chosen executable; picking one overrides the automatic search
   import('../lib/blender.js').then(async (b) => {
     const show = async () => { const p = await b.blenderPath(); const el = $('#sBl'); if (el) el.textContent = p || (window.__TAURI_INTERNALS__ ? 'Не найден — укажите вручную' : 'Доступно в приложении для компьютера'); };
@@ -343,8 +381,11 @@ export function openSettings(section) {
   $('#sBlAuto').onchange = (e) => upd({ blenderAuto: e.target.checked });
   $('#sAiName').onchange = (e) => upd({ aiAutoName: e.target.checked });
   $('#sTray').onchange = (e) => upd({ tray: e.target.checked });
+  $('#sPasteKey').onchange = (e) => upd({ pasteKey: e.target.checked });
   // team libraries, the tag dictionary, brand rules: their code loads with the drawer (settingsteam.js), not at start
   import('./settingsteam.js').then((m) => m.bindTeamSettings());
+  // «Поделиться ссылкой»: the storage and the links (settingsshare.js)
+  if (SHARE_LINKS) import('./settingsshare.js').then((m) => m.bindShareSettings());
   // «О программе»: updates, privacy and «Без сети», the crash report, licences (settingsabout.js)
   import('./settingsabout.js').then((m) => m.bindAbout());
   // watch folders (watch.js): the list, add, remove
@@ -474,6 +515,7 @@ export function openSettings(section) {
     };
   });
   $('#sPlug').onclick = () => import('./plugins.js').then((m) => { closeSettings(); m.openPlugins(); });
+  }
   $('#sReset').onclick = () => { Object.assign(settings, DEFAULTS); persist(); applySettings(); ui.relayout(); openSettings(); };
 }
 

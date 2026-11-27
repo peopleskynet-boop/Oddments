@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oddments — как пользоваться</title>
+<link rel="stylesheet" href="ui.css">
+<style>
+  body { min-height: 100vh; background: radial-gradient(1200px 600px at 80% -10%, rgba(167,199,255,.07), transparent 60%), radial-gradient(900px 500px at -10% 20%, rgba(214,180,255,.06), transparent 60%), var(--bg); }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 48px 28px 80px; }
+  .hero { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
+  .hero img { width: 64px; height: 64px; border-radius: 18px; }
+  h1 { margin: 0; font-size: 30px; font-weight: 500; letter-spacing: -.01em; }
+  .lead { margin: 6px 0 0; color: var(--mut); font-size: 15px; }
+  .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0 8px; }
+  .toc a { text-decoration: none; }
+  section.card { margin-top: 18px; padding: 24px 26px; display: grid; grid-template-columns: 1fr 320px; gap: 26px; align-items: start; }
+  section.card.wide { grid-template-columns: 1fr; }
+  h2 { margin: 0 0 4px; font-size: 19px; font-weight: 500; }
+  .card p { margin: 8px 0; color: #cfcfda; line-height: 1.55; }
+  .card p.mut { color: var(--mut); font-size: 13px; }
+  ol, ul { margin: 10px 0 0; padding-left: 0; list-style: none; display: grid; gap: 10px; counter-reset: s; }
+  ol li { position: relative; padding-left: 38px; line-height: 1.5; counter-increment: s; }
+  ol li::before { content: counter(s); position: absolute; left: 0; top: -1px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--acc); color: var(--acc-fg); font-weight: 600; font-size: 12.5px; }
+  ul li { position: relative; padding-left: 20px; line-height: 1.5; }
+  ul li::before { content: ""; position: absolute; left: 4px; top: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--acc); }
+  b { font-weight: 500; color: var(--fg); }
+  .zen { margin-top: 12px; padding: 12px 14px; border-radius: 16px; background: rgba(167,199,255,.07); color: #cfd8ee; font-size: 13px; line-height: 1.5; }
+  .zen b::before { content: "Zen · Firefox — "; color: var(--rim-b); }
+  code { font: 12px var(--mono); padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,.06); }
+
+  /* the small pictures: the page's own UI drawn in miniature */
+  .pic { position: relative; height: 210px; border-radius: 18px; background: #f2f1ec; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+  .pic .site { position: absolute; inset: 14px; border-radius: 10px; background: repeating-linear-gradient(0deg, #e3e1da 0 8px, transparent 8px 22px) 18px 20px / 60% 70% no-repeat, #faf9f6; }
+  .pic .ph { position: absolute; border-radius: 8px; background: linear-gradient(135deg, #c9d6ff, #f5c6e6); }
+  .menu { position: absolute; left: 96px; top: 30px; width: 214px; padding: 6px; border-radius: 12px; background: #1b1d26; color: #e9e8f0; font-size: 11.5px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .menu div { padding: 5px 9px; border-radius: 7px; white-space: nowrap; }
+  .menu .on { background: rgba(215,255,99,.16); color: var(--acc); }
+  .menu hr { border: 0; height: 1px; background: rgba(255,255,255,.08); margin: 4px 6px; }
+  .menu .sub::after { content: "›"; float: right; opacity: .6; }
+  .frame { position: absolute; left: 70px; top: 46px; width: 170px; height: 96px; border: 2px solid var(--acc); border-radius: 4px; box-shadow: 0 0 0 999px rgba(0,0,0,.25); }
+  .frame i { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 0 2px #12141b; }
+  .go { position: absolute; left: 50%; top: 156px; transform: translateX(-50%); display: flex; gap: 5px; padding: 4px; border-radius: 999px; background: #1b1d26; font-size: 11px; white-space: nowrap; }
+  .go span { padding: 5px 10px; border-radius: 999px; color: #e9e8f0; background: rgba(255,255,255,.06); }
+  .go span.p { background: var(--acc); color: var(--acc-fg); font-weight: 500; }
+  .go span.p::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--red); margin-right: 6px; }
+  .hov { position: absolute; left: 58px; top: 42px; display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 7px; border-radius: 999px; background: #1b1d26; color: #e9e8f0; font-size: 11px; }
+  .dock { position: absolute; right: 22px; top: 50px; width: 92px; height: 92px; border-radius: 26px; background: #1b1d26; color: #e9e8f0; display: grid; place-items: center; text-align: center; font-size: 10.5px; padding: 10px; }
+  .keys { display: grid; gap: 8px; margin-top: 10px; }
+  .keys div { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 12px; border-radius: 14px; background: rgba(255,255,255,.03); }
+  .keys kbd { font-size: 12px; padding: 4px 9px; }
+  .keys kbd:empty::before { content: "—"; }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .services { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 2px; }
+  .services span { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.05); font-size: 12.5px; }
+  @media (max-width: 760px) { section.card { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <img src="icon128.png" alt="">
+    <div>
+      <h1>Как пользоваться расширением</h1>
+      <p class="lead">Всё, что сохраняете, сразу попадает в Oddments на этом компьютере. Приложение должно быть открыто.</p>
+    </div>
+  </div>
+  <nav class="toc">
+    <a class="pill" href="#pics">Картинки</a>
+    <a class="pill" href="#video">Видео области</a>
+    <a class="pill" href="#shots">Снимки</a>
+    <a class="pill" href="#page">Страница и вёрстка</a>
+    <a class="pill" href="#boards">Доски целиком</a>
+    <a class="pill" href="#keys">Клавиши</a>
+  </nav>
+
+  <section class="card glass" id="start">
+    <div>
+      <h2>Подключение</h2>
+      <ol>
+        <li>В Oddments откройте <b>Настройки › Интеграции</b> и нажмите <b>«Скопировать токен»</b>.</li>
+        <li>Нажмите значок Oddments на панели браузера, вставьте токен и нажмите <b>«Подключить»</b>.</li>
+        <li>Выберите подборку и теги в разделе <b>«Куда»</b>. Они добавятся ко всему, что вы сохраняете.</li>
+      </ol>
+    </div>
+    <div class="pic"><div class="site"></div><div class="menu" style="left:auto;right:16px;top:16px;width:200px"><div class="on">Oddments · подключено</div><hr><div>Снимок области</div><div>Видео области</div><div>Снимок всего, что видно</div></div></div>
+  </section>
+
+  <section class="card glass" id="pics">
+    <div>
+      <h2>Картинки и видео со страницы</h2>
+      <ul>
+        <li><b>Alt+клик</b> по картинке сохраняет её сразу. Срабатывает и сквозь слои, например на Behance.</li>
+        <li>При наведении на картинку появляется кнопка <b>«В Oddments»</b>.</li>
+        <li><b>Правый клик › Oddments › Картинку в Oddments</b>. Так же сохраняются видео и ссылки.</li>
+        <li>Перетащите картинку или ссылку на <b>док</b>, который появится у правого края.</li>
+        <li><b>Все картинки страницы</b>: выберите нужные в общем окне и сохраните одним нажатием.</li>
+      </ul>
+    </div>
+    <div class="pic"><div class="site"></div><div class="ph" style="left:44px;top:32px;width:140px;height:150px"></div><div class="hov"><svg width="14" height="14" viewBox="0 0 24 24"><defs><linearGradient id="hp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6b4ff"/><stop offset=".5" stop-color="#a7c7ff"/><stop offset="1" stop-color="#ffc7e8"/></linearGradient></defs><path d="M12 4.4 20 18.4H4Z" fill="none" stroke="url(#hp)" stroke-width="3.4" stroke-linejoin="round"/></svg>В Oddments</div><div class="dock">Бросьте сюда — в Oddments</div></div>
+  </section>
+
+  <section class="card glass" id="video">
+    <div>
+      <h2>Видео области</h2>
+      <p>Записывает выбранный кусок страницы как видео: анимацию, интерфейс, прокрутку.</p>
+      <ol>
+        <li>Нажмите <kbd data-cmd="record-area"></kbd>, или <b>правый клик › Oddments › Видео области</b>, или кнопку <b>«Видео области»</b> в окне расширения.</li>
+        <li>Выделите мышью область. Чтобы записать всё окно сайта, нажмите <b>«Вся вкладка»</b>.</li>
+        <li>Подвиньте рамку или потяните её за точки, затем нажмите <b>«Начать запись»</b> или Enter.</li>
+        <li>Под рамкой идут время, «Пауза» и «Стоп». После «Стоп» видео сохраняется в Oddments.</li>
+      </ol>
+      <p class="mut">В Chrome и Edge видео записывается в MP4 со звуком вкладки, максимум 5 минут. Рамка и кнопки в запись не попадают. Если Oddments закрыт, файл уходит в загрузки браузера.</p>
+      <div class="zen" data-gecko><b>браузер спросит, что показать: выберите окно Zen или весь экран.</b> Расширение само найдёт выделенную область. Видео будет в WebM, без звука. Во время записи не двигайте окно.</div>
+    </div>
+    <div class="pic"><div class="site"></div><div class="frame"><i style="left:0;top:0"></i><i style="left:50%;top:0"></i><i style="left:100%;top:0"></i><i style="left:100%;top:50%"></i><i style="left:100%;top:100%"></i><i style="left:50%;top:100%"></i><i style="left:0;top:100%"></i><i style="left:0;top:50%"></i></div><div class="go"><span class="p">Начать запись</span><span>Вся вкладка</span><span>Отмена</span></div></div>
+  </section>
+
+  <section class="card glass" id="shots">
+    <div>
+      <h2>Снимки</h2>
+      <ul>
+        <li><b>Снимок области</b> <kbd data-cmd="shot-area"></kbd>: выделите область, и снимок сразу уйдёт в Oddments.</li>
+        <li><b>Снимок всего, что видно</b> <kbd data-cmd="shot-visible"></kbd>: видимая часть страницы целиком.</li>
+      </ul>
+    </div>
+    <div class="pic"><div class="site"></div><div class="frame" style="left:40px;top:30px;width:200px;height:130px;box-shadow:0 0 0 999px rgba(0,0,0,.18)"></div></div>
+  </section>
+
+  <section class="card glass" id="page">
+    <div>
+      <h2>Страница и вёрстка</h2>
+      <ul>
+        <li><b>Страницу закладкой</b>: ссылка с обложкой и названием. Ссылки на YouTube, Vimeo и Pinterest становятся карточками ролика.</li>
+        <li><b>Страницу текстом для чтения</b>: статья в том виде, в каком её показывает ваш браузер. Её можно прочитать в <b>Oddments › Новости › Сохранённое</b>.</li>
+        <li><b>Кусок вёрстки</b>: наведите на блок страницы, колесом выберите размер и кликните. Сохранятся снимок блока и его код со стилями и шрифтами.</li>
+      </ul>
+    </div>
+    <div class="pic"><div class="site"></div><div class="menu"><div class="sub">Oddments</div><hr><div>Страницу закладкой</div><div class="on">Страницу текстом для чтения</div><hr><div>Кусок вёрстки: картинка и код…</div></div></div>
+  </section>
+
+  <section class="card glass wide" id="boards">
+    <div>
+      <h2>Забрать доску целиком</h2>
+      <p>Переносит в Oddments доску, кластер или канал со всеми картинками и видео в исходном качестве.</p>
+      <div class="services"><span>Pinterest — доски и их разделы</span><span>Cosmos — кластеры</span><span>Are.na — каналы</span><span>Savee — доски</span></div>
+      <ol>
+        <li>Откройте доску в браузере, войдя в свой аккаунт: так забираются и закрытые доски.</li>
+        <li>Нажмите значок Oddments и затем <b>«Забрать доску целиком»</b>. То же есть в правом клике. На странице профиля кнопка называется <b>«Забрать доски…»</b>: отметьте нужные доски галочками.</li>
+        <li>Расширение само прокрутит доску. Это займёт столько же времени, сколько листать её руками. Прервать можно кнопкой <b>«Остановить»</b>.</li>
+        <li>В конце появится окно со всем найденным. То, что уже есть в Oddments, не выбрано. Нажмите <b>«Сохранить»</b>.</li>
+      </ol>
+      <p class="mut">В Oddments появится подборка сервиса, например «Pinterest», в ней подборка доски, а разделы доски станут вложенными подборками. Описание пина попадает в поиск. Если забрать ту же доску ещё раз, добавится только новое. Удалённое в Oddments обратно не вернётся. Закрытые каналы Are.na забираются с личным токеном: его можно вставить в окне расширения, в настройках › Are.na. Текстовые блоки Are.na не переносятся.</p>
+    </div>
+  </section>
+
+  <section class="card glass wide" id="keys">
+    <div>
+      <h2>Клавиши</h2>
+      <div class="keys" id="keyList"></div>
+      <div class="btns"><button class="pill pri" id="change" type="button">Изменить клавиши</button></div>
+      <p class="mut">Браузер даёт расширению только четыре клавиши сразу. Остальным действиям клавишу можно назначить самому кнопкой выше.</p>
+    </div>
+  </section>
+</div>
+<script src="i18n.js"></script>
+<script src="help.js" type="module"></script>
+</body>
+</html>

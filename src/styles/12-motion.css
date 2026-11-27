@@ -132,3 +132,8 @@ body.motion.side-off .side, body.motion.insp-off .insp { transition: transform .
   body:not(.nav-open) .side { transition: transform .4s var(--ease), visibility .4s; }
   body.nav-open .side { transition: transform .5s var(--spring), visibility 0s; }
 }
+/* a list row does not lift or lean: the row lights up instead (05-cards.css) */
+body.motion .card.row:hover .ph, body.motion .card.row:active .ph { transform: none; box-shadow: none; }
+body.motion .card.row.sel .ph { animation: none; }
+:root[data-theme="marathon"] .card.row.sel .ph { box-shadow: none; }
+:root[data-theme="marathon"] .card.row.sel { box-shadow: 0 0 0 2px var(--acc), 0 0 22px color-mix(in srgb, var(--acc) 22%, transparent); }

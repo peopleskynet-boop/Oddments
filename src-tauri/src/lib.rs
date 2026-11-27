@@ -5,6 +5,7 @@
 // The same entry point is reused for mobile builds later.
 mod blender;
 mod bridge;
+mod hotkey;
 #[cfg(desktop)]
 mod mcp;
 mod remesher;
@@ -73,6 +74,9 @@ pub fn run() {
     // updates (lib/updater.js asks; nothing is checked unless the person allowed it) and the restart after installing
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build()).plugin(tauri_plugin_process::init());
+    // the system-wide «в Oddments» key and the notification after it (hotkey.rs)
+    #[cfg(desktop)]
+    let builder = builder.plugin(hotkey::plugin()).plugin(tauri_plugin_notification::init());
     builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -105,6 +109,8 @@ pub fn run() {
             remesher::autoremesh,
             allow_dropped,
             app_exe,
+            hotkey::set_paste_hotkey,
+            hotkey::notify,
             tray::set_close_to_tray,
             tray::set_tray_labels,
             tray::quit_app

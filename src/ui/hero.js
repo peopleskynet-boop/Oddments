@@ -12,6 +12,7 @@ import { openDupes } from './lazy.js';
 import { arm, toast } from './dialogs.js';
 import { purgeItems } from '../lib/library.js';
 import { settings } from './settings.js';
+import { LITE } from '../lib/lite.js';
 
 const WEEK = 7 * 864e5;
 const freshCount = () => S.items.reduce((n, i) => n + (i.fresh && !i.trashed ? 1 : 0), 0);
@@ -77,6 +78,7 @@ function emptyText(v, filtered) {
   if (S.color) return `Нет файлов по запросу «${esc(S.q.trim())}», где есть ${cn} цвет. Уберите цвет или измените запрос.`;
   // a plain query: say where it looked, and how to look by what is in the picture when AI is off
   const ai = aiSearchOn();
+  if (LITE) return `По запросу «${esc(S.q.trim())}» ничего нет ${v.type === 'all' ? 'в названиях, тегах и ссылках' : 'в этом разделе'}. Попробуйте другие слова или #тег.`;
   const where = v.type === 'all' ? 'в названиях, тегах, заметках и ссылках' : 'в этом разделе';
   return `По запросу «${esc(S.q.trim())}» ничего нет ${where}.${ai ? ' ИИ тоже не нашёл похожего по смыслу — попробуйте другие слова.' : ' Чтобы искать по тому, что на картинке («стол», «девушка в красном»), включите ИИ в настройках.'}`;
 }
@@ -84,7 +86,7 @@ function emptyActs() {
   let h = '';
   if (S.color && !S.q.trim() && S.colorTol < 100) h += '<button class="pill" data-act="widen">Искать шире</button>';
   if (S.q.trim() && S.view.type !== 'all') h += '<button class="pill" data-act="everywhere">Искать во всей библиотеке</button>';
-  if (S.q.trim() && !S.color && !aiSearchOn()) h += '<button class="pill" data-act="aion">Включить поиск по смыслу</button>';
+  if (S.q.trim() && !S.color && !aiSearchOn() && !LITE) h += '<button class="pill" data-act="aion">Включить поиск по смыслу</button>';
   // «Сбросить фильтры» only when there is more than a query to reset
   return h + (S.color ? '<button class="pill ghost" data-act="reset">Сбросить фильтры</button>' : '<button class="pill ghost" data-act="reset">Очистить поиск</button>');
 }
@@ -118,9 +120,10 @@ export function renderHead() {
   // the collection's links to work (worklinks.js): Jira, Confluence, Figma — a click opens, × takes the link off
   const fo = v.type === 'folder' && folderById(v.id);
   const links = fo && fo.links ? fo.links.map((l, k) => `<span class="wl ${wlKind(l.url)}"><button class="pill ghost" data-wl="${k}" title="${esc(l.url)}">${ic('link')}<span>${esc(l.title || wlLabel(l.url))}</span></button><button class="ib wl-x" data-wlx="${k}" aria-label="Убрать ссылку">${ic('x')}</button></span>`).join('') : '';
-  $('#vAct').innerHTML = links + (v.type === 'trash' ? trashActs() : flow ? flowActs() + showBtn : v.type === 'folder' || v.type === 'team' ? showBtn : '');
+  // Oddments Web: no show, no flows, no work links (src/lib/lite.js)
+  $('#vAct').innerHTML = LITE ? (v.type === 'trash' ? trashActs() : '') : links + (v.type === 'trash' ? trashActs() : flow ? flowActs() + showBtn : v.type === 'folder' || v.type === 'team' ? showBtn : '');
   // the clean screen hides the view's header: the trash's two buttons float on top of the wall there (bugs #59, #62)
-  trashBar(v.type === 'trash' ? 'trash' : flow ? 'flow' : '');
+  trashBar(v.type === 'trash' ? 'trash' : flow && !LITE ? 'flow' : '');
 
   // The "N new" line keeps its place while you look at the view: if it vanished the moment the last
   // new file was seen, every card below would jump up. It goes away on the next view change.
@@ -140,7 +143,7 @@ export function renderHead() {
   const em = $('#empty');
   em.classList.toggle('first', fresh0);
   em.innerHTML = loading ? '<div class="em-body"><h2>Открываю библиотеку…</h2><p>Читаю список файлов — большая библиотека открывается несколько секунд.</p></div>' : fresh0
-    ? `<div class="scatter" aria-hidden="true">${'<i></i>'.repeat(9)}</div><div class="em-body"><h2>Соберите первые референсы</h2><p>Скопируйте картинку где угодно и&nbsp;нажмите <kbd>Ctrl</kbd>&nbsp;<kbd>V</kbd> прямо здесь. Или перетащите файлы в&nbsp;окно.</p><p class="em-3d">Модели тоже сюда: GLB, OBJ, FBX, .blend. Из&nbsp;Blender — аддоном Oddments, он есть в&nbsp;настройках.</p><button class="pill" data-act="pick">${ic('plus')}<span>Добавить файлы</span></button></div>`
+    ? `<div class="scatter" aria-hidden="true">${'<i></i>'.repeat(9)}</div><div class="em-body"><h2>Соберите первые референсы</h2><p>Скопируйте картинку где угодно и&nbsp;нажмите <kbd>Ctrl</kbd>&nbsp;<kbd>V</kbd> прямо здесь. Или перетащите файлы в&nbsp;окно.</p>${LITE ? '<p class="em-3d">Картинки, GIF, видео, PDF, шрифты и 3D-модели живут в&nbsp;этом браузере. В&nbsp;Chrome и&nbsp;Edge библиотеку можно держать в&nbsp;папке на&nbsp;диске — <button class="lnk" data-act="litelib">Настройки › Библиотека</button>.</p>' : '<p class="em-3d">Модели тоже сюда: GLB, OBJ, FBX, .blend. Из&nbsp;Blender — аддоном Oddments, он есть в&nbsp;настройках.</p>'}<button class="pill" data-act="pick">${ic('plus')}<span>Добавить файлы</span></button></div>`
     : `<div class="em-body"><h2>${filtered ? 'Ничего не нашлось' : v.type === 'trash' ? 'Корзина пуста' : 'Здесь пока пусто'}</h2><p>${emptyText(v, filtered)}</p>${filtered ? emptyActs() : v.type !== 'trash' ? `<button class="pill" data-act="pick">${ic('plus')}<span>Добавить файлы</span></button>` : ''}</div>`;
   document.body.classList.toggle('view-empty', !S.vis.length);
   document.body.classList.toggle('has-sel', S.sel.size > 0);
@@ -322,6 +325,7 @@ export function initHead({ newFolder, pick }) {
     }
     else if (a === 'everywhere') setView('all');
     else if (a === 'aion') import('./settings.js').then((m) => m.openSettings('sAiEng'));
+    else if (a === 'litelib') import('./settings.js').then((m) => m.openSettings('sLite'));
   });
 }
 

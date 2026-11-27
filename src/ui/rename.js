@@ -7,6 +7,7 @@ import { esc, plural } from '../util.js';
 import { saveIndex } from '../lib/library.js';
 import { toast } from './dialogs.js';
 import { sfx } from './sound.js';
+import { LITE } from '../lib/lite.js';
 
 const TOKENS = [
   ['{name}', 'текущее имя'],
@@ -14,7 +15,7 @@ const TOKENS = [
   ['{date}', 'дата добавления'],
   ['{ext}', 'расширение'],
   ['{ai}', 'название от ИИ по-английски'],
-];
+].filter(([t]) => !LITE || t !== '{ai}'); // Oddments Web has no AI
 // {ai}: Claude looks at each picture (a 512 px copy) and names it; names already known (the AI pass gives them with the
 // description, `it.aiName`) cost nothing. Asked six pictures at a time, once per file.
 const aiNames = new Map();
@@ -74,7 +75,7 @@ function build() {
     <input id="rnTpl" type="text" autocomplete="off" spellcheck="false" aria-describedby="rnHelp">
     <div class="rn-tok" id="rnHelp">${TOKENS.map(([t, d]) => `<button type="button" class="rn-t" data-t="${t}" title="${esc(d)}"><code>${t}</code><span>${esc(d)}</span></button>`).join('')}</div>
     <div class="rn-row"><label for="rnStart">Нумерация с</label><input id="rnStart" type="number" min="0" max="99999" value="1">
-      <button type="button" class="ibtn rn-ai" data-rn="ai" title="Claude посмотрит на картинки и даст короткие английские названия: «Brutalist Concrete Stairs»">✦ Названия от ИИ</button></div>
+      ${LITE ? '' : '<button type="button" class="ibtn rn-ai" data-rn="ai" title="Claude посмотрит на картинки и даст короткие английские названия: «Brutalist Concrete Stairs»">✦ Названия от ИИ</button>'}</div>
     <p class="rn-aist" aria-live="polite" hidden></p>
     <div class="rn-pv" aria-live="polite"><div class="rn-pv-h"><span>Было</span><span>Станет</span></div><ol id="rnList"></ol></div>
     <p class="rn-note">Меняется только имя в Oddments, файлы на диске остаются как были.</p>
@@ -94,7 +95,7 @@ function build() {
     preview();
   });
   el.querySelector('[data-rn="cancel"]').addEventListener('click', closeRename);
-  el.querySelector('[data-rn="ai"]').addEventListener('click', () => { inp.value = '{ai}'; preview(); inp.focus(); });
+  if (!LITE) el.querySelector('[data-rn="ai"]').addEventListener('click', () => { inp.value = '{ai}'; preview(); inp.focus(); });
   el.addEventListener('pointerdown', (e) => { if (e.target === el) closeRename(); });
   form.addEventListener('submit', (e) => { e.preventDefault(); apply(); });
   el.addEventListener('keydown', (e) => {

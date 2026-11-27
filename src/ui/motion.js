@@ -67,7 +67,7 @@ function cardTilt() {
   let cur = null, raf = 0, ev = null;
   const reset = () => { if (cur) { cur.style.removeProperty('--rx'); cur.style.removeProperty('--ry'); } cur = null; };
   grid.addEventListener('pointermove', (e) => {
-    if (!motionOn() || e.buttons) return reset();
+    if (!motionOn() || e.buttons || document.body.classList.contains('ly-list')) return reset(); // a list row does not lean
     const c = e.target.closest('.card');
     if (c !== cur) reset();
     cur = c;

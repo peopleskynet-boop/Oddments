@@ -1,4 +1,4 @@
-// Oddments for Chrome and Edge: inside an embedded Vimeo player (Behance shows its animations this way). The page
+// Oddments for browsers: inside an embedded Vimeo player (Behance shows its animations this way). The page
 // around never hears the pointer once it is over the player, so this frame has its own «В Oddments» button on hover
 // and its own Alt+click; the service worker reads this frame's player config and glues the stream into an .mp4.
 (() => {
@@ -28,12 +28,12 @@
   const root = host.attachShadow({ mode: 'closed' });
   root.innerHTML = `<style>
     button { display: none; align-items: center; gap: 7px; padding: 6px 12px 6px 9px; border: 0; border-radius: 999px; cursor: pointer;
-      background: rgba(14, 15, 13, .92); color: #f2f3ee; font: 12px "Golos Text", "Segoe UI", system-ui, sans-serif;
+      background: rgba(16, 19, 30, .88); color: #eceaf2; font: 12px "Golos Text", "Segoe UI", system-ui, sans-serif;
       box-shadow: 0 4px 18px rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,255,255,.1); }
     button.on { display: flex; }
-    button:hover { background: #c6ff00; color: #0a0b09; }
-    i { width: 9px; height: 9px; border-radius: 3px; border: 2px solid currentColor; }
-  </style><button type="button"><i></i>${T('В Oddments')}</button>`;
+    button:hover { background: #d7ff63; color: #0b0c10; }
+    svg { width: 16px; height: 16px; flex: none; }
+  </style><button type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="odd-prism" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6b4ff"/><stop offset=".5" stop-color="#a7c7ff"/><stop offset="1" stop-color="#ffc7e8"/></linearGradient></defs><path d="M12 4.4 20 18.4H4Z" fill="none" stroke="url(#odd-prism)" stroke-width="3.4" stroke-linejoin="round"/></svg>${T('В Oddments')}</button>`;
   const btn = root.querySelector('button');
   const mount = () => { if (!host.isConnected && document.body) document.body.appendChild(host); };
   let hideT = null;

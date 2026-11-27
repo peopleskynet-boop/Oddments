@@ -1,4 +1,4 @@
-// «Плагины»: one place for every integration — Blender, Figma, Chrome/Edge, Safari, Claude (MCP). Each card says what
+// «Плагины»: one place for every integration — Blender, Figma, Chrome/Edge, Zen/Firefox, Safari, Claude (MCP). Each card says what
 // it does, whether it is talking to Oddments right now (the receiver remembers who called and when:
 // integration_seen in bridge.rs), installs it in one click and folds out the steps. The files of the add-on, the Figma
 // plugin and the browser extension live inside the app and are written only when someone saves them.
@@ -20,9 +20,18 @@ let addonVer = '';
 const addonVersion = async () => { const m = (await addonPy()).match(/"version":\s*\((\d+),\s*(\d+)/); return m ? `${m[1]}.${m[2]}` : ''; };
 const FIGMA = import.meta.glob('../../integrations/figma/*.{json,js,html}', { query: '?raw', import: 'default' });
 const figmaFiles = () => Promise.all(['manifest.json', 'code.js', 'ui.html'].map((f) => FIGMA['../../integrations/figma/' + f]().then((t) => [f, t])));
-const extText = import.meta.glob('../../integrations/browser/*.{json,js,html}', { query: '?raw', import: 'default' });
-const extIcons = import.meta.glob('../../integrations/browser/*.png', { query: '?inline', import: 'default' });
-const extLocales = import.meta.glob('../../integrations/browser/_locales/*/messages.json', { query: '?raw', import: 'default' });
+// the extension's files by their path inside it (fonts/…, _locales/…): text as it is, pictures and fonts as data: URLs
+const EXT_DIR = '../../integrations/browser/';
+const extText = import.meta.glob(['../../integrations/browser/*.{json,js,html,css}', '../../integrations/browser/_locales/*/messages.json', '../../integrations/browser/fonts/*.txt'], { query: '?raw', import: 'default' });
+const extBin = import.meta.glob(['../../integrations/browser/*.png', '../../integrations/browser/fonts/*.woff2'], { query: '?inline', import: 'default' });
+const dataBytes = (url) => Uint8Array.from(atob(url.split(',')[1]), (c) => c.charCodeAt(0));
+async function extFiles() {
+  const out = {};
+  const enc = new TextEncoder();
+  for (const [p, load] of Object.entries(extText)) out[p.slice(EXT_DIR.length)] = enc.encode(await load());
+  for (const [p, load] of Object.entries(extBin)) out[p.slice(EXT_DIR.length)] = dataBytes(await load());
+  return out;
+}
 
 const errText = (e) => (e && e.message ? e.message : String(e));
 async function dialogs() { return import('@tauri-apps/plugin-dialog'); }
@@ -55,20 +64,27 @@ export const saveFigma = () => saveFolder('Куда положить плаги�
 });
 export const saveExtension = () => saveFolder('Куда положить расширение Oddments для Chrome и Edge', 'Oddments for Browser', async (base, join) => {
   const fs = await fsMod();
-  const name = (p) => p.split('/').pop();
-  for (const [p, load] of Object.entries(extText)) await fs.writeTextFile(await join(base, name(p)), await load());
-  for (const [p, load] of Object.entries(extIcons)) {
-    const bytes = Uint8Array.from(atob((await load()).split(',')[1]), (c) => c.charCodeAt(0)); // a data: URL
-    await fs.writeFile(await join(base, name(p)), bytes);
-  }
-  // the store name and the key descriptions in both languages: _locales/<lang>/messages.json
-  for (const [p, load] of Object.entries(extLocales)) {
-    const dir = await join(base, '_locales', p.split('/').slice(-2, -1)[0]);
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeTextFile(await join(dir, 'messages.json'), await load());
+  for (const [rel, bytes] of Object.entries(await extFiles())) {
+    const parts = rel.split('/');
+    const dir = parts.length > 1 ? await join(base, ...parts.slice(0, -1)) : base;
+    if (parts.length > 1) await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(await join(dir, parts[parts.length - 1]), bytes);
   }
   toast('Расширение сохранено в папку «Oddments for Browser»');
 });
+// Zen and Firefox: the same files with the Gecko manifest, one .xpi (unsigned: Zen takes it after one about:config switch)
+export async function saveXpi() {
+  try {
+    const f = await (await dialogs()).save({ title: 'Сохранить расширение Oddments для Zen и Firefox', defaultPath: `oddments-${extVer}.xpi`, filters: [{ name: 'Расширение Firefox', extensions: ['xpi'] }] });
+    if (!f) return false;
+    const [{ zipSync }, { geckoManifest, geckoSkips }] = await Promise.all([import('three/examples/jsm/libs/fflate.module.js'), import('../lib/extgecko.js')]);
+    const files = Object.fromEntries(Object.entries(await extFiles()).filter(([rel]) => !geckoSkips(rel)));
+    files['manifest.json'] = new TextEncoder().encode(JSON.stringify(geckoManifest(extManifest), null, 2));
+    await (await fsMod()).writeFile(f, zipSync(files, { level: 6 }));
+    toast('Расширение для Zen и Firefox сохранено — дальше шаги в карточке', 6000);
+    return true;
+  } catch (e) { toast('Не удалось сохранить: ' + errText(e)); return false; }
+}
 // Safari: the container app built in CI lies inside Oddments.app (Resources/safari); opening it registers the extension
 async function installSafari() {
   try {
@@ -115,9 +131,15 @@ const CARDS = [
   },
   {
     id: 'browser', seen: 'browser', title: 'Chrome и Edge', icon: 'external', ver: t('Расширение') + ' ' + extVer,
-    what: 'Картинки, видео, ссылки и снимки экрана — в Oddments: правый клик, Alt+клик, все картинки страницы, видео выбранной области, блоки интерфейса со снимком и кодом, статьи — читать здесь.',
+    what: 'Картинки, видео, ссылки и снимки экрана — в Oddments: правый клик, Alt+клик, все картинки страницы, видео выбранной области, куски вёрстки с кодом, статьи для чтения, доски Pinterest, Cosmos, Are.na и Savee целиком.',
     acts: [{ a: 'ext', label: 'Сохранить расширение…', pri: true }],
-    steps: ['Сохраните расширение в папку.', 'Откройте chrome://extensions (или edge://extensions) и включите «Режим разработчика».', '«Загрузить распакованное» — папка «Oddments for Browser».', 'В окне расширения вставьте токен.'],
+    steps: ['Сохраните расширение в папку.', 'Откройте chrome://extensions (или edge://extensions) и включите «Режим разработчика».', '«Загрузить распакованное» — папка «Oddments for Browser». Если там уже стоит прежняя версия — нажмите у неё «Обновить».', 'В окне расширения вставьте токен. Как пользоваться — кнопка «?» внизу окна.'],
+  },
+  {
+    id: 'zen', seen: 'browser', title: 'Zen и Firefox', icon: 'external', ver: t('Расширение') + ' ' + extVer,
+    what: 'То же расширение для Zen и Firefox. Видео области там записывается через окно «показать экран» — в WebM, без звука.',
+    acts: [{ a: 'xpi', label: 'Сохранить .xpi…', pri: true }],
+    steps: ['Сохраните файл .xpi.', 'Zen: откройте about:config и поставьте xpinstall.signatures.required = false (один раз). Обычный Firefox принимает неподписанные расширения только в версиях Developer Edition и Nightly.', 'about:addons › ⚙ › «Установить дополнение из файла…» — выберите .xpi и разрешите доступ к сайтам.', 'В окне расширения вставьте токен.'],
   },
   {
     id: 'safari', seen: 'browser', title: 'Safari', icon: 'link', ver: t('Расширение') + ' ' + extVer + ' · Mac',
@@ -189,6 +211,7 @@ function build() {
     else if (a === 'addon') saveAddon();
     else if (a === 'figma') saveFigma();
     else if (a === 'ext') saveExtension();
+    else if (a === 'xpi') saveXpi();
     else if (a === 'safari') installSafari();
     else if (a === 'mcp-desktop') copy(claudeDesktop(last), 'Настройка для Claude Desktop скопирована — вставьте её в claude_desktop_config.json');
     else if (a === 'mcp-code') copy(claudeCode(last), 'Команда для Claude Code скопирована — выполните её в терминале');

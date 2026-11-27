@@ -214,18 +214,38 @@ async function genFig(src) {
   const { figThumb } = await import('./figma.js');
   return (await figThumb(await src.getBlob())) || {};
 }
-async function genLink(src) {
-  const { linkCard, urlFromShortcut, parseVideoUrl } = await import('./figma.js');
-  const url = urlFromShortcut(await (await src.getBlob()).text());
+// A link (.url): the page's own picture as the cover, its title, description, site and icon (linkpage.js) — the card
+// shows them as a picture with a site pill, the list as a row. No picture: a card with the name in big letters (the
+// wall draws that one itself, in the theme's colours; this canvas serves the panel, Figma and the share page).
+// `page` and `icon` go onto the item in library.js keepGenerated; `page: null` — ask again later («Без сети»).
+async function genLink(src, it) {
+  const f = await import('./figma.js');
+  const { readShortcut, hostOf, siteName } = await import('./linkmeta.js');
+  const sc = readShortcut(await (await src.getBlob()).text());
+  const url = sc.url;
   if (!url) return {};
-  const vid = parseVideoUrl(url);
-  if (vid) { const r = await videoCard(vid).catch(() => null); if (r) return r; }
-  const canvas = linkCard(url);
-  return { canvas, w: canvas.width, h: canvas.height };
+  // a Figma link keeps its drawn card (the Figma mark and the file's name); `page` marks it as read
+  if (f.parseFigmaUrl(url)) { const canvas = f.linkCard(url); return { canvas, w: canvas.width, h: canvas.height, page: { cover: 'figma', title: '', desc: '', site: 'Figma', host: hostOf(url), tint: '' } }; }
+  const vid = f.parseVideoUrl(url);
+  if (vid) {
+    const r = await videoCard(vid).catch(() => null);
+    if (r) return { ...r, page: { cover: 'video', title: sc.title, desc: sc.desc, site: vid.site, host: hostOf(url), tint: '' } };
+  }
+  const { readLinkPage, coverCanvas } = await import('./linkpage.js');
+  const p = await readLinkPage(url, sc);
+  const page = { cover: p.cover ? 'page' : '', title: p.title, desc: p.desc, site: p.site || siteName(url), host: p.host, tint: p.tint };
+  if (p.cover) {
+    const canvas = coverCanvas(p.cover);
+    if (p.cover.close) p.cover.close();
+    return { canvas, colorSrc: canvas, w: canvas.width, h: canvas.height, page, icon: p.icon };
+  }
+  const canvas = f.linkCard(url, 640, 480, { title: (it && it.name) || p.title, site: page.site, tint: p.tint });
+  return { canvas, w: canvas.width, h: canvas.height, page: p.retry ? null : page, icon: p.icon };
 }
 
-// a video link's card: the clip's cover (YouTube's own thumbnail, else the page's main picture) in the clip's shape, a play
-// mark and the site's name; the cover's colours count for the colour search
+// a video link's card: the clip's cover (YouTube's own thumbnail, else the page's main picture) in the clip's shape,
+// clean — the play mark and the site's name are the card's pill now, not pixels (the text reader read «YouTube» off
+// them); the cover's colours count for the colour search
 async function videoCard(v) {
   const { fetchImage } = await import('./clipboard.js');
   const vi = v.site === 'Vimeo' ? await (await import('./figma.js')).vimeoInfo(v) : null;
@@ -241,15 +261,8 @@ async function videoCard(v) {
   const x = c.getContext('2d');
   const s = Math.max(W / bm.width, H / bm.height);
   x.drawImage(bm, (W - bm.width * s) / 2, (H - bm.height * s) / 2, bm.width * s, bm.height * s);
-  const colorSrc = document.createElement('canvas'); colorSrc.width = W; colorSrc.height = H; colorSrc.getContext('2d').drawImage(c, 0, 0);
-  // the play mark: a soft dark disc with a white triangle, the site's name under the corner
-  x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.arc(W / 2, H / 2, 74, 0, 7); x.fill();
-  x.fillStyle = '#fff'; x.beginPath(); x.moveTo(W / 2 - 22, H / 2 - 36); x.lineTo(W / 2 + 40, H / 2); x.lineTo(W / 2 - 22, H / 2 + 36); x.closePath(); x.fill();
-  x.font = '600 30px "Golos Text Variable", "Segoe UI", sans-serif';
-  const tw = x.measureText(v.site).width;
-  x.fillStyle = 'rgba(0,0,0,.55)'; x.beginPath(); x.roundRect(28, H - 82, tw + 40, 54, 27); x.fill();
-  x.fillStyle = '#fff'; x.fillText(v.site, 48, H - 45);
-  return { canvas: c, colorSrc, w: W, h: H };
+  bm.close();
+  return { canvas: c, colorSrc: c, w: W, h: H };
 }
 
 // a block of a page: its shot (blockCover: the top of a long one, a thin strip on its own background). The size is
@@ -265,7 +278,34 @@ async function genBlock(src) {
   return { canvas, w, h };
 }
 
-const GEN = { block: genBlock, image: genImage, gif: genImage, video: genVideo, audio: genAudio, font: genFont, pdf: genPdf, psd: genPsd, model: genModel, material: genModel, figma: genFig, link: genLink };
+// HDRI (.hdr, .exr) and the rasters a browser cannot show (.tif, .tga): decoded in a worker (hdri.worker.js) into an
+// 8-bit picture of at most 4096 px — the preview the viewer shows instead of the file, as with a PSD — and the card from
+// it. An HDRI is exposed by its own average brightness and tone-mapped (ACES).
+let decWorker = null, decSeq = 0;
+const decWaiting = new Map();
+function decodeInWorker(buf, ext, maxSide) {
+  if (!decWorker) {
+    decWorker = new Worker(new URL('./hdri.worker.js', import.meta.url), { type: 'module' });
+    decWorker.onmessage = (e) => { const p = decWaiting.get(e.data.id); if (p) { decWaiting.delete(e.data.id); p(e.data); } };
+    decWorker.onerror = () => { decWaiting.forEach((p) => p({ error: 'worker' })); decWaiting.clear(); decWorker = null; };
+  }
+  const id = ++decSeq;
+  return new Promise((res) => { decWaiting.set(id, res); decWorker.postMessage({ id, buf, ext, maxSide }, [buf]); });
+}
+async function genDecoded(src, it) {
+  if (src.size > 600e6) return {};
+  const r = await decodeInWorker(await (await src.getBlob()).arrayBuffer(), it.ext, 4096);
+  if (r.error || !r.pic) { console.warn('decode failed for', it.name, r.error); return {}; }
+  const preview = document.createElement('canvas');
+  preview.width = r.pic.w; preview.height = r.pic.h;
+  preview.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(r.pic.buf), r.pic.w, r.pic.h), 0, 0);
+  const canvas = fitCanvas(preview.width, preview.height, (x, cw, ch) => x.drawImage(preview, 0, 0, cw, ch));
+  return { w: r.w, h: r.h, canvas, preview };
+}
+// the «PSD» kind holds the layered and print rasters shown through their preview: PSD/PSB by ag-psd, TIFF/TGA decoded
+const genRaster = (src, it) => (it.ext === 'psd' || it.ext === 'psb' ? genPsd(src) : genDecoded(src, it));
+
+const GEN = { block: genBlock, image: genImage, gif: genImage, video: genVideo, audio: genAudio, font: genFont, pdf: genPdf, psd: genRaster, hdri: genDecoded, model: genModel, material: genModel, figma: genFig, link: genLink };
 
 // Returns { w, h, ar, duration, pages, colors, thumb: Blob|null, preview: Blob|null, verts?, tris?, splats? }
 export async function generate(it, src) {
@@ -279,6 +319,8 @@ export async function generate(it, src) {
     if (r.pages) out.pages = r.pages;
     if (r.verts) { out.verts = r.verts; out.tris = r.tris; }
     if (r.splats) out.splats = r.splats;
+    if ('page' in r) out.page = r.page; // a link: what its page says (library.js keepGenerated)
+    if (r.icon) out.icon = r.icon;
     if (r.canvas) {
       out.ar = r.canvas.height / r.canvas.width;
       out.thumb = await toBlob(r.canvas);

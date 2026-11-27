@@ -6,7 +6,7 @@
 // index.json and tagged with the model, so another model later simply studies the library again.
 import * as fs from '@tauri-apps/plugin-fs';
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
-import { S, ui } from '../state.js';
+import { S, ui, bareLink } from '../state.js';
 import { absPath, assetUrl, getRoot, saveIndex } from './library.js';
 import { VOCAB, VOCAB_V, wordStats, tagsFor } from './aitags.js';
 import * as C from './aicloud.js';
@@ -178,7 +178,7 @@ async function loadVectors() {
     const all = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
     meta.ids.forEach((id, i) => {
       const v = all.slice(i * MODEL.dim, (i + 1) * MODEL.dim);
-      if (S.byId.has(id) && v.some((x) => x !== 0)) vecs.set(id, v); // pictures that failed last time are tried again
+      if (S.byId.has(id) && studyable(S.byId.get(id)) && v.some((x) => x !== 0)) vecs.set(id, v); // pictures that failed last time are tried again; a link's grey card is forgotten
     });
     srcOf = meta.src || {};
   } catch (e) { /* first run */ }
@@ -203,7 +203,7 @@ function saveVectors() {
 
 /* ---------- studying the library ---------- */
 // everything with a picture: images, GIF, video frames, PDF pages, model renders, link covers
-const studyable = (it) => !it.trashed && !!it.thumb;
+const studyable = (it) => !it.trashed && !!it.thumb && !bareLink(it);
 const needs = (it) => studyable(it) && (!vecs.has(it.id) || srcOf[it.id] !== it.thumb);
 let running = false;
 
@@ -229,7 +229,15 @@ function recount() {
   AI.done = S.items.filter((i) => studyable(i) && vecs.has(i.id) && real(vecs.get(i.id))).length;
   AI.todo = cloud() ? cloudTodo().length : S.items.filter(needs).length;
 }
+// vectors of what is no longer a picture to study (a link whose card was its own grey drawing): dropped, or the search by
+// meaning kept finding the grey card as «black, minimalism»
+function dropUnstudyable() {
+  let n = 0;
+  for (const id of [...vecs.keys()]) { const it = S.byId.get(id); if (it && !studyable(it)) { vecs.delete(id); delete srcOf[id]; n++; } }
+  if (n) saveVectors();
+}
 async function study() {
+  dropUnstudyable();
   if (cloud()) return studyCloud();
   if (running || AI.status !== 'ready') return;
   recount(); emit();

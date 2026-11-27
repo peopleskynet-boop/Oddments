@@ -3,78 +3,146 @@
 <head>
 <meta charset="utf-8">
 <title>Oddments</title>
+<link rel="stylesheet" href="ui.css">
 <style>
-  :root { --acc: #c6ff00; --bg: #0d0e0c; --fg: #f2f3ee; --mut: #8f9189; --line: rgba(255,255,255,.1); --field: rgba(255,255,255,.06); }
-  * { box-sizing: border-box; }
-  body { width: 320px; margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 13px/1.4 "Golos Text", "Segoe UI", system-ui, sans-serif; }
-  .top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-  .logo { width: 22px; height: 22px; border-radius: 7px; border: 2.5px solid var(--fg); position: relative; }
-  .logo::after { content: ''; position: absolute; right: 2px; top: 2px; width: 5px; height: 5px; border-radius: 50%; background: #ff2d6f; }
-  .top b { font-weight: 500; font-size: 15px; letter-spacing: .02em; }
-  #st { margin-left: auto; font-size: 12px; color: var(--mut); display: flex; align-items: center; gap: 6px; }
+  body { width: 340px; padding: 12px 12px 10px; }
+  .lab { margin: 12px 6px 6px; }
+  .top { display: flex; align-items: center; gap: 10px; padding: 0 4px 2px; }
+  .top img { width: 26px; height: 26px; border-radius: 8px; }
+  .top b { font-weight: 500; font-size: 15px; }
+  #st { margin-left: auto; font-size: 12px; color: var(--mut); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
   #st i { width: 7px; height: 7px; border-radius: 50%; background: var(--mut); }
-  #st.ok i { background: var(--acc); }
-  #st.err i { background: #ff2d6f; }
-  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-  button { height: 36px; border: 0; border-radius: 999px; background: var(--field); color: var(--fg); font: inherit; cursor: pointer; padding: 0 14px; }
-  button:hover { background: rgba(255,255,255,.12); }
-  button.pri { background: var(--acc); color: #0a0b09; font-weight: 500; }
-  button:disabled { opacity: .4; cursor: default; }
-  label { display: block; font-size: 12px; color: var(--mut); margin: 0 0 6px 4px; }
-  select, input[type=text], input[type=password] { width: 100%; height: 36px; border-radius: 999px; border: 0; background: var(--field); color: var(--fg);
-    font: inherit; padding: 0 14px; margin-bottom: 12px; outline: none; box-shadow: inset 0 0 0 1px var(--line); }
-  select:focus, input:focus { box-shadow: inset 0 0 0 1.5px var(--acc); }
-  select option { background: #1a1b18; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+  #st.ok i { background: var(--acc); box-shadow: 0 0 8px rgba(215,255,99,.6); }
+  #st.err i { background: var(--red); }
+  .ico { width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--mut); display: grid; place-items: center; flex: none; }
+  .ico:hover { background: var(--hover-2); color: var(--fg); }
+  .ico svg { width: 18px; height: 18px; }
+
+  /* the actions: rows in one glass card per group */
+  .list { padding: 4px; display: grid; gap: 0; }
+  .row { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 36px; padding: 3px 10px 3px 11px; border: 0; border-radius: 15px; background: transparent; text-align: left; line-height: 1.3; }
+  .row:hover:not(:disabled) { background: var(--hover-2); }
+  .row:active:not(:disabled) { transform: scale(.985); }
+  .row:disabled { opacity: .4; cursor: default; }
+  .row svg { width: 18px; height: 18px; flex: none; color: var(--acc); }
+  .row span { flex: 1; min-width: 0; }
+  .row small { display: block; font-size: 11px; color: var(--mut); }
+  .row kbd:empty { display: none; }
+
+  /* «Забрать доску целиком»: shown only on a board, a channel or a profile of a service it knows */
+  #board { margin-top: 10px; width: 100%; min-height: 50px; padding: 8px 14px; border: 0; border-radius: 20px; display: flex; align-items: center; gap: 12px; text-align: left;
+    background: var(--acc); color: var(--acc-fg); box-shadow: inset 0 1px 0 rgba(255,255,255,.65), inset 0 -2px 6px rgba(0,0,0,.12), 0 0 26px rgba(215,255,99,.2); }
+  #board svg { width: 22px; height: 22px; flex: none; }
+  #board b { display: block; font-weight: 500; }
+  #board small { display: block; font-size: 12px; opacity: .72; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #board span { min-width: 0; }
+  #board:disabled { opacity: .4; }
+
+  .where { padding: 8px; display: grid; gap: 6px; }
+  .where select, .where input { height: 34px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chips:empty { display: none; }
-  .chip { height: 26px; padding: 0 6px 0 11px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; background: rgba(198,255,0,.12); color: var(--acc); }
+  .chip { height: 26px; padding: 0 6px 0 11px; border: 0; border-radius: 999px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; background: rgba(215,255,99,.12); color: var(--acc); }
   .chip span { opacity: .7; padding: 0 4px; }
-  .opts { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; display: grid; gap: 8px; }
-  .opt { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--fg); margin: 0; cursor: pointer; }
-  .opt input { accent-color: var(--acc); width: 15px; height: 15px; margin: 0; }
-  .help { font-size: 12px; color: var(--mut); margin: 0 0 12px 4px; }
-  .help b { color: var(--fg); font-weight: 500; }
-  #pair { display: none; }
-  body.need #pair { display: block; }
+
+  .foot { display: flex; align-items: center; gap: 8px; margin: 8px 2px 0; font-size: 12px; color: var(--mut); }
+  .foot button { border: 0; background: none; color: var(--fg); padding: 6px 10px; border-radius: 999px; display: inline-flex; gap: 6px; align-items: center; }
+  .foot button:hover { background: var(--hover-2); }
+  .foot .q { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600; background: var(--acc); color: var(--acc-fg); }
+  .foot .ver { margin-left: auto; font: 11px var(--mono); }
+
+  /* pairing */
+  #pair { padding: 16px; margin-top: 12px; display: grid; gap: 10px; }
+  #pair p { margin: 0; color: var(--mut); font-size: 12.5px; }
+  #pair p b { color: var(--fg); font-weight: 500; }
   body.need #main { display: none; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .row select { width: auto; height: 30px; margin: 0; font-size: 12px; padding: 0 12px; }
-  kbd { font: 11px "Geist Mono", Consolas, monospace; color: var(--mut); }
+  body:not(.need) #pair { display: none; }
+
+  /* settings */
+  #settings .head { display: flex; align-items: center; gap: 6px; margin: 2px 0 6px; }
+  #settings .head b { font-weight: 500; font-size: 15px; }
+  .set { padding: 6px; display: grid; gap: 2px; }
+  .opt { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 16px; cursor: pointer; }
+  .opt:hover { background: var(--hover); }
+  .field { padding: 8px 12px 12px; display: grid; gap: 6px; }
+  .field label { font-size: 12px; color: var(--mut); }
+  .field p { margin: 0; font-size: 11.5px; color: var(--mut); }
+  .field a { color: var(--acc); }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 6px 4px; }
+  body.set-on #main, body.set-on #pair { display: none; }
+  body:not(.set-on) #settings { display: none; }
 </style>
 </head>
 <body>
-  <div class="top"><span class="logo"></span><b>ODDMENTS</b><span id="st"><i></i><span>проверяю…</span></span></div>
+  <div class="top">
+    <img src="icon32.png" alt="">
+    <b>Oddments</b>
+    <span id="st"><i></i><span>проверяю…</span></span>
+    <button class="ico" id="gear" type="button" title="Настройки" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="9.5" cy="17" r="2.5"/></svg></button>
+  </div>
 
-  <div id="pair">
-    <p class="help" id="pairHelp">Откройте Oddments › Настройки › Интеграции, нажмите <b>«Скопировать токен»</b> и вставьте его сюда.</p>
+  <section id="pair" class="glass">
+    <p id="pairHelp">Откройте Oddments › Настройки › Интеграции, нажмите <b>«Скопировать токен»</b> и вставьте его сюда.</p>
     <input type="password" id="tok" placeholder="Токен из Oddments" autocomplete="off">
-    <button class="pri" id="tokSave" style="width:100%">Подключить</button>
-  </div>
+    <button class="pill pri" id="tokSave" type="button">Подключить</button>
+  </section>
 
-  <div id="main">
-    <div class="acts">
-      <button class="pri" data-do="all">Все картинки</button>
-      <button data-do="page">Страницу</button>
-      <button data-do="article">Статью — читать в Oddments</button>
-      <button data-do="area">Снимок области</button>
-      <button data-do="rec">Видео области</button>
-      <button data-do="shot">Видимую часть</button>
-      <button data-do="block">Блок интерфейса</button>
+  <main id="main">
+    <button id="board" type="button" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="9" rx="2"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="2"/><rect x="3" y="15" width="7.5" height="6" rx="2"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="2"/></svg>
+      <span><b id="boardWhat">Забрать доску целиком</b><small id="boardName"></small></span>
+    </button>
+
+    <div class="lab" data-en="Capture">Снять</div>
+    <div class="list glass">
+      <button class="row" type="button" data-do="area"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/></svg><span>Снимок области</span><kbd data-cmd="shot-area"></kbd></button>
+      <button class="row" type="button" data-do="rec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/></svg><span>Видео области<small id="recHint">рамка, потом «Начать запись»</small></span><kbd data-cmd="record-area"></kbd></button>
+      <button class="row" type="button" data-do="shot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/></svg><span>Снимок всего, что видно</span><kbd data-cmd="shot-visible"></kbd></button>
     </div>
-    <label for="folder">Подборка</label>
-    <select id="folder"><option value="">Без подборки</option></select>
-    <label for="tag">Теги для сохранённого</label>
-    <input type="text" id="tag" list="tagList" placeholder="Тег и Enter" autocomplete="off">
-    <datalist id="tagList"></datalist>
-    <div class="chips" id="tags"></div>
-    <div class="opts">
-      <label class="opt"><input type="checkbox" id="altClick"> Alt+клик по картинке — в Oddments</label>
-      <label class="opt"><input type="checkbox" id="hoverBtn"> Кнопка «В Oddments» на картинках</label>
-      <p class="help" style="margin:4px 0 0">Ещё: правый клик › Oddments, перетащить картинку на док справа. <kbd>Alt+Shift+A</kbd> — область, <kbd>Alt+Shift+S</kbd> — экран.</p>
-      <div class="row"><button id="unpair" style="height:30px;font-size:12px">Сменить токен</button>
-        <select id="lang" aria-label="Язык · Language"><option value="">Авто</option><option value="ru">Русский</option><option value="en">English</option></select></div>
+
+    <div class="lab" data-en="Take">Забрать</div>
+    <div class="list glass">
+      <button class="row" type="button" data-do="all"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Все картинки страницы</span><kbd data-cmd="save-all"></kbd></button>
+      <button class="row" type="button" data-do="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Страницу закладкой<small>ссылка с обложкой</small></span><kbd data-cmd="save-page"></kbd></button>
+      <button class="row" type="button" data-do="article"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 6h14M5 10h14M5 14h10M5 18h7"/></svg><span>Страницу текстом для чтения<small>в Oddments › Новости › Сохранённое</small></span><kbd data-cmd="save-article"></kbd></button>
+      <button class="row" type="button" data-do="block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 8 4.5 12l4 4M15.5 8l4 4-4 4"/></svg><span>Кусок вёрстки<small>картинка и код блока страницы</small></span><kbd data-cmd="grab-block"></kbd></button>
     </div>
-  </div>
+
+    <div class="lab" data-en="Where">Куда</div>
+    <div class="where glass">
+      <select id="folder" aria-label="Подборка"><option value="">Без подборки</option></select>
+      <input type="text" id="tag" list="tagList" placeholder="Теги: тег и Enter" aria-label="Теги для сохранённого" autocomplete="off">
+      <datalist id="tagList"></datalist>
+      <div class="chips" id="tags"></div>
+    </div>
+
+    <div class="foot">
+      <button id="help" type="button"><span class="q">?</span>Как пользоваться</button>
+      <span class="ver" id="ver"></span>
+    </div>
+  </main>
+
+  <section id="settings">
+    <div class="head"><button class="ico" id="back" type="button" title="Назад" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6"/></svg></button><b>Настройки</b></div>
+    <div class="set glass">
+      <label class="opt"><input type="checkbox" id="altClick"><span>Alt+клик по картинке — в Oddments</span></label>
+      <label class="opt"><input type="checkbox" id="hoverBtn"><span>Кнопка «В Oddments» на картинках</span></label>
+    </div>
+    <div class="lab" data-en="Language">Язык</div>
+    <div class="glass field">
+      <select id="lang" aria-label="Язык · Language"><option value="">Как в Oddments</option><option value="ru">Русский</option><option value="en">English</option></select>
+    </div>
+    <div class="lab">Are.na</div>
+    <div class="glass field">
+      <label for="arena">Токен Are.na — только для закрытых каналов</label>
+      <input type="password" id="arena" placeholder="Personal access token" autocomplete="off">
+      <p>Открытые каналы забираются без него. Токен — на <a href="https://www.are.na/settings" target="_blank" rel="noopener">are.na › Settings</a>.</p>
+    </div>
+    <div class="btns">
+      <button class="pill" id="keys" type="button">Изменить клавиши</button>
+      <button class="pill" id="unpair" type="button">Сменить токен Oddments</button>
+    </div>
+  </section>
 <script src="i18n.js"></script>
 <script src="popup.js" type="module"></script>
 </body>

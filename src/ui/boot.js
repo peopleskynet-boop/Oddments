@@ -6,10 +6,19 @@
 // no intro when motion is off, and without WebGL2 the screen just fades.
 import './boot.css';
 import prismUrl from '../assets/oddments-prism.webp';
+import { SHARE } from '../lib/lite.js';
 
 let el = null, glass = null, t0 = 0, gone = false, settled = null, settle = () => {};
+let goneP = Promise.resolve(), markGone = () => {}; // the screen has gone (resolved at once when there is none)
 const MAX = 7000; // never longer than this, whatever happens with the library
-const SPEED = 1.2; // the reveal at 1 runs 3.5 s
+const SPEED = 1.2; // the reveal at 1 runs 3.45 s (2.9 s at this speed)
+// The rhythm (the user, 15.11: «подвисает на этапе проявления по бокам»): with the component's own timing every motion
+// of the hold — the prism gliding in, the light band, the rim light turning — eased to a stop at once, and the glass let
+// go from a standstill: about 0.4 s of an unmoving frame (the prism held, colours along the sides), then another before
+// the closing light. The glass now lets go while the prism is still gliding (present < glide) and the light follows the
+// settling sooner: the picture never stands still until the end (measured: the smallest change between 30 fps frames
+// went from 0.05 to 0.45 of a level per pixel).
+const PRESENT = 2.0, GLIDE = 2.4, GLEAM_DELAY = 0.35;
 const PLATE = '#0d1220'; // the tile of the app icon
 const LOGO = 0.78; // the prism's size in the tile, as in the icon (the sidebar mark it flies into)
 const NAME = 1000; // the name's entrance (boot.css, .8 s) and a moment to read it, ms
@@ -25,10 +34,12 @@ export function bootIntro() {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let anim = 'smooth';
   try { anim = (JSON.parse(localStorage.getItem('perch.settings') || '{}').anim) || 'smooth'; } catch (e) { /* defaults */ }
-  if (anim === 'none' || (anim === 'system' && reduce) || innerWidth < 2 || innerHeight < 2) return;
+  // a shared link's visitor came for the collection, not for the app's own entrance (lib/lite.js SHARE)
+  if (anim === 'none' || (anim === 'system' && reduce) || innerWidth < 2 || innerHeight < 2 || SHARE) return;
   t0 = performance.now();
   gone = false;
   settled = new Promise((res) => { settle = res; });
+  goneP = new Promise((res) => { markGone = res; });
   el = document.createElement('div');
   el.className = 'boot2';
   el.setAttribute('aria-hidden', 'true');
@@ -42,7 +53,7 @@ export function bootIntro() {
     const both = () => { if (rest && named) settle(); };
     glass = mountGlassReveal(el.querySelector('.b2-gl'), {
       logo: prismUrl, look: 'dark', speed: SPEED, background, plateColor: PLATE, originalColors: true, keepPlate: true,
-      logoScale: LOGO, gleam: 1, onEnd: () => { rest = true; both(); },
+      logoScale: LOGO, gleam: 1, present: PRESENT, glide: GLIDE, gleamDelay: GLEAM_DELAY, onEnd: () => { rest = true; both(); },
     });
     if (!glass) return settle();
     glass.ready.then(() => {
@@ -61,6 +72,17 @@ export function bootIntro() {
   setTimeout(() => bootDone(), MAX);
 }
 
+// The start screen plays while the app opens, and a long task on the page (the first grid, the AI model taking the video
+// card) stalls the glass mid-reveal. So main.js draws the first grid once the screen stands still — the glass at rest,
+// the name shown (bootCalm) — and starts what is heavy once it has gone (bootGone). Both resolve at once without the
+// screen, and bootCalm never waits past MAX.
+export function bootCalm() {
+  if (!el || gone) return Promise.resolve();
+  const wait = Math.max(0, MAX - (performance.now() - t0));
+  return Promise.race([settled, new Promise((res) => setTimeout(res, wait))]);
+}
+export const bootGone = () => goneP;
+
 // the library is open: once the glass has settled into the icon and the name has been seen, the icon flies into the
 // sidebar mark and all fades
 export function bootDone() {
@@ -71,7 +93,7 @@ export function bootDone() {
 }
 
 function leave() {
-  if (!el) return;
+  if (!el) { markGone(); return; }
   const gl = el.querySelector('.b2-gl'), mark = document.querySelector('.side .mark');
   const p = glass && glass.plate(), b = mark && mark.getBoundingClientRect();
   if (p && b && b.width && getComputedStyle(document.querySelector('.side')).visibility !== 'hidden') {
@@ -83,5 +105,5 @@ function leave() {
     gl.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(${k})`, opacity: 0.2 }], { duration: 620, easing: 'cubic-bezier(.6, 0, .2, 1)', fill: 'forwards' });
   } else gl.animate([{ transform: 'none', opacity: 1 }, { transform: 'scale(.82)', opacity: 0 }], { duration: 480, easing: 'ease-in', fill: 'forwards' });
   el.classList.add('out');
-  setTimeout(() => { if (glass) glass.dispose(); glass = null; if (el) el.remove(); el = null; }, 760);
+  setTimeout(() => { if (glass) glass.dispose(); glass = null; if (el) el.remove(); el = null; markGone(); }, 760);
 }

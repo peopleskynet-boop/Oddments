@@ -13,7 +13,10 @@ export const LANGS = [['ru', 'Русский'], ['en', 'English']];
 export const lang = (() => {
   // Russian unless chosen: WebView2 reports en-US on a Russian Windows (checked in the exe), so the system's language
   // cannot be trusted to mean the person's
-  try { return localStorage.getItem(KEY) || 'ru'; } catch (e) { return 'ru'; }
+  try { const l = localStorage.getItem(KEY); if (l) return l; } catch (e) { /* private mode */ }
+  // a shared link's visitor (lib/share.js) — any browser, any phone: the browser's own language is right there
+  if (typeof document !== 'undefined' && (document.querySelector('meta[name="odd-share"]') || /[?&]share=/.test(location.search))) return /^(ru|uk|be|kk)\b/i.test(navigator.language || '') ? 'ru' : 'en';
+  return 'ru';
 })();
 export function setLang(l) { try { localStorage.setItem(KEY, l); } catch (e) { /* private mode */ } location.reload(); }
 

@@ -30,8 +30,12 @@ let bound = false;
 export function fill(el, items, rerender) {
   if (!bound) { bound = true; bindScr(el, () => bindItems.current, rerender); }
   bindItems.current = items;
-  const s = el.querySelector('[data-slot="scr"]'), b = el.querySelector('[data-slot="brand"]');
-  if (s) s.outerHTML = scrBlock(items);
+  const s = el.querySelector('[data-slot="scr"]'), b = el.querySelector('[data-slot="brand"]'), sl = el.querySelector('[data-slot="scrlink"]');
+  // a picture that is not a screen gets only the quiet «+ Отметить как экран»: it goes down with the other «+» links
+  // (the source), not between the tags and the comments (critique 15.11: it broke the panel's rhythm)
+  const html = scrBlock(items), link = html.startsWith('<button class="lnk scr-mark"');
+  if (s) s.outerHTML = link && sl ? '' : html;
+  if (sl) sl.outerHTML = link ? `<div class="fld">${html}</div>` : '';
   if (b) b.outerHTML = items.length === 1 ? brandBlock(items[0]) : '';
 }
 const bindItems = { current: [] };

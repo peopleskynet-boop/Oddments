@@ -1,0 +1,27 @@
+/* A shared link's visitor (sharebar.js, lib/lite.js SHARE): the strip at the bottom, and what a visitor has no use for */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.shb { position: fixed; z-index: 30; left: 16px; right: 16px; bottom: 16px; margin-inline: auto; width: fit-content; max-width: 760px;
+  display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 18px; border-radius: 99px; font-size: 13px; animation: fade .3s; }
+.shb-t { min-width: 0; display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; line-height: 1.35; }
+.shb-t b { font-weight: 600; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 36ch; }
+.shb-t span { color: var(--mut); }
+.shb-note { flex-basis: 100%; color: var(--fg) !important; opacity: .82; }
+.shb-dl { flex: none; height: 36px; padding: 0 14px; gap: 6px; border-radius: 99px; }
+.shb-odd { flex: none; padding: 0 12px 0 4px; color: var(--mut); text-decoration: none; font-size: 12px; white-space: nowrap; }
+.shb-odd:hover { color: var(--fg); }
+.shb-odd:focus-visible { outline: none; color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
+/* the wall and the toasts keep clear of the strip */
+body.share .scroll { padding-bottom: 96px; }
+body.share .toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+/* nothing to add, keep or set up on someone else's collection */
+body.share .fav, body.share #addBtn, body.share #addMore, body.share #pasteBtn, body.share #addDirBtn, body.share #setBtn,
+body.share .ob, body.share .lt-inst, body.share #dock .add { display: none !important; }
+@media (max-width: 640px) {
+  .shb { left: 8px; right: 8px; bottom: 8px; width: auto; border-radius: 24px; padding: 10px 10px 10px 16px; flex-wrap: wrap; gap: 8px; }
+  .shb-t { flex-basis: 100%; }
+  .shb-dl { flex: 1; justify-content: center; }
+  body.share .scroll { padding-bottom: 150px; }
+  body.share .toast { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+}
+}

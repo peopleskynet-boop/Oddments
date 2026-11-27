@@ -3,6 +3,7 @@
 // ?empty starts with an empty library.
 import { demoModels, demoMaterials } from './seed3d.js';
 import { demoBlocks } from './seedblock.js';
+import { demoLinks } from './seedlinks.js';
 
 const ROOT = '/Documents/Oddments Library';
 
@@ -134,6 +135,7 @@ export async function seed(put) {
     { id: 'f-color', name: 'Цвет и свет', parent: null, open: true },
     { id: 'f-3d', name: '3D', parent: null, open: true },
     { id: 'f-icons', name: 'Иконки', parent: null, open: true },
+    { id: 'f-assets', name: '3D-ассеты', parent: null, open: true }, // pages of models: links, opens as a list (viewlayout.js)
   ];
   const pool = [];
   for (let i = 0; i < Math.min(total, 60); i++) pool.push(await makeImage(i));
@@ -212,6 +214,19 @@ export async function seed(put) {
       file, thumb: file, preview: null, w: 512, h: 512, ar: 1, duration: 0, pages: 0,
       tags: ['иконка'], folders: ['f-icons'], note: '', url: '', colors: [color], trashed: false, fresh: false, fav: false,
     });
+  });
+  // links to pages of 3D assets (seedlinks.js): most are read at the start like links saved before covers
+  (await demoLinks()).forEach((l, k) => {
+    const file = `files/${l.id}/${l.name}.url`;
+    put(`${ROOT}/${file}`, l.blob);
+    const it = {
+      id: l.id, name: l.name, ext: 'url', kind: 'link', size: l.blob.size, added: now - k * 3600000 - 1800000,
+      file, thumb: null, preview: null, w: 640, h: 480, ar: 0.75, duration: 0, pages: 0,
+      tags: l.tags, folders: ['f-assets'], note: '', url: '', colors: [], trashed: false, fresh: false, fav: false,
+    };
+    if (l.thumb) { it.thumb = `files/${l.id}/thumb.webp`; put(`${ROOT}/${it.thumb}`, l.thumb); }
+    if (l.page) { it.page = { ...l.page, icon: '' }; if (l.icon) { it.page.icon = `files/${l.id}/icon.png`; put(`${ROOT}/${it.page.icon}`, l.icon); } }
+    items.push(it);
   });
   put(`${ROOT}/index.json`, new Blob([JSON.stringify({ version: 1, folders, items })]));
 }

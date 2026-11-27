@@ -65,10 +65,31 @@ jobs:
             CONF+=(--config "$RUNNER_TEMP/sign.json")
           fi
           npm run tauri build -- "${CONF[@]}"
+      # Artifacts share 0.5 GB of Actions storage a month, counted as the month's average (16.11.2026: 49 old installers
+      # used November's share up and builds #55–#63 failed only at this upload). The artifact is a bonus now: when the
+      # quota is spent, the build still goes on and the installer comes as a draft release below.
       - uses: actions/upload-artifact@v6
+        continue-on-error: true
         with:
           name: oddments-windows-installer
+          retention-days: 7 # builds to keep go to E:/Perch/builds
           path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe.sig
+      # a manual run: the installer goes to a draft pre-release «Сборка №N» of this private repository (release files do
+      # not count against the Actions storage). A draft is seen only by the repository's people and makes no tag; delete
+      # old ones on the Releases page. This is not a public release — those go out from the public repository.
+      - name: Черновик со сборкой
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: true
+          tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Сборка №${{ github.run_number }} (${{ github.sha }})
+          body: Ручная сборка установщика для проверки, не выпуск.
+          files: |
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.exe.sig
       # a pushed tag v* publishes a draft GitHub Release with the installer attached

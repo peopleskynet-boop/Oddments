@@ -107,12 +107,14 @@ function hide() {
 
 export function initPixel() {
   const grid = document.getElementById('grid');
-  grid.addEventListener('pointerover', (e) => { const c = e.target.closest('.card'); if (c && (!active || active.card !== c)) { if (active) hide(); enter(c); } });
+  // a list row shows its facts in words already (viewlayout.js): no turning over there
+  const off = () => document.body.classList.contains('ly-list');
+  grid.addEventListener('pointerover', (e) => { if (off()) return; const c = e.target.closest('.card'); if (c && (!active || active.card !== c)) { if (active) hide(); enter(c); } });
   // the facts wait for a resting pointer: while it moves (on its way to the heart, say) the clock restarts,
   // and over the heart it does not run at all, so the card never turns over under a click that is coming
   grid.addEventListener('pointermove', (e) => {
     const c = e.target.closest('.card');
-    if (!c || (active && active.card === c)) return;
+    if (!c || off() || (active && active.card === c)) return;
     if (e.target.closest('[data-fav]')) { clearTimeout(timer); return; }
     enter(c);
   }, { passive: true });

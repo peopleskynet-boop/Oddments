@@ -17,7 +17,7 @@
       background: rgba(198,255,0,.07); transition: left .12s, top .12s, width .12s, height .12s; display: none; }
     .blk.on { display: block; }
     .blk b { position: absolute; left: -2px; bottom: calc(100% + 6px); white-space: nowrap; padding: 5px 11px; border-radius: 999px;
-      background: var(--acc); color: #0a0b09; font-size: 12px; font-weight: 600; }
+      background: var(--acc); color: #0b0c10; font-size: 12px; font-weight: 600; }
     .blk b.under { bottom: auto; top: calc(100% + 6px); }
     .blk b em { font-style: normal; font-weight: 400; opacity: .7; margin-left: 6px; }
     .blk-hint { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); padding: 9px 18px; border-radius: 999px; background: var(--bg);

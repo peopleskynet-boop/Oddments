@@ -1,0 +1,15 @@
+/* Oddments Web (ui/liteui.js, src/lib/lite.js): what only the browser build has, and what it hides */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+/* no dragging out to other programs, no AI chip */
+body.lite #pvDrag, body.lite #aiChip { display: none !important; }
+/* «Установить» next to the gear (beforeinstallprompt) */
+.side-foot .lt-inst { height: 30px; padding: 0 12px; gap: 6px; font-size: 12px; }
+.side-foot .lt-inst svg.i { width: 14px; height: 14px; }
+.side-foot .lt-inst[hidden] { display: none; }
+/* Настройки › Библиотека */
+.lt-lib { gap: 8px; }
+.lt-lib .hint { color: var(--mut); font-size: 12px; line-height: 1.45; }
+.lt-lib .int-acts { flex-wrap: wrap; }
+.em-3d .lnk { font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+}

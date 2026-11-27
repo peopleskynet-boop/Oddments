@@ -32,23 +32,25 @@ import { openPreview, closePreview, stepPreview, isPreviewOpen, zoomKey, setPrev
 import { onLayers, layerOpen } from './ui/layers.js';
 import { hotkey, runHotkey, plain, mod } from './ui/hotkeys.js';
 import { computeVisible, setView } from './lib/filter.js';
-import { initLibrary, getRoot, addFromPaths, addFromBlobs, trashItems, restoreItems, purgeItems, flushIndex, saveIndex } from './lib/library.js';
+import { initLibrary, relearnKinds, getRoot, addFromPaths, addFromBlobs, trashItems, restoreItems, purgeItems, flushIndex, saveIndex, releaseLibrary, readOnlyLock } from './lib/library.js';
 import { extractFromTransfer, readNativeClipboardImage } from './lib/clipboard.js';
 import { figmaClipboard, parseFigmaUrl, urlShortcut, parseVideoUrl, videoTitle } from './lib/figma.js';
+import { chooseLayout } from './ui/viewlayout.js';
 import { showQuickFile, closeQuick, isQuickOpen } from './ui/quickfile.js';
 import { initMarquee } from './ui/marquee.js';
-import { initContextMenu } from './ui/ctxmenu.js';
+import { initContextMenu, openFolderPicker, copyPicture } from './ui/ctxmenu.js';
 import { initSelBar, updateSelBar } from './ui/selbar.js';
 import { setLazySelection, preloadLazy, isOverlayOpen, closeOverlays, isDupesOpen, closeDupes, closeTidy, openRename } from './ui/lazy.js';
 import { initSound, sfx } from './ui/sound.js';
 import { initOnboard, markStep } from './ui/onboard.js';
 import { initFrame } from './ui/frame.js';
 import { initPixel } from './ui/pixel.js';
-import { bootIntro, bootDone } from './ui/boot.js';
+import { bootIntro, bootDone, bootCalm, bootGone } from './ui/boot.js';
 import { initI18n, lang, t } from './lib/i18n.js';
 import { initClean, cleanOn, toggleCleanSide, setClean, updateHud } from './ui/clean.js';
 import { lockWindow } from './lib/net.js';
 import { initCrashLog } from './lib/crashlog.js';
+import { LITE, SHARE } from './lib/lite.js';
 
 const isTyping = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 const selItems = () => Array.from(S.sel).map((id) => S.byId.get(id)).filter(Boolean);
@@ -194,7 +196,7 @@ function fatal(msg) {
 
 /* ---------- adding ---------- */
 // every way of adding ends with the "where should it go?" pill
-const added = (list) => { if (list && list.length) markStep('add'); return showQuickFile(list); };
+const added = (list) => { if (list && list.length) markStep('add'); showQuickFile(list); return list; }; // what was added, for the caller
 // zips with texture sets (Poly Haven, ambientCG…) come in as materials (.perchmat), see ui/materials.js
 const addPaths = async (paths, ctx) => {
   const m = paths.some((p) => /\.zip$/i.test(p)) ? await (await import('./ui/materials.js')).splitPaths(paths) : { paths, blobs: [] };
@@ -246,7 +248,11 @@ async function pickFolder() {
     if (r) await addPaths([r], ctxFromView());
   } catch (e) { toast('Не удалось открыть окно выбора папки. Перетащите папку прямо в окно Oddments.'); }
 }
-async function pasteNow() {
+// fromKey: Ctrl+Alt+V from another program (hotkey.rs) — the window is usually out of sight then, so what happened is
+// said by a system notification too (the in-window toast and «куда положить» stay for when it is in sight)
+async function pasteNow(fromKey = false) {
+  const away = fromKey && (document.hidden || !document.hasFocus());
+  const tell = (body) => import('@tauri-apps/api/core').then(({ invoke }) => invoke('notify', { title: 'Oddments', body: t(body) })).catch(() => {});
   let list = await readNativeClipboardImage();
   if (!list.length) {
     try {
@@ -257,7 +263,17 @@ async function pasteNow() {
       }
     } catch (e) { /* ignore */ }
   }
-  if (list.length) addBlobs(list, ctxFromView()); else toast('В буфере обмена нет картинки. Скопируйте её (в Figma — Ctrl Shift C) и нажмите Ctrl V ещё раз.');
+  if (!list.length) {
+    if (away) tell('В буфере обмена нет картинки — скопируйте её и нажмите сочетание ещё раз.');
+    else toast('В буфере обмена нет картинки. Скопируйте её (в Figma — Ctrl Shift C) и нажмите Ctrl V ещё раз.');
+    return;
+  }
+  const ctx = ctxFromView();
+  const done = await addBlobs(list, ctx);
+  if (away && done && done.length) {
+    const f = ctx && ctx.folder && S.folders.find((x) => x.id === ctx.folder);
+    tell(f ? `В Oddments, в подборку «${f.name}»: ${done.length}` : `Добавлено в Oddments: ${done.length}`);
+  }
 }
 
 /* ---------- events ---------- */
@@ -274,10 +290,12 @@ function bind() {
   $('#matBtn').innerHTML = ic('sphere') + '<span>Материал из текстур…</span>';
   $('#pasteBtn').innerHTML = ic('paste') + '<span>Вставить из буфера</span><kbd>Ctrl V</kbd>';
   $('#addMore').innerHTML = ic('chev');
+  // Oddments Web adds files, folders and the clipboard; Eagle, PureRef, recordings and materials are the desktop's
+  if (LITE) ['#eagleBtn', '#purBtn', '#flowBtn', '#matBtn'].forEach((q) => $(q).remove());
   $('#addMore').addEventListener('click', (e) => { e.stopPropagation(); $('#addMenu').classList.toggle('open'); });
   $('#addMenu').addEventListener('click', () => $('#addMenu').classList.remove('open'));
   document.addEventListener('click', (e) => { if (!e.target.closest('#addMenu')) $('#addMenu').classList.remove('open'); });
-  $('#lyM').innerHTML = ic('masonry'); $('#lyG').innerHTML = ic('grid');
+  $('#lyM').innerHTML = ic('masonry'); $('#lyG').innerHTML = ic('grid'); $('#lyL').innerHTML = ic('rows'); $('#busyX').innerHTML = ic('x');
   $('#sideTog').innerHTML = ic('sideL'); $('#inspTog').innerHTML = ic('info');
   $('#pvX').innerHTML = ic('x'); $('#setBtn').innerHTML = ic('gear');
   // interface sounds off and on in one click; the volume they had comes back (Настройки › Эффекты sets it)
@@ -358,10 +376,12 @@ function bind() {
     if (S.sort === 'ai') import('./lib/ai.js').then((ai) => { if (!ai.aiReady()) toast('Сортировка по смыслу работает с ИИ-поиском: включите его в Настройках › ИИ-поиск. Пока — по дате.'); });
     ui.refresh();
   });
+  if (LITE) $('#sort option[value="ai"]').remove(); // «По смыслу» needs the AI
   enhanceSelect($('#sort'));
   $('#dirBtn').addEventListener('click', () => { S.dir *= -1; dir(); ui.refresh(); });
-  $('#lyM').addEventListener('click', () => reflow(() => { setLayoutPrefs({ layout: 'masonry' }); layoutGrid(true); }));
-  $('#lyG').addEventListener('click', () => reflow(() => { setLayoutPrefs({ layout: 'grid' }); layoutGrid(true); }));
+  // mosaic, grid, list: each place keeps its own (viewlayout.js; a place of links opens as a list by itself)
+  const layoutBtn = (id, m) => $(id).addEventListener('click', () => reflow(() => { chooseLayout(m); layoutGrid(true); }));
+  layoutBtn('#lyM', 'masonry'); layoutBtn('#lyG', 'grid'); layoutBtn('#lyL', 'list');
   // the size slider: the cards glide to their new places (body.reflow transitions) instead of jumping (bug #84)
   let zoomT = 0;
   $('#zoom').addEventListener('input', (e) => {
@@ -370,11 +390,13 @@ function bind() {
   });
   $('#addBtn').addEventListener('click', pickFiles);
   $('#addDirBtn').addEventListener('click', pickFolder);
-  $('#eagleBtn').addEventListener('click', () => import('./lib/importers.js').then((m) => m.importEagle()));
-  $('#purBtn').addEventListener('click', () => import('./lib/importers.js').then((m) => m.importPureRef()));
-  $('#flowBtn').addEventListener('click', () => import('./ui/flows.js').then((m) => m.flowFromDisk()));
-  $('#matBtn').addEventListener('click', () => import('./ui/materials.js').then((m) => m.pickTextures()));
-  $('#pasteBtn').addEventListener('click', pasteNow);
+  if (!LITE) {
+    $('#eagleBtn').addEventListener('click', () => import('./lib/importers.js').then((m) => m.importEagle()));
+    $('#purBtn').addEventListener('click', () => import('./lib/importers.js').then((m) => m.importPureRef()));
+    $('#flowBtn').addEventListener('click', () => import('./ui/flows.js').then((m) => m.flowFromDisk()));
+    $('#matBtn').addEventListener('click', () => import('./ui/materials.js').then((m) => m.pickTextures()));
+  }
+  $('#pasteBtn').addEventListener('click', () => pasteNow());
   // in the clean mode [ pins the sidebar that otherwise only slides in at the edge; pinned, it makes room for
   // itself like in the normal layout (laid over the wall it covered cards and the tabs)
   const togSide = () => reflow(() => { if (cleanOn()) { toggleCleanSide(); layoutGrid(true); } else setLayoutPrefs({ sideOff: !settings.sideOff }); });
@@ -422,11 +444,11 @@ function bind() {
   setLazySelection(selectionChanged);
   preloadLazy();
   // watch folders: new files from chosen folders come in by themselves (watch.js)
-  import('./lib/watch.js').then((m) => m.initWatch((paths) => addPaths(paths, {}))).catch(() => {});
+  if (!LITE) import('./lib/watch.js').then((m) => m.initWatch((paths) => addPaths(paths, {}))).catch(() => {});
   // older files get the new palette (#79) from their thumbnails, in the background
-  setTimeout(() => import('./lib/repalette.js').then((m) => m.refreshPalettes()).catch(() => {}), 6000);
+  if (!SHARE) setTimeout(() => import('./lib/repalette.js').then((m) => m.refreshPalettes()).catch(() => {}), 6000); // a shared link is not written to
   // the morning digest, when it is switched on (Новости › Сводка дня › «Собирать каждое утро»)
-  try { if (JSON.parse(localStorage.getItem('perch.digest') || '{}').auto) import('./ui/news.js').then((m) => m.scheduleDigest()); } catch (e) { /* no prefs */ }
+  try { if (!LITE && JSON.parse(localStorage.getItem('perch.digest') || '{}').auto) import('./ui/news.js').then((m) => m.scheduleDigest()); } catch (e) { /* no prefs */ }
 
   // grid selection / preview / drag
   const grid = $('#grid'), scroll = $('#scroll');
@@ -509,6 +531,14 @@ function bind() {
     pasteSeen = true;
     e.preventDefault();
     const dt = e.clipboardData;
+    // a picture onto the one selected link: its cover (a site that gives none — ArtStation, Dribbble). Only a picture:
+    // copied text or a link still comes in as before
+    const one = S.sel.size === 1 && !S.previewId ? S.byId.get([...S.sel][0]) : null;
+    if (one && one.kind === 'link' && !one.trashed && !one.team) {
+      const pic = Array.from(dt.files || []).find((f) => /^image\//.test(f.type));
+      const blob = pic || (!dt.getData('text/plain').trim() && !dt.getData('text/html') ? ((await readNativeClipboardImage())[0] || {}).blob : null);
+      if (blob) { import('./ui/links.js').then((m) => m.coverFrom(one, blob)); return; }
+    }
     // a link to a Figma file: saved as a link card
     const fig = parseFigmaUrl(dt.getData('text/plain'));
     if (fig) { addBlobs([{ blob: urlShortcut(fig.url), name: fig.title + '.url', source: fig.url }], ctxFromView()); return; }
@@ -557,7 +587,7 @@ function bind() {
   hotkey({ group: 'Сетка', keys: 'Пробел', what: 'просмотр', hit: (e) => e.key === ' ' && sel(), run: (e) => { e.preventDefault(); openPreview(focusedId()); } });
   hotkey({ group: 'Сетка', hit: (e) => e.key === 'Enter' && plain(e) && sel() && !e.target.closest('button, a, [role="button"]'), run: (e) => { e.preventDefault(); openPreview(focusedId()); } });
   // Ctrl+Enter: open in the file's own program (Photoshop for PSD, Blender for .blend…)
-  hotkey({ group: 'Сетка', keys: 'Ctrl Enter', what: 'открыть в программе', hit: (e) => e.key === 'Enter' && mod(e) && S.sel.size === 1, run: (e) => { e.preventDefault(); import('./ui/ctxmenu.js').then((m) => m.openInApp(S.byId.get(Array.from(S.sel)[0]))); } });
+  if (!LITE) hotkey({ group: 'Сетка', keys: 'Ctrl Enter', what: 'открыть в программе', hit: (e) => e.key === 'Enter' && mod(e) && S.sel.size === 1, run: (e) => { e.preventDefault(); import('./ui/ctxmenu.js').then((m) => m.openInApp(S.byId.get(Array.from(S.sel)[0]))); } });
   // F: add the selection to favourites (or remove, if it is all there already)
   hotkey({ group: 'Сетка', keys: 'F', what: 'в избранное', hit: (e) => e.code === 'KeyF' && plain(e) && sel(), run: () => {
     const items = selItems(), on = !items.every((i) => i.fav);
@@ -575,6 +605,7 @@ function bind() {
     toast('В корзину: ' + items.length, 0, { fn: () => { restoreItems(items); ui.refresh(); } });
   } });
   // the picture tools by one key, like F for favourites (audit 29.10: only the menu and the palette had them)
+  if (!LITE) {
   hotkey({ group: 'Сетка', keys: 'B', what: 'убрать фон', hit: (e) => e.code === 'KeyB' && plain(e) && !e.shiftKey && sel() && notTrash(), run: () => {
     const pics = selItems().filter(isPic);
     if (pics.length) import('./ui/cutout.js').then((m) => m.openCutout(pics));
@@ -585,9 +616,36 @@ function bind() {
     if (it) import('./ui/upscale.js').then((m) => m.openUpscale(it));
     else toast('Увеличиваются картинки и PSD (не SVG и не GIF) — выберите картинку.');
   } });
+  hotkey({ group: 'Сетка', keys: 'E', what: 'эффекты: ANSI, 1 бит, кинескоп…', hit: (e) => e.code === 'KeyE' && plain(e) && !e.shiftKey && sel() && notTrash(), run: () => {
+    const it = selItems().find((i) => isPic(i) && i.ext !== 'svg');
+    if (it) import('./ui/effects.js').then((m) => m.openEffects(it));
+    else toast('Эффекты — для картинок и PSD (не SVG и не GIF): выберите картинку.');
+  } });
+  }
+  // Ctrl+C: the selected file's picture as PNG — for Figma, Photoshop, a messenger (it was only in the preview's menu).
+  // Text selected on the page is copied as usual.
+  hotkey({ group: 'Сетка', keys: isMac ? '⌘ C' : 'Ctrl C', what: 'копировать картинку', hit: (e) => e.code === 'KeyC' && mod(e) && !e.shiftKey && !e.altKey && sel() && !String(getSelection() || '').trim(), run: (e) => {
+    e.preventDefault();
+    copyPicture(selItems());
+  } });
+  // T and G: sorting without the mouse — straight into the tags of the selection (the properties panel comes out if it
+  // was hidden), and «В подборку» with a search over the collections
+  hotkey({ group: 'Сетка', keys: 'T', what: 'тег выделенному', hit: (e) => e.code === 'KeyT' && plain(e) && !e.shiftKey && sel() && notTrash(), run: (e) => {
+    e.preventDefault();
+    const go = () => {
+      const f = $('#tagIn') || $('#tagInM');
+      if (f) { f.scrollIntoView({ block: 'nearest' }); f.focus(); } else toast('У этих файлов теги здесь не ставятся.');
+    };
+    if (document.body.classList.contains('insp-off')) { bind.togInsp(); setTimeout(go, 280); } else go();
+  } });
+  hotkey({ group: 'Сетка', keys: 'G', what: 'в подборку: поиск по подборкам', hit: (e) => e.code === 'KeyG' && plain(e) && !e.shiftKey && sel() && notTrash(), run: (e) => {
+    e.preventDefault();
+    openFolderPicker(); // at once, not after an import: the first letter typed after G must land in the search
+  } });
   hotkey({ group: 'Сетка', keys: 'Menu', what: 'меню карточки' });
   hotkey({ group: 'Сетка', keys: '/', what: 'поиск', hit: (e) => e.key === '/', run: (e) => { e.preventDefault(); $('#q').focus(); } });
   hotkey({ group: 'Добавить', keys: 'Ctrl V', what: 'вставить из буфера' });
+  if (!LITE) hotkey({ group: 'Добавить', keys: isMac ? '⌘⌥V' : 'Ctrl Alt V', what: 'из любой программы — в Oddments' }); // hotkey.rs, documentation only
   hotkey({ group: 'Добавить', keys: 'Ctrl Shift C', what: 'в Figma: копировать как PNG' });
   hotkey({ group: 'Окно', keys: isMac ? '⌘ K' : 'Ctrl Пробел', what: 'команды и поиск по всему' });
   hotkey({ group: 'Окно', keys: '[', what: 'боковая панель', hit: (e) => e.code === 'BracketLeft' && !mod(e), run: () => bind.togSide() });
@@ -628,13 +686,20 @@ function bind() {
   });
 
   document.addEventListener('visibilitychange', () => { if (document.hidden) flushIndex(); });
-  window.addEventListener('beforeunload', () => { flushIndex(); });
+  // the window goes: the index is saved and the folder's «занято» mark taken off (liblock.js; a mark left behind goes
+  // stale by itself in a few minutes)
+  window.addEventListener('beforeunload', () => { flushIndex(); releaseLibrary(true); });
+  window.addEventListener('pagehide', () => releaseLibrary(true)); // Safari on phones has no beforeunload
+  // back from the browser's page cache with the mark given away: start again, so the folder is taken (or looked at) anew
+  window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
   // the tray menu (tray.rs): «Вставить из буфера» pastes like Ctrl+V; «Выход» saves the index first, then quits
   if (window.__TAURI_INTERNALS__) {
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen('perch-tray-paste', () => pasteNow());
+      listen('perch-hotkey-paste', () => pasteNow(true)); // Ctrl+Alt+V from any program (hotkey.rs, Настройки › Библиотека)
       listen('perch-quit', async () => {
         try { await flushIndex(); } catch (e) { /* quit anyway */ }
+        try { await releaseLibrary(); } catch (e) { /* stale soon */ }
         (await import('@tauri-apps/api/core')).invoke('quit_app');
       });
     }).catch(() => {});
@@ -671,8 +736,13 @@ async function boot() {
   bind();
   initGrid();
   initPixel();
+  // Oddments Web: the service worker and where the library lives (OPFS, a folder on disk, memory) come first
+  if (LITE) await (await import('./ui/liteui.js')).liteBoot();
+  // «только просмотр»: another Oddments has the folder open (liblock.js) — the strip says where
+  ui.readOnlyChanged = () => import('./ui/rolock.js').then((m) => m.showReadOnly(readOnlyLock()));
   try {
     const lib = await initLibrary();
+    if (lib.busy && !SHARE) ui.readOnlyChanged();
     if (lib.restored) setTimeout(() => toast(`Файл библиотеки index.json был повреждён — открыта резервная копия (${lib.restored.replace('backups/index-', 'от ').replace('.json', '').replace('index.json.bak', 'последняя')}). Повреждённый файл сохранён рядом.`, 12000), 1500);
     const root = getRoot();
     // a library made before the rename keeps its folder «Perch Library» (library.js defaultRoot, nothing is moved): it is
@@ -680,12 +750,15 @@ async function boot() {
     const folder = root.split(/[\\/]/).filter(Boolean).pop() || root;
     $('#libLabel').textContent = folder === 'Perch Library' ? 'Oddments Library' : folder;
     $('#libLabel').title = 'Папка библиотеки: ' + root;
+    if (LITE) await (await import('./ui/liteui.js')).liteLoaded();
   } catch (e) {
     document.body.classList.remove('lib-loading');
     bootDone();
     fatal(e && e.message ? e.message : String(e));
     return;
   }
+  // the first grid is drawn once the start screen stands still: drawn mid-reveal, its long task stalled the glass
+  await bootCalm();
   document.body.classList.remove('lib-loading');
   ui.refresh();
   bootDone();
@@ -710,9 +783,17 @@ async function boot() {
   initAiBar();
   initShelf();
   renderShelf();
-  initAi();
-  if (firstRun) import('./ui/welcome.js').then((m) => m.after(firstRun)); // AI on, the Eagle import — as chosen
-  import('./lib/team.js').then((m) => m.initTeams()).catch((e) => console.warn('team', e)); // shared folders of the team, if connected
+  // what is heavy starts once the start screen has gone and the wall has faded in: the AI model takes the video card for
+  // a while (started mid-reveal, it held the glass up), the team's folders are read over the network, the first run may
+  // import a whole library
+  bootGone().then(() => new Promise((res) => setTimeout(res, 600))).then(() => {
+    initAi();
+    if (firstRun) import('./ui/welcome.js').then((m) => m.after(firstRun)); // AI on, the Eagle import — as chosen
+    import('./lib/team.js').then((m) => m.initTeams()).catch((e) => console.warn('team', e)); // shared folders of the team, if connected
+    relearnKinds().catch((e) => console.warn('relearn', e)); // .hdr, .exr, .tif, .tga kept as «Другое» before: cards now
+    // links saved before covers: their pages are read once, one by one, with a pill and a × (ui/links.js)
+    if (!LITE && !SHARE) setTimeout(() => import('./ui/links.js').then((m) => m.coverOldLinks()).catch((e) => console.warn('links', e)), 4000);
+  });
   setTimeout(() => import('./lib/ocr.js').then((m) => { ocrMod = m; m.initOcr(); }), 5000);
   setTimeout(() => import('./lib/updater.js').then((m) => m.autoCheck()), 15000); // only when the person allowed it
   crashed.then((yes) => { if (yes) setTimeout(() => toast('В прошлый раз в Oddments случился сбой. Отчёт сохранён на этом компьютере — его можно скопировать и прислать.', 12000, { label: 'Скопировать отчёт', fn: () => import('./ui/settingsabout.js').then((m) => m.copyReport()) }), 2500); });

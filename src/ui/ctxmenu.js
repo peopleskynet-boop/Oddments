@@ -2,19 +2,21 @@
 // empty wall (adding, the view) and in the full-screen preview (copy the picture, the colour under the cursor,
 // keep a video frame). The webview's own menu (Back / Refresh / Print / Save image as) never shows, except in
 // text fields. Glass, v3 style; arrows move, → / Enter open a submenu, ← / Esc go back, click outside closes.
-import { S, ui, flatFolders, folderById, isSplatItem, isPic } from '../state.js';
-import { esc, isMac } from '../util.js';
+import { S, ui, flatFolders, folderById, isSplatItem, isPic, hasPicture, ownPicture } from '../state.js';
+import { esc, isMac, uid } from '../util.js';
 import { ic } from './icons.js';
 import { saveIndex, trashItems, restoreItems, absPath } from '../lib/library.js';
 import { setView } from '../lib/filter.js';
 import { openPreview } from './preview.js';
 import { syncCard } from './grid.js';
-import { toast } from './dialogs.js';
+import { toast, ask } from './dialogs.js';
 import { openRename } from './lazy.js';
 import { revealItemInDir, openPath, openUrl } from '@tauri-apps/plugin-opener';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { sfx } from './sound.js';
 import { t } from '../lib/i18n.js';
+import { LITE, liteOff } from '../lib/lite.js';
+import { SHARE_LINKS } from '../lib/shareon.js';
 
 let menu = null, sub = null, back = null, onSel = () => {};
 // mode: 'card' (the selection), 'space' (the empty wall), 'preview' (the open file, forced); at: where in the
@@ -100,10 +102,82 @@ export async function openInApp(it) {
   } catch (err) { toast('Не удалось открыть: для этого типа файлов в Windows не выбрана программа. Выберите её в «Открыть с помощью» в Проводнике.'); }
 }
 
+/* ---------- G: the selection into collections, by a search over them ---------- */
+// The same menu, without the actions: a search line, the collections (✓ — all of the selection is there), «Новая
+// подборка…». Typing narrows the list, Enter takes the first line left (with nothing left — makes a collection of that
+// name), ↓ goes into the list. The submenu «В подборку ▸» had no search, and a long list was a scroll.
+export function openFolderPicker() {
+  if (!S.sel.size) return;
+  mode = 'folders'; forced = null;
+  const grid = document.getElementById('grid');
+  const cur = grid.querySelector('.card.cur') || grid.querySelector('.card.sel');
+  const r = cur && cur.getBoundingClientRect();
+  const on = r && r.bottom > 0 && r.top < innerHeight;
+  openMenu(on ? r.left + Math.min(40, r.width / 2) : innerWidth / 2 - 130, on ? r.top + Math.min(40, r.height / 2) : 120);
+}
+
+function folderPickHTML() {
+  const items = selItems();
+  const list = flatFolders().map((x) => {
+    const on = items.every((i) => i.folders.includes(x.f.id));
+    return `<button type="button" class="mi" role="menuitemcheckbox" aria-checked="${on}" data-fid="${x.f.id}" data-name="${esc(x.f.name.toLowerCase())}" style="padding-left:${12 + x.d * 14}px"><span>${esc(x.f.name)}</span>${on ? '✓' : ''}</button>`;
+  }).join('');
+  return `<input class="ctx-find" type="text" placeholder="Найти подборку…" aria-label="Найти подборку" autocomplete="off" spellcheck="false">` +
+    list + `<div class="ctx-none" hidden>Такой нет — Enter создаст её</div>` +
+    `<button type="button" class="mi" role="menuitem" data-new="1">${ic('plus')}<span>Новая подборка…</span></button>`;
+}
+
+function filterFolders(input) {
+  const q = input.value.trim().toLowerCase();
+  let n = 0;
+  menu.querySelectorAll('.mi[data-fid]').forEach((b) => { b.hidden = !!q && !b.dataset.name.includes(q); if (!b.hidden) n++; });
+  menu.querySelector('.ctx-none').hidden = !q || n > 0;
+}
+
+// a collection for the selection: named here, or asked for (the «Новая подборка…» line)
+async function newFolderFor(name) {
+  const items = selItems();
+  closeMenu();
+  name = (name || await ask('Новая подборка') || '').trim();
+  if (!name || !items.length) return;
+  const f = { id: uid(), name, parent: null, open: true };
+  S.folders.push(f);
+  items.forEach((i) => { if (!i.folders.includes(f.id)) i.folders.push(f.id); });
+  saveIndex();
+  ui.refresh();
+  toast('В подборку «' + name + '»: ' + items.length);
+}
+
+function folderKey(e) {
+  const t = e.target, k = e.key;
+  e.stopPropagation(); // the wall's keys must not fire behind the menu
+  const list = itemsOf(menu);
+  if (t.classList.contains('ctx-find')) {
+    if (k === 'ArrowDown') { e.preventDefault(); if (list[0]) list[0].focus(); }
+    else if (k === 'Enter') {
+      e.preventDefault();
+      const first = list.find((b) => b.dataset.fid);
+      if (first) toggleFolder(first.dataset.fid);
+      else if (t.value.trim()) newFolderFor(t.value);
+    } else if (k === 'Escape' || k === 'Tab') { e.preventDefault(); closeMenu(); }
+    return;
+  }
+  // from the top line up — back into the search
+  if (k === 'ArrowUp' && list.indexOf(t) === 0) { e.preventDefault(); menu.querySelector('.ctx-find').focus(); return; }
+  onKey(e);
+}
+
 function rows() {
-  if (mode === 'space') return spaceRows();
-  if (mode === 'preview') return previewRows();
-  return cardRows();
+  const r = mode === 'space' ? spaceRows() : mode === 'preview' ? previewRows() : cardRows();
+  return LITE ? liteRows(r) : r;
+}
+// Oddments Web: what it does not have goes, and so do the lines left alone (src/lib/lite.js)
+function liteRows(r) {
+  lists = { copy: lists.copy.filter((x) => !liteOff(x.id)), more: lists.more.filter((x) => !liteOff(x.id)) };
+  const out = r.filter((x) => x.sep || !(liteOff(x.id) || (x.id === 'more' && !lists.more.length) || (x.id === 'copy' && !lists.copy.length && !(selItems()[0] && (selItems()[0].colors || []).length && selItems().length === 1))))
+    .filter((x, i, a) => !(x.sep && (i === 0 || a[i - 1].sep)));
+  while (out.length && out[out.length - 1].sep) out.pop();
+  return out;
 }
 
 function spaceRows() {
@@ -117,6 +191,7 @@ function spaceRows() {
     { id: 'sp-mat', icon: 'sphere', label: 'Материал из текстур…' },
     { sep: true },
     { id: grid ? 'sp-masonry' : 'sp-grid', icon: grid ? 'masonry' : 'grid', label: grid ? 'Мозаика' : 'Сетка' },
+    ...(document.getElementById('lyL').classList.contains('on') ? [] : [{ id: 'sp-list', icon: 'rows', label: 'Список' }]),
     { id: 'sp-all', icon: 'all', label: 'Выделить всё', key: 'Ctrl A' },
     { id: 'sp-clean', icon: 'sideL', label: document.body.classList.contains('clean') ? 'Обычный вид' : 'Чистый экран', key: '\\' },
     { sep: true },
@@ -136,7 +211,10 @@ function previewRows() {
     r.push({ id: 'pv-fcopy', icon: 'copy', label: 'Копировать кадр' });
   }
   if (r.length) r.push({ sep: true });
-  const card = cardRows().filter((x) => !['open', 'rename', 'trash', 'similar'].includes(x.id))
+  const rows = cardRows();
+  if (pic) lists.copy = lists.copy.filter((x) => x.id !== 'copypic'); // «Копировать картинку» is already at the top
+  const emptyCopy = !lists.copy.length && !(it.colors || []).length;
+  const card = rows.filter((x) => !['open', 'rename', 'trash', 'similar'].includes(x.id) && !(x.id === 'copy' && emptyCopy))
     .filter((x, i, a) => !(x.sep && (i === 0 || a[i - 1].sep))); // no line at the top or two in a row
   while (card.length && card[card.length - 1].sep) card.pop();
   return r.concat(card);
@@ -162,14 +240,22 @@ function cardRows() {
   const pics = items.filter(isPic);
   if (pics.length) make.push({ id: 'cutout', icon: 'scissors', label: pics.length > 1 ? `Убрать фон (${pics.length})…` : 'Убрать фон…', key: 'B' });
   if (one && isPic(one) && one.ext !== 'svg') make.push({ id: 'upscale', icon: 'sparkle', label: 'Увеличить ×2 / ×4…', key: 'U' });
+  if (one && isPic(one) && one.ext !== 'svg') make.push({ id: 'effects', icon: 'crt', label: 'Эффекты…', key: 'E' });
   if (one && one.ext === 'svg') { make.push({ id: 's3d', icon: 'cube', label: 'Сделать 3D…' }); more.push({ id: 'ik', icon: 'grid', label: 'Открыть в конструкторе иконок' }); }
   if (one && one.kind === 'model' && !['blend', 'abc'].includes(one.ext) && !isSplatItem(one) && !isMac) make.push({ id: 's3d', icon: 'cube', label: 'Ремеш…' }); // AutoRemesher: Windows only
   if (one && one.kind === 'model' && !isSplatItem(one) && (!['blend', 'abc'].includes(one.ext) || one.glb)) make.push({ id: 'splatmk', icon: 'splat', label: 'Сделать сплат…' });
   if (one && one.kind === 'video') make.push({ id: 'flow', icon: 'flow', label: 'Нарезать на экраны…' });
+  // links: the page read again (a new cover, title, description), or the clipboard's picture as the cover (ui/links.js)
+  if (items.every((i) => i.kind === 'link' && !i.team)) make.push({ id: 'relink', icon: 'refresh', label: items.length > 1 ? `Обновить обложки (${items.length})` : 'Обновить обложку' });
+  if (one && one.kind === 'link' && !one.team) make.push({ id: 'cover', icon: 'image', label: 'Обложка из буфера', key: isMac ? '⌘ V' : 'Ctrl V' });
   const svgs = items.filter((i) => i.ext === 'svg');
   if (svgs.length) make.push({ id: 'svgfix', icon: 'bezier', label: svgs.length > 1 ? `Исправить SVG (${svgs.length})…` : 'Исправить SVG…' });
   if (svgs.length > 1) make.push({ id: 's3dset', icon: 'cube', label: `Набор в 3D → Blender (${svgs.length})` });
-  if (items.some((i) => i.kind === 'model' || i.kind === 'material')) make.push({ id: 'blender', icon: 'external', label: items.length > 1 ? `В Blender (${items.length})` : 'В Blender' });
+  if (items.some((i) => i.kind === 'model' || i.kind === 'material' || i.kind === 'hdri')) make.push({ id: 'blender', icon: 'external', label: items.length > 1 ? `В Blender (${items.length})` : 'В Blender' });
+  // the picture itself (or the card's render of a model, a video's frame), an SVG's code, the source — then the text
+  if (one && hasPicture(one)) copy.push({ id: 'copypic', icon: 'image', label: ownPicture(one) ? 'Картинку' : 'Превью', key: isMac ? '⌘ C' : 'Ctrl C' });
+  if (one && one.ext === 'svg' && !one.trashed) copy.push({ id: 'copysvg', icon: 'bezier', label: 'SVG-код' });
+  if (one && one.url) copy.push({ id: 'copyurl', icon: 'link', label: 'Ссылку на источник' });
   if (one && one.ocr) copy.push({ id: 'ocrcopy', icon: 'copy', label: 'Текст с картинки' });
   if (one && (one.kind === 'image' || one.kind === 'psd' || one.kind === 'gif' || one.thumb)) more.push({ id: 'notes', icon: 'chat', label: one.notes && one.notes.length ? `Комментарии (${one.notes.length})…` : 'Комментировать…' });
   if (pics.length) more.push({ id: 'mask', icon: 'shield', label: pics.length > 1 ? `Скрыть личные данные (${pics.length})…` : 'Скрыть личные данные…' });
@@ -179,6 +265,7 @@ function cardRows() {
   if (items.every((i) => i.team)) more.push({ id: 'teamtake', icon: 'download', label: 'В мою библиотеку' });
   else if (items.every((i) => !i.team)) more.push({ id: 'toteam', icon: 'team', label: (S.teams || []).length ? 'В команду…' : 'В команду: подключить папку…' });
   if (items.length > 1) more.push({ id: 'show', icon: 'present', label: `Показ: ${items.length}` });
+  if (SHARE_LINKS && items.every((i) => !i.trashed)) more.push({ id: 'share', icon: 'link', label: items.length > 1 ? `Поделиться ссылкой (${items.length})…` : 'Поделиться ссылкой…' });
   more.push({ id: 'export', icon: 'download', label: items.length > 1 ? `Экспорт в папку (${items.length})…` : 'Экспорт в папку…' }, { id: 'exportzip', icon: 'download', label: 'Экспорт в zip…' });
   lists = { copy, more };
   if (copy.length || (one && one.colors.length)) out.push({ id: 'copy', icon: 'copy', label: 'Копировать', sub: true });
@@ -197,14 +284,21 @@ function openMenu(x, y) {
   forced = keep;
   back = document.activeElement;
   menu = document.createElement('div');
-  menu.className = 'ctx glass';
+  const picker = mode === 'folders';
+  menu.className = picker ? 'ctx ctx-folders glass' : 'ctx glass';
   menu.setAttribute('role', 'menu');
-  menu.setAttribute('aria-label', mode === 'space' ? 'Действия' : 'Действия с файлом');
-  menu.innerHTML = rows().map(rowHTML).join('');
+  menu.setAttribute('aria-label', picker ? 'В подборку' : mode === 'space' ? 'Действия' : 'Действия с файлом');
+  menu.innerHTML = picker ? folderPickHTML() : rows().map(rowHTML).join('');
   document.body.appendChild(menu);
   place(menu, x, y);
   menu.addEventListener('click', onClick);
-  menu.addEventListener('keydown', onKey);
+  menu.addEventListener('keydown', picker ? folderKey : onKey);
+  if (picker) {
+    const find = menu.querySelector('.ctx-find');
+    find.addEventListener('input', () => filterFolders(find));
+    find.focus();
+    return;
+  }
   menu.addEventListener('pointerover', (e) => {
     const b = e.target.closest('.mi');
     if (!b || b.closest('.ctx-sub')) return;
@@ -238,7 +332,7 @@ function place(el, x, y, flip = true) {
   el.style.top = Math.max(m, Math.min(y, innerHeight - h - m)) + 'px';
 }
 
-const itemsOf = (el) => Array.from(el.querySelectorAll(':scope > .mi'));
+const itemsOf = (el) => Array.from(el.querySelectorAll(':scope > .mi')).filter((b) => !b.hidden);
 function focusFirst(el) { const f = itemsOf(el)[0]; if (f) f.focus(); }
 
 function subRows(kind) {
@@ -288,6 +382,7 @@ async function onClick(e) {
   if (!b) return;
   e.stopPropagation();
   if (b.dataset.fid) return toggleFolder(b.dataset.fid);
+  if (b.dataset.new) return newFolderFor('');
   if (b.dataset.hex) {
     const hx = b.dataset.hex;
     closeMenu();
@@ -324,6 +419,11 @@ export async function cardAction(a, items = selItems()) {
     if (S.view.type === 'fav') ui.refresh(); else { ui.renderSide(); ui.renderInsp(); }
   } else if (a === 'similar' && items[0]) setView('similar', items[0].id);
   else if (a === 'ocrcopy' && items[0]) { try { await writeText(items[0].ocr); toast('Текст скопирован'); } catch (err) { toast('Не удалось скопировать текст.'); } }
+  else if (a === 'copypic') copyPicture(items);
+  else if (a === 'relink') import('./links.js').then((m) => m.refreshLinksNow(items));
+  else if (a === 'cover' && items[0]) import('./links.js').then((m) => m.coverFromClipboard(items[0]));
+  else if (a === 'copysvg' && items[0]) { try { await writeText(await (await import('./media.js')).svgText(items[0])); toast('SVG-код скопирован — вставьте в Figma'); } catch (err) { toast('Не удалось скопировать SVG-код.'); } }
+  else if (a === 'copyurl' && items[0] && items[0].url) { try { await writeText(items[0].url); toast('Ссылка скопирована'); } catch (err) { toast(items[0].url); } }
   else if (a === 'rename') openRename(items);
   else if (a === 'mask') import('./mask.js').then((m) => m.openMask(items));
   else if (a === 'brand' && items[0]) {
@@ -332,17 +432,19 @@ export async function cardAction(a, items = selItems()) {
     import('./inspextra.js').then((m) => { m.brandOpen(id); ui.renderInsp(); setTimeout(() => { const d = document.querySelector('.brand-blk'); if (d) { d.open = true; d.scrollIntoView({ block: 'nearest' }); } }); });
   }
   else if (a === 'upscale' && items[0]) import('./upscale.js').then((m) => m.openUpscale(items[0]));
+  else if (a === 'effects' && items[0]) import('./effects.js').then((m) => m.openEffects(items[0]));
   else if (a === 'cutout') import('./cutout.js').then((m) => m.openCutout(items));
   else if (a === 'notes' && items[0]) import('./notes.js').then((m) => m.openNotes(items[0]));
   else if (a === 'show') import('./show.js').then((m) => m.openShow(S.vis.filter((i) => items.includes(i)).concat(items.filter((i) => !S.vis.includes(i))), 'Выбранное'));
   else if (a === 'toteam') import('./teamui.js').then((m) => m.sendFlow(items));
+  else if (a === 'share') import('./share.js').then((m) => m.openShare({ items: items.map((i) => i.id) }));
   else if (a === 'teamtake') import('./teamui.js').then((m) => m.takeFlow(items));
   else if (a === 'export' || a === 'exportzip') {
     const f = S.view.type === 'folder' && S.folders.find((x) => x.id === S.view.id);
     import('../lib/exporter.js').then((m) => m.runExport(items, f ? f.name : (items.length === 1 ? items[0].name : `Oddments · ${t(`${items.length} файлов`)}`), a === 'exportzip'));
   }
   else if (a === 'blender') {
-    const send = items.filter((i) => i.kind === 'model' || i.kind === 'material');
+    const send = items.filter((i) => i.kind === 'model' || i.kind === 'material' || i.kind === 'hdri'); // an HDRI becomes the World
     import('./toblender.js').then((m) => m.itemsToBlender(send));
   } else if (a === 's3dset') {
     const f = S.view.type === 'folder' && S.folders.find((x) => x.id === S.view.id);
@@ -358,6 +460,18 @@ export async function cardAction(a, items = selItems()) {
   else if (a === 'restore') { restoreItems(items); S.sel.clear(); ui.refresh(); toast('Возвращено: ' + items.length); }
 }
 
+// one file's picture into the clipboard as PNG (Ctrl+C on the wall, «Копировать › Картинку»); a picture is one file,
+// so with several selected it says so
+export async function copyPicture(items = selItems()) {
+  if (items.length !== 1) { toast('Скопировать можно одну картинку — выберите один файл.'); return; }
+  const it = items[0];
+  if (!hasPicture(it)) { toast('У этого файла нет картинки, которую можно скопировать.'); return; }
+  try {
+    await (await import('./media.js')).copyImage(it);
+    toast(ownPicture(it) ? 'Картинка скопирована' : 'Превью скопировано');
+  } catch (err) { toast('Не удалось скопировать картинку.'); }
+}
+
 function spaceAction(a) {
   const click = (id) => { const b = document.getElementById(id); if (b) b.click(); };
   if (a === 'sp-paste') click('pasteBtn');
@@ -368,6 +482,7 @@ function spaceAction(a) {
   else if (a === 'sp-folder') import('./sidebar.js').then((m) => m.newFolder());
   else if (a === 'sp-grid') click('lyG');
   else if (a === 'sp-masonry') click('lyM');
+  else if (a === 'sp-list') click('lyL');
   else if (a === 'sp-all') { S.sel = new Set(S.vis.map((i) => i.id)); onSel(); }
   else if (a === 'sp-clean') import('./clean.js').then((m) => m.setClean(!m.cleanOn()));
   else if (a === 'sp-cmd') import('./palette.js').then((m) => m.openPalette());

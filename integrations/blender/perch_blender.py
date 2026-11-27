@@ -5,7 +5,7 @@
 bl_info = {
     "name": "Oddments",
     "author": "Oddments",
-    "version": (1, 22, 0),
+    "version": (1, 24, 0),
     "blender": (4, 2, 0),
     "location": "3D Viewport › Sidebar (N) › Oddments · Ctrl+Shift+P",
     "description": "Отправить в Oddments и вставить из Oddments",
@@ -32,7 +32,9 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 
-IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".gif"}
+IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".tga", ".gif"}
+# an HDRI from Oddments lights the scene: it goes into the World (1.23), not onto an image empty
+HDRI_EXT = {".hdr", ".exr"}
 
 # The add-on's id: its package when installed as a Blender extension (bl_ext.<repository>.oddments), the module's name
 # when installed as a single .py file. Preferences and translations are registered under it.
@@ -526,6 +528,21 @@ class PERCH_OT_send_snapshot(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# ---------- node trees: Blender 5 always has them and deprecates use_nodes (gone in 6.0) ----------
+def _has_nodes(idb):
+    """The material / world draws with its node tree (in 4.x only while use_nodes is on)."""
+    if not idb or idb.node_tree is None:
+        return False
+    return True if bpy.app.version >= (5, 0, 0) else idb.use_nodes
+
+
+def _with_nodes(idb):
+    """Its node tree, switching nodes on where Blender still needs it (4.x)."""
+    if bpy.app.version < (5, 0, 0) or idb.node_tree is None:
+        idb.use_nodes = True
+    return idb.node_tree
+
+
 # ---------- materials (.perchmat: a zip with material.json + texture maps, the same format Oddments uses) ----------
 def _lin2srgb(c):
     c = max(0.0, min(1.0, c))
@@ -546,7 +563,7 @@ def _rgb(hx):
 
 
 def _principled(mat):
-    if not mat or not mat.use_nodes:
+    if not _has_nodes(mat):
         return None
     for n in mat.node_tree.nodes:
         if n.type == "BSDF_PRINCIPLED":
@@ -692,7 +709,7 @@ def _needs_bake(mat):
     """True when what the material looks like does not survive as images + numbers: no Principled BSDF at the
     surface (Glossy, Toon…), a Principled behind a Mix Shader or inside a node group, or Principled inputs fed
     by procedural nodes (noise, Color Ramp…)."""
-    if not mat or not mat.use_nodes:
+    if not _has_nodes(mat):
         return False
     out = _active_output(mat)
     if not out or not out.inputs["Surface"].is_linked:
@@ -813,8 +830,7 @@ def _bake_pass(mats, name, size, btype, plan=None, color=False):
 def _clean_material(name, maps, consts):
     """A plain Principled BSDF from baked images (or constant values where nothing was linked)."""
     m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    nt = m.node_tree
+    nt = _with_nodes(m)
     bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
     def tex(img, x):
         t = nt.nodes.new("ShaderNodeTexImage")
@@ -1466,6 +1482,32 @@ def _import_image(path):
     return empty
 
 
+def _set_world(path):
+    """An HDRI from Oddments becomes the scene's World: its Environment Texture takes the picture. A World that already
+    has one keeps its nodes (strength, mapping, rotation) — only the picture changes; otherwise Environment Texture →
+    Background → World Output is built. The picture is loaded once (check_existing)."""
+    img = bpy.data.images.load(path, check_existing=True)
+    scene = bpy.context.scene
+    world = scene.world or bpy.data.worlds.new("World")
+    scene.world = world
+    try:
+        _with_nodes(world)
+    except Exception:
+        pass
+    nt = world.node_tree
+    env = next((n for n in nt.nodes if n.type == "TEX_ENVIRONMENT"), None)
+    if env is None:
+        bg = next((n for n in nt.nodes if n.type == "BACKGROUND"), None) or nt.nodes.new("ShaderNodeBackground")
+        out = next((n for n in nt.nodes if n.type == "OUTPUT_WORLD"), None) or nt.nodes.new("ShaderNodeOutputWorld")
+        env = nt.nodes.new("ShaderNodeTexEnvironment")
+        env.location = (bg.location.x - 320, bg.location.y)
+        nt.links.new(env.outputs["Color"], bg.inputs["Color"])
+        if not out.inputs["Surface"].is_linked:
+            nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
+    env.image = img
+    return world
+
+
 def _append_blend(path):
     with bpy.data.libraries.load(path, link=False) as (src, dst):
         dst.objects = list(src.objects)
@@ -1651,6 +1693,8 @@ def import_path(path, assign=True):
         bpy.ops.wm.usd_import(filepath=path)
     elif ext == ".blend":
         _append_blend(path)
+    elif ext in HDRI_EXT:
+        _set_world(path)
     elif ext in IMAGE_EXT:
         _import_image(path)
     elif ext == ".perchicons":
@@ -2003,8 +2047,7 @@ def _render_preview(mat, png, size=256):
         cam.location = (0, -6.2, 1.4)
         cam.rotation_euler = (math.radians(77), 0, 0)
         world = bpy.data.worlds.new("perch-preview")
-        world.use_nodes = True
-        nt = world.node_tree
+        nt = _with_nodes(world)
         bg = nt.nodes.get("Background")
         hdr = os.path.join(bpy.utils.system_resource("DATAFILES"), "studiolights", "world", "forest.exr")
         if bg and os.path.exists(hdr):
@@ -5910,7 +5953,7 @@ def _light_data(sc):
                        "shape": getattr(L, "shape", "SQUARE"), "spot": getattr(L, "spot_size", 0.8), "angle": getattr(L, "angle", 0.0)})
     w = sc.world
     bg = None
-    if w and w.use_nodes:
+    if _has_nodes(w):
         n = w.node_tree.nodes.get("Background")
         if n:
             bg = {"color": list(n.inputs[0].default_value), "strength": n.inputs[1].default_value}
@@ -5942,7 +5985,7 @@ def _apply_light(sc, p):
     if p.get("world"):
         if not sc.world:
             sc.world = bpy.data.worlds.new("World")
-        sc.world.use_nodes = True
+        _with_nodes(sc.world)
         n = sc.world.node_tree.nodes.get("Background")
         if n:
             n.inputs[0].default_value = p["world"]["color"]

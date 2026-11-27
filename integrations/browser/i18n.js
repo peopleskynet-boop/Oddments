@@ -1,4 +1,5 @@
-// The extension's language: Russian or English. «Авто» follows the browser's language; the choice in the popup
+// The extension's language: Russian or English. By default it is the language of Oddments itself (the receiver tells
+// it: storage `appLang`, kept by the background), before the first contact — the browser's; the choice in the popup
 // (storage `lang`: 'ru' | 'en' | '') wins. The code keeps the Russian text, T() looks up the English one;
 // {name} in a string is filled from the second argument. Loaded as a plain script before the others
 // (content scripts, the popup) and imported by the service worker.
@@ -67,7 +68,6 @@
     'Тёмный': 'Dark',
     'Секция': 'Section',
     'Снимок {site} {time}.png': 'Screenshot {site} {time}.png',
-    'Снимок видимой части': 'Visible part screenshot',
     'Снимок области': 'Area screenshot',
     'Снять': 'Clear',
     'Собираю видео…': 'Putting the video together…',
@@ -108,6 +108,86 @@
     'фон': 'background',
     'токен не подошёл': 'the token did not work',
     'проверяю…': 'checking…',
+    // 1.7: the menus, the popup's groups, the video frame, «Забрать доску целиком»
+    'Здесь браузер не даёт записывать — откройте обычную страницу сайта': 'The browser does not allow recording here — open an ordinary page of a site',
+    'Доска уже забирается — дождитесь конца или нажмите «Остановить»': 'A board is already being taken — wait for it to finish or press «Stop»',
+    'Здесь нет доски: откройте доску Pinterest, кластер Cosmos, канал Are.na или доску Savee': 'There is no board here: open a Pinterest board, a Cosmos cluster, an Are.na channel or a Savee board',
+    'На доске не нашлось картинок и видео': 'No pictures or videos were found on the board',
+    'На странице профиля не нашлось досок': 'No boards were found on the profile page',
+    'Are.na не принял токен — проверьте его в настройках расширения': 'Are.na did not accept the token — check it in the extension settings',
+    'Это закрытый канал: вставьте свой токен Are.na в настройках расширения': 'This channel is private: paste your Are.na token in the extension settings',
+    'Are.na ответил ': 'Are.na answered ',
+    'Are.na: читаю каналы…': 'Are.na: reading the channels…',
+    'У этого профиля Are.na нет открытых каналов': 'This Are.na profile has no open channels',
+    'Канал Are.na не нашёлся': 'The Are.na channel was not found',
+    'Канал Are.na не открылся: если он закрытый, вставьте свой токен Are.na в настройках расширения': 'The Are.na channel did not open: if it is private, paste your Are.na token in the extension settings',
+    'Are.na · {name}: {n} из {all}': 'Are.na · {name}: {n} of {all}',
+    'не скачалось: ': 'failed: ',
+    'без текстовых блоков и вложенных каналов: ': 'text blocks and nested channels left out: ',
+    'Сайт не отдал файл': 'The site did not give the file',
+    'Остановить': 'Stop',
+    'доска {i} из {n}': 'board {i} of {n}',
+    'Ищу доски профиля…': "Looking for the profile's boards…",
+    '{service}: какие доски забрать': '{service}: which boards to take',
+    'Отмена': 'Cancel',
+    '{n} шт.': '{n} items',
+    'Забрать: {n}': 'Take {n}',
+    '{n} из {all}': '{n} of {all}',
+    'найдено: {n}': 'found: {n}',
+    '{service}: {n} доска': '{service}: {n} board',
+    '{service}: {n} доски': '{service}: {n} boards',
+    '{service}: {n} досок': '{service}: {n} boards',
+    'Попадут в подборку «{service}», каждая доска — своей подборкой в ней.': 'They go to the collection «{service}», each board as its own collection inside it.',
+    'Выбрать новые': 'Select new',
+    'Уже в Oddments: {n} — они не выбраны.': 'Already in Oddments: {n} — they are not selected.',
+    'Текстовые блоки и вложенные каналы не переносятся: {n}.': 'Text blocks and nested channels are not moved: {n}.',
+    'Попадут в подборку «{path}».': 'They go to the collection «{path}».',
+    '{service} показал {n} из {all}: без входа в аккаунт он даёт только начало доски. Войдите и заберите доску ещё раз — добавится только новое.': '{service} showed {n} of {all}: without signing in it gives only the start of a board. Sign in and take the board again — only what is new is added.',
+    'Разделы доски — вложенными подборками.': "The board's sections become nested collections.",
+    'уже в Oddments': 'already in Oddments',
+    'ссылка': 'link',
+    'видео': 'video',
+    'файл': 'file',
+    'Вся вкладка': 'Whole tab',
+    'Начать запись': 'Start recording',
+    'Enter — начать, Esc — отмена': 'Enter — start, Esc — cancel',
+    'Этот браузер не умеет записывать экран': 'This browser cannot record the screen',
+    'Запись отменена': 'The recording was cancelled',
+    'Ищу область на экране…': 'Looking for the area on the screen…',
+    'Не нашёл область на том, что показал браузер: при записи выберите окно Zen (или весь экран), а не другое окно': 'Could not find the area in what the browser shared: when recording, choose the Zen window (or the whole screen), not another window',
+    'Идёт запись · «Стоп» под рамкой': 'Recording · «Stop» is under the frame',
+    'Забрать доску целиком': 'Take a whole board',
+    'Забрать доски…': 'Take boards…',
+    'Забрать канал целиком': 'Take a whole channel',
+    'рамка, потом «Начать запись»': 'a frame, then «Start recording»',
+    'рамка, «Начать запись», окно Zen': 'a frame, «Start recording», the Zen window',
+    'Снимок всего, что видно': 'Screenshot of what is visible',
+    'Забрать': 'Take',
+    'Все картинки страницы': 'All pictures on the page',
+    'Страницу закладкой': 'Page as a bookmark',
+    'ссылка с обложкой': 'a link with a cover',
+    'Страницу текстом для чтения': 'Page as text to read',
+    'в Oddments › Новости › Сохранённое': 'to Oddments › News › Saved',
+    'Кусок вёрстки': 'Piece of layout',
+    'картинка и код блока страницы': "a block's picture and code",
+    'Куда': 'Where',
+    'Как пользоваться': 'How to use it',
+    'Настройки': 'Settings',
+    'Как в Oddments': 'As in Oddments',
+    'Токен Are.na — только для закрытых каналов': 'Are.na token — only for private channels',
+    'Открытые каналы забираются без него. Токен — на': 'Open channels are taken without it. The token is at',
+    'Изменить клавиши': 'Change the keys',
+    'Сменить токен Oddments': 'Change the Oddments token',
+    'Теги: тег и Enter': 'Tags: a tag and Enter',
+    'Теги для сохранённого': 'Tags for what you save',
+    'Назад': 'Back',
+    'Язык · Language': 'Language',
+    'Картинку в Oddments': 'Picture to Oddments',
+    'Видео в Oddments': 'Video to Oddments',
+    'Ссылку в Oddments': 'Link to Oddments',
+    'Это видео в Oddments': 'This video to Oddments',
+    'Кусок вёрстки: картинка и код…': 'Piece of layout: picture and code…',
+    'Забрать доску целиком…': 'Take a whole board…',
     // the popup
     'Откройте Oddments › Настройки › Интеграции, нажмите': 'Open Oddments › Settings › Integrations, press',
     '«Скопировать токен»': '«Copy the token»',
@@ -138,7 +218,13 @@
   const fill = (s, v) => (v ? s.replace(/\{(\w+)\}/g, (m, k) => (k in v ? v[k] : m)) : s);
   globalThis.T = (s, v) => fill(lang === 'en' && EN[s] !== undefined ? EN[s] : s, v);
   globalThis.oddLang = () => lang;
-  const pick = (v) => { lang = v === 'ru' || v === 'en' ? v : auto; };
-  globalThis.oddLangReady = chrome.storage.local.get('lang').then((r) => pick(r.lang)).catch(() => {});
-  chrome.storage.onChanged.addListener((ch) => { if (ch.lang) pick(ch.lang.newValue); });
+  const ok = (v) => v === 'ru' || v === 'en';
+  let own = '', app = '';
+  const pick = () => { lang = ok(own) ? own : ok(app) ? app : auto; };
+  globalThis.oddLangReady = chrome.storage.local.get(['lang', 'appLang']).then((r) => { own = r.lang || ''; app = r.appLang || ''; pick(); }).catch(() => {});
+  chrome.storage.onChanged.addListener((ch) => {
+    if (ch.lang) own = ch.lang.newValue || '';
+    if (ch.appLang) app = ch.appLang.newValue || '';
+    if (ch.lang || ch.appLang) pick();
+  });
 })();

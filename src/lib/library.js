@@ -9,10 +9,14 @@ import * as fs from '@tauri-apps/plugin-fs';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { S, ui, kindOf, MIME, extFromMime } from '../state.js';
 import { uid, baseName, splitName, safeFile } from '../util.js';
-import { generate } from './ingest.js';
+import { generate, toBlob } from './ingest.js';
+import { extractPalette, PALETTE_V } from './palette.js';
+import { placeholderName } from './linkmeta.js';
 import { busy, busyDone } from '../ui/dialogs.js';
 import { sfx } from '../ui/sound.js';
 import { readText, writeText } from './prefs.js';
+import { LITE, SHARE } from './lite.js';
+import { takeLock, releaseLock, holderText, LOCK_FILE } from './liblock.js';
 
 export const SEP = sep();
 let root = '';
@@ -36,7 +40,11 @@ export function reindex() {
   S.byId = new Map([...S.teamItems, ...S.items].map((i) => [i.id, i]));
 }
 
+// a type Oddments learned later (HDRI, TIFF, TGA — 15.11.2026): a file kept as «Другое» gets its kind at the start and
+// its card and preview a little later, in the background (relearnKinds)
+const relearn = [];
 function migrate(it) {
+  if (it.kind === 'other' && it.ext) { const k = kindOf(it.ext); if (k !== 'other') { it.kind = k; relearn.push(it); } }
   delete it.rating; // ratings were removed
   it.tags = it.tags || [];
   it.folders = it.folders || [];
@@ -88,32 +96,57 @@ async function defaultRoot() {
   return join(docs, 'Oddments Library');
 }
 
+// «Только просмотр»: the folder is open in another Oddments (liblock.js) — nothing is written here until it is free
+let readOnly = null, roSaid = 0;
+export const isReadOnly = () => !!readOnly;
+export const readOnlyLock = () => readOnly;
+export function setReadOnly(lock) {
+  readOnly = lock || { app: 'web' };
+  if (typeof document !== 'undefined') document.body.classList.add('ro');
+}
+function roRefuse() {
+  if (Date.now() - roSaid < 8000) return;
+  roSaid = Date.now();
+  ui.toast(readOnly.app === 'share' ? 'Это подборка по ссылке: её можно смотреть и скачивать, но не менять.' : `Только просмотр: библиотека открыта ${holderText(readOnly)}. Здесь изменения не сохраняются.`, 7000);
+}
+// the mark of this window on the folder (the lite build names the browser, the app — the computer)
+const lockName = () => (LITE ? 'Oddments Web' + (typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent) ? ' · Firefox' : / Edg\//.test(navigator.userAgent) ? ' · Edge' : / Chrome\//.test(navigator.userAgent) ? ' · Chrome' : / Safari\//.test(navigator.userAgent) ? ' · Safari' : '') : 'Oddments');
+export const releaseLibrary = (now = false) => releaseLock(now);
+
 export async function initLibrary() {
-  root = readText('perch.root') || (await defaultRoot());
+  // Oddments Web: the library is the handle lite-store.js opened (OPFS or a folder on disk), mounted at /lib
+  root = LITE ? '/lib' : readText('perch.root') || (await defaultRoot());
   await fs.mkdir(absPath('files'), { recursive: true });
+  // a shared link (lite.js SHARE) is only looked at: no mark, nothing written
+  if (SHARE) setReadOnly({ app: 'share' });
+  else {
+    // one folder, one writer: the first Oddments to open it holds the mark, the other one only looks
+    const lk = await takeLock(absPath(LOCK_FILE), { app: LITE ? 'web' : 'desktop', name: lockName(), local: !!ui.lockLocal, lost: (l) => { setReadOnly(l); ui.readOnlyChanged && ui.readOnlyChanged(); } });
+    if (!lk.held) setReadOnly(lk.lock);
+  }
   const idx = absPath('index.json');
   let data = null, restored = '';
   if (await fs.exists(idx)) {
     try {
       data = await readIndex(idx);
-      await keepBackups(data);
+      if (!readOnly) await keepBackups(data); // the one who works in the folder keeps its copies
     } catch (e) {
       // keep the broken file for a look later, open from the newest copy that reads, overwrite no backup
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      try { await fs.copyFile(idx, absPath('index.json.broken-' + stamp)); } catch (e2) { /* ignore */ }
+      if (!readOnly) { try { await fs.copyFile(idx, absPath('index.json.broken-' + stamp)); } catch (e2) { /* ignore */ } }
       const tries = ['index.json.bak', ...(await dailyBackups()).map((n) => 'backups/' + n)];
       for (const t of tries) {
         try { data = await readIndex(absPath(t)); restored = t; break; } catch (e3) { /* next */ }
       }
       if (!data) throw new Error('Не удалось прочитать index.json в ' + root + ', и резервные копии тоже не читаются. Файлы на месте; index.json сохранён рядом как index.json.broken-' + stamp + '.');
       // the restored index becomes the current one right away, so a crash now cannot lose it
-      try { await fs.copyFile(absPath(restored), idx); } catch (e4) { /* the next save writes it */ }
+      if (!readOnly) { try { await fs.copyFile(absPath(restored), idx); } catch (e4) { /* the next save writes it */ } }
     }
   }
   S.folders = (data && data.folders) || [];
   S.items = ((data && data.items) || []).map(migrate);
   reindex();
-  return { fresh: !data, restored };
+  return { fresh: !data, restored, busy: readOnly };
 }
 
 export async function changeLibrary() {
@@ -128,6 +161,7 @@ let saveTimer = null, dirty = false, chain = Promise.resolve();
 let teamHook = null;
 export const setTeamHook = (fn) => { teamHook = fn; };
 export function saveIndex() {
+  if (readOnly) { roRefuse(); return; }
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushIndex, 300);
@@ -135,7 +169,7 @@ export function saveIndex() {
 export function flushIndex() {
   clearTimeout(saveTimer);
   chain = chain.then(async () => {
-    if (!dirty) return;
+    if (!dirty || readOnly) return;
     dirty = false;
     if (teamHook) teamHook(); // edits to team items go to the person's journal in the team folder (team.js)
     try {
@@ -200,20 +234,120 @@ function newItem(fileName, size, ctx, mimeHint) {
 }
 
 async function finalize(it, src) {
-  const g = await generate(it, src);
-  it.w = g.w; it.h = g.h; it.ar = g.ar; it.duration = g.duration; it.pages = g.pages; it.colors = g.colors; if (g.shares) { it.shares = g.shares; it.palV = g.palV; }
+  await keepGenerated(it, await generate(it, src));
+  S.items.push(it);
+  S.byId.set(it.id, it);
+}
+
+// what ingest.js made for a file — size, colours, the card, the preview — onto the item and the disk. `fresh`: a card
+// made again for a file that had one (a link's new cover) gets a new file name — the window would show the old picture
+// from its cache — and the old one goes
+async function keepGenerated(it, g, fresh = false) {
+  it.w = g.w; it.h = g.h; it.ar = g.ar; it.duration = g.duration; it.pages = g.pages; it.colors = g.colors;
+  if (g.shares) { it.shares = g.shares; it.palV = g.palV; } else if (fresh) { delete it.shares; delete it.palV; }
   if (g.verts) { it.verts = g.verts; it.tris = g.tris; } // optional, 3D only
   if (g.splats) it.splats = g.splats; // optional: how many splats a splat file holds
   if (g.thumb) {
-    await fs.writeFile(absPath(`files/${it.id}/thumb.webp`), new Uint8Array(await g.thumb.arrayBuffer()));
-    it.thumb = `files/${it.id}/thumb.webp`;
+    const rel = fresh ? `files/${it.id}/thumb-${Date.now().toString(36)}.webp` : `files/${it.id}/thumb.webp`;
+    await fs.writeFile(absPath(rel), new Uint8Array(await g.thumb.arrayBuffer()));
+    const old = it.thumb;
+    it.thumb = rel;
+    if (old && old !== rel && old.startsWith(`files/${it.id}/thumb`)) fs.remove(absPath(old)).catch(() => {});
   }
   if (g.preview) {
     await fs.writeFile(absPath(`files/${it.id}/preview.png`), new Uint8Array(await g.preview.arrayBuffer()));
     it.preview = `files/${it.id}/preview.png`;
   }
-  S.items.push(it);
-  S.byId.set(it.id, it);
+  if (it.kind === 'link' && 'page' in g) await keepPage(it, g);
+}
+
+// A link's page (ingest.js genLink): `it.page` { cover: 'page' | 'video' | 'own' | '', title, desc, site, host, tint,
+// icon: the site's icon file, at } — an optional field. No `page` yet — the link is asked at the next start
+// (refreshLinks). The person's own name stays; only an auto-made one («sketchfab.com», «YouTube abc») takes the title.
+async function keepPage(it, g) {
+  if (!g.page) { delete it.page; return; }
+  const page = { ...g.page, icon: '', at: Date.now() };
+  if (g.icon) {
+    const rel = `files/${it.id}/icon.png`;
+    try { await fs.writeFile(absPath(rel), new Uint8Array(await g.icon.arrayBuffer())); page.icon = rel; } catch (e) { /* no icon: the pill shows a letter */ }
+  }
+  it.page = page;
+  if (page.title && placeholderName(it.name, 'https://' + page.host)) it.name = cleanName(page.title).slice(0, 200);
+}
+
+// what the AI and the text reader took from a link's old card (the grey card with the domain gave «Japanese text»,
+// «logo» and «sketchfab.com Link»): dropped, they look at the new cover; the person's own tags and choices stay
+function forgetPicture(it) {
+  it.aiTags = []; delete it.aiTagsV; delete it.aiDesc; delete it.aiDescT;
+  it.ocr = ''; delete it.ocrV; delete it.ocrT; delete it.pii; delete it.piiV;
+}
+
+// a file of the library as ingest.js reads it
+const diskSrc = (it) => ({
+  size: it.size,
+  getBlob: async () => new Blob([await fs.readFile(absPath(it.file))], { type: MIME[it.ext] || '' }),
+  url: () => assetUrl(it.file),
+});
+
+// Links read again: those made before covers (once, in the background at the start) or chosen in the menu. One at a
+// time; `stop()` ends it between links, `step(done, total)` follows. Team files are the team's — not here.
+export async function refreshLinks(list, { stop, step } = {}) {
+  if (readOnly) return 0;
+  const todo = list.filter((it) => it.kind === 'link' && !it.trashed && !it.team);
+  let n = 0;
+  for (const it of todo) {
+    if (stop && stop()) break;
+    try {
+      const g = await generate(it, diskSrc(it));
+      if (g.thumb && S.byId.get(it.id) === it) { forgetPicture(it); await keepGenerated(it, g, true); n++; }
+    } catch (e) { console.warn('link', it.name, e); }
+    if (step) step(n, todo.length, it);
+  }
+  return n;
+}
+
+// a picture the person chose as a link's cover (Ctrl+V onto a selected link, «Обложка из буфера»). Returns an undo:
+// the old card file is kept until then (15 s)
+export async function setLinkCover(it, blob) {
+  if (readOnly) { roSaid = 0; roRefuse(); return null; }
+  const { coverCanvas } = await import('./linkpage.js');
+  const bmp = await createImageBitmap(blob);
+  const c = coverCanvas(bmp);
+  bmp.close();
+  const rel = `files/${it.id}/thumb-${Date.now().toString(36)}.webp`;
+  await fs.writeFile(absPath(rel), new Uint8Array(await (await toBlob(c)).arrayBuffer()));
+  const prev = { thumb: it.thumb, w: it.w, h: it.h, ar: it.ar, colors: it.colors, shares: it.shares, palV: it.palV, page: it.page };
+  forgetPicture(it);
+  const p = extractPalette(c);
+  Object.assign(it, { thumb: rel, w: c.width, h: c.height, ar: c.height / c.width, colors: p.colors, shares: p.shares, palV: PALETTE_V });
+  it.page = { ...(it.page || { title: '', desc: '', site: '', host: '', tint: '', icon: '' }), cover: 'own', at: Date.now() };
+  saveIndex();
+  let undone = false;
+  const old = prev.thumb;
+  setTimeout(() => { if (!undone && old && old !== rel && old.startsWith(`files/${it.id}/thumb`)) fs.remove(absPath(old)).catch(() => {}); }, 15000);
+  return () => {
+    undone = true;
+    Object.assign(it, prev);
+    if (!prev.page) delete it.page;
+    if (!prev.shares) { delete it.shares; delete it.palV; }
+    fs.remove(absPath(rel)).catch(() => {});
+    saveIndex();
+  };
+}
+
+// the files that got a kind at the start (migrate): their cards and previews, one by one, in the background
+export async function relearnKinds() {
+  if (readOnly) return 0;
+  const list = relearn.splice(0).filter((it) => !it.thumb && !it.trashed);
+  let n = 0;
+  for (const it of list) {
+    try {
+      await keepGenerated(it, await generate(it, diskSrc(it)));
+      n++;
+    } catch (e) { console.warn('relearn', it.name, e); }
+  }
+  if (n) { saveIndex(); ui.refresh(); }
+  return n;
 }
 
 // progress line: names the file being processed, so a slow PSD or video is visibly "working"
@@ -241,6 +375,7 @@ function warnBad(added, empty) {
 
 // Items from disk paths (file dialog, folder import).
 export async function addFromPaths(paths, ctx) {
+  if (readOnly) { roSaid = 0; roRefuse(); return []; }
   const files = [];
   async function collect(p) {
     let st;
@@ -282,6 +417,7 @@ export async function addFromPaths(paths, ctx) {
 
 // Items from Blobs/Files (clipboard, drag from browser, drag from Explorer).
 export async function addFromBlobs(list, ctx) {
+  if (readOnly) { roSaid = 0; roRefuse(); return []; }
   const empty = list.filter((e) => !e.blob || !e.blob.size).length;
   list = list.filter((e) => e.blob && e.blob.size);
   if (!list.length) { if (empty) ui.toast('Файл пустой (0 байт) — добавлять нечего'); return []; }
@@ -317,6 +453,7 @@ export function restoreItems(items) {
   saveIndex();
 }
 export async function purgeItems(items) {
+  if (readOnly) { roSaid = 0; roRefuse(); return; }
   const ids = new Set(items.map((i) => i.id));
   S.items = S.items.filter((i) => !ids.has(i.id));
   items.forEach((i) => S.sel.delete(i.id));

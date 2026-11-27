@@ -7,6 +7,7 @@ import { ic } from './icons.js';
 import { sfx } from './sound.js';
 import { toast } from './dialogs.js';
 import { readPref, writePref } from '../lib/prefs.js';
+import { LITE } from '../lib/lite.js';
 
 const KEY = 'perch.onboard';
 const STEPS = [
@@ -15,7 +16,7 @@ const STEPS = [
   { id: 'open', title: 'Откройте просмотр', how: 'Двойной клик по карточке или Пробел. Стрелки листают, Esc закрывает.', target: '#grid .card' },
   { id: 'color', title: 'Найдите по цвету', how: 'Кружок в строке поиска: выберите цвет, и в сетке останутся картинки с ним.', target: '#filtBtn' },
   { id: '3d', title: 'Попробуйте 3D', how: 'Откройте модель из «3D › 3D-модели» и покрутите её, или превратите SVG-иконку в модель для Blender: «3D › SVG в 3D».', target: '.nav[data-vt="tool-svg3d"]' },
-];
+].filter((s) => !LITE || s.id !== '3d'); // Oddments Web: no SVG → 3D (a model still opens in the viewer)
 
 let state = { done: [], hidden: false, finished: false };
 Object.assign(state, readPref(KEY, {}));

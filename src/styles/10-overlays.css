@@ -47,6 +47,11 @@ body.kbd :is(.ctx, .menu, .side-menu, .gsel-list) .mi:focus-visible { box-shadow
 .ctx-sw { width: 16px; height: 16px; border-radius: 5px; flex: none; box-shadow: inset 0 0 0 1px var(--line); }
 .ctx .hex { font-family: var(--mono); font-size: 13px; }
 .ctx-none { padding: 10px 12px; color: var(--mut); font-size: 12px; }
+/* G: «В подборку» with a search (ctxmenu.js openFolderPicker): the search line stays on top of a long list */
+.ctx-folders { max-height: min(440px, calc(100vh - 16px)); overflow: auto; overscroll-behavior: contain; }
+.ctx-find { position: sticky; top: -6px; z-index: 1; display: block; height: 36px; margin: -6px -6px 6px; width: calc(100% + 12px); padding: 0 16px; border: 0; border-bottom: 1px solid var(--line); border-radius: 18px 18px 0 0; background: var(--glass-fill, var(--panel)); color: var(--fg); font: inherit; outline: 0; }
+.ctx-find::placeholder { color: var(--mut); }
+.ctx-folders .mi[hidden] { display: none; }
 /* ——— screens over the grid (the duplicates, «Разобрать»): the wall hides under them ——— */
 .lnk + .lnk { margin-left: 10px; }
 .orb-bar { position: absolute; z-index: 3; top: 4px; left: 50%; translate: -50% 0; height: 46px; max-width: 100%; border-radius: 99px; display: flex; align-items: center; gap: 4px; padding: 0 4px; }

@@ -20,6 +20,7 @@ import { teamBlock } from './teamblock.js';
 import { notesBlock } from './notesblock.js';
 import { canonical } from '../lib/glossary.js';
 import { glossary } from '../lib/teamconf.js';
+import { LITE } from '../lib/lite.js';
 
 const fmtNum = (n) => Math.round(n).toLocaleString('ru');
 const selItems = () => Array.from(S.sel).map((id) => S.byId.get(id)).filter(Boolean);
@@ -43,7 +44,7 @@ function piiBlock(it) {
 
 // the heavier blocks — «Экран приложения» (scrfields.js) and «Бренд» (brand.js) — come from inspextra.js: a slot now,
 // filled as soon as that module is loaded (at once from the second selection on); the start-up does not carry them
-const slot = (name) => `<div class="slot" data-slot="${name}"></div>`;
+const slot = (name) => (LITE ? '' : `<div class="slot" data-slot="${name}"></div>`); // Oddments Web: no app screens, no brand
 let extra = null;
 function fillSlots(items) {
   const el = $('#insp');
@@ -112,7 +113,7 @@ function mediaBlock(it) {
     case 'video': return `<div class="ip-prev"><video controls preload="metadata" ${it.thumb ? `poster="${assetUrl(it.thumb)}"` : ''} src="${assetUrl(it.file)}"></video></div>`;
     case 'audio': return `<div class="ip-prev nobg">${it.thumb ? `<img src="${assetUrl(it.thumb)}" alt="">` : ''}<audio controls preload="metadata" src="${assetUrl(it.file)}"></audio></div>`;
     case 'font': return `<div class="ip-prev font" data-act="pv"><div class="fsample" id="fsample" style="font-family:'${fontFamily(it)}'">Aa Бб Яя<br>0123456789</div></div>`;
-    case 'pdf': case 'psd': case 'model': case 'material': case 'link': case 'figma': case 'block': return it.thumb ? `<div class="ip-prev${it.kind === 'model' || it.kind === 'material' ? ' m3d-bg' : ''}" data-act="pv"><img src="${assetUrl(it.thumb)}" alt=""></div>` : `<div class="ip-prev file">${esc(it.ext)}</div>`;
+    case 'pdf': case 'psd': case 'hdri': case 'model': case 'material': case 'link': case 'figma': case 'block': return it.thumb ? `<div class="ip-prev${it.kind === 'model' || it.kind === 'material' ? ' m3d-bg' : ''}" data-act="pv"><img src="${assetUrl(it.thumb)}" alt=""></div>` : `<div class="ip-prev file">${esc(it.ext)}</div>`;
     default: return `<div class="ip-prev file">${esc(it.ext || 'file')}</div>`;
   }
 }
@@ -136,21 +137,24 @@ function single(it) {
   // the palette (#79): a click on a colour finds it in the library, its HEX copies; the strip under it shows how much
   // of the picture each colour takes (older files get shares in the background, repalette.js)
   const shares = it.shares && it.shares.length === it.colors.length ? it.shares : null;
-  const pal = it.colors.length ? `<div class="fld"><span>Палитра</span><div class="pal">${it.colors.map((c) => `<div class="sw" style="background:${c}"><button class="sw-find" data-findc="${c}" title="Найти этот цвет в библиотеке" aria-label="Найти цвет ${c.toUpperCase()}"></button><button class="sw-hex" data-hex="${c}" title="Копировать ${c.toUpperCase()}" aria-label="Копировать ${c}" style="color:${inkOn(c)}">${c.slice(1).toUpperCase()}</button></div>`).join('')}</div>`
+  const pal = it.colors.length ? `<div class="fld"><span>Палитра</span><div class="pal">${it.colors.map((c) => `<div class="sw" style="background:${c}"><button class="sw-find" data-findc="${c}" title="Найти этот цвет в библиотеке" aria-label="Найти цвет ${c.toUpperCase()}"></button><button class="sw-hex" data-hex="${c}" title="Копировать ${c.toUpperCase()}" aria-label="Копировать ${c}" style="color:${inkOn(c)}" data-ink="${inkOn(c) === '#111' ? 'dark' : 'light'}">${c.slice(1).toUpperCase()}</button></div>`).join('')}</div>`
     + (shares ? `<div class="pal-bar" aria-hidden="true">${it.colors.map((c, i) => `<i style="background:${c};flex:${Math.max(shares[i], 0.02)}"></i>`).join('')}</div>` : '') + '</div>' : '';
   // «Похожие» looks through the whole library (8 ms on 5 000 files): drawn a moment later (fillSimilar), so a click
   // on a card shows the panel at once
   const simBlock = it.trashed ? '' : `<div class="sim-slot" data-simfor="${it.id}"></div>`;
   const actions = it.trashed
     ? `<div class="acts-row"><button class="ibtn" data-act="restore">${ic('restore')}Вернуть</button><button class="ibtn danger" data-act="purge">Удалить навсегда</button></div>`
+    : LITE ? `<div class="acts-row"><button class="ibtn danger" data-act="trash">В корзину</button></div>` // no program, no file manager in a browser
     : `<div class="acts-row">${it.kind === 'model' && BLENDER_NATIVE.has(it.ext) ? '' : `<button class="ibtn" data-act="open">${esc(openLabel(it))}</button>`}<button class="ibtn" data-act="reveal">В папке</button><button class="ibtn danger" data-act="trash"${it.team ? ' title="Файл уйдёт из командной библиотеки у всех"' : ''}>${it.team ? 'Убрать из команды' : 'В корзину'}</button></div>`;
-  return mediaBlock(it) + teamBlock(it) +
+  return mediaBlock(it) + (LITE ? '' : teamBlock(it)) +
     `<input id="nameIn" class="title-in" type="text" value="${esc(it.name)}" aria-label="Название" title="Нажмите, чтобы переименовать">` +
     // type, size, weight, length and date in one line under the name (the old table repeated half of it)
-    `<p class="ov-s sub">${[esc(typeLabel(it)), it.w && it.kind !== 'model' && it.kind !== 'material' ? `${Math.round(it.w)} × ${Math.round(it.h)}` : '', it.pages ? `${it.pages} стр.` : '', it.duration ? fmtDur(it.duration) : '', fmtSize(it.size), esc(dateFmt.format(it.added))].filter(Boolean).join(' · ')}</p>` +
+    `<p class="ov-s sub">${[esc(typeLabel(it)), it.w && it.kind !== 'model' && it.kind !== 'material' && it.kind !== 'link' ? `${Math.round(it.w)} × ${Math.round(it.h)}` : '', it.pages ? `${it.pages} стр.` : '', it.duration ? fmtDur(it.duration) : '', fmtSize(it.size), esc(dateFmt.format(it.added))].filter(Boolean).join(' · ')}</p>` +
+    (it.kind === 'link' && it.page ? pageBlock(it) : '') +
     (it.kind === 'model' && !it.trashed ? modelBlock(it) : '') +
-    (it.ext === 'svg' && !it.trashed ? `<div class="m-blk"><button class="ibtn pri wide" data-act="s3d">${ic('cube')}Сделать 3D…</button></div>` : '') +
-    (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview)) && !it.trashed ? `<div class="m-blk"><button class="ibtn wide" data-act="upscale" title="ИИ увеличивает в 2 или 4 раза и дорисовывает детали — копия ляжет рядом">${ic('sparkle')}Увеличить ×2 / ×4…</button><button class="ibtn wide" data-act="cutout" title="ИИ вырезает объект, край уточняется по фото — PNG с прозрачностью ляжет рядом">${ic('scissors')}Убрать фон…</button></div>` : '') +
+    (it.kind === 'hdri' && !it.trashed ? hdriBlock(it) : '') +
+    (it.ext === 'svg' && !it.trashed && !LITE ? `<div class="m-blk"><button class="ibtn pri wide" data-act="s3d">${ic('cube')}Сделать 3D…</button></div>` : '') +
+    (((it.kind === 'image' && it.ext !== 'gif' && it.ext !== 'svg') || (it.kind === 'psd' && it.preview)) && !it.trashed && !LITE ? `<div class="m-blk"><button class="ibtn wide" data-act="upscale" title="ИИ увеличивает в 2 или 4 раза и дорисовывает детали — копия ляжет рядом">${ic('sparkle')}Увеличить ×2 / ×4…</button><button class="ibtn wide" data-act="cutout" title="ИИ вырезает объект, край уточняется по фото — PNG с прозрачностью ляжет рядом">${ic('scissors')}Убрать фон…</button><button class="ibtn wide" data-act="effects" title="Текст ANSI, 1 бит, полутон, кинескоп, микрофиша — копия ляжет рядом (E)">${ic('crt')}Эффекты…</button></div>` : '') +
     `<div class="fld"><span>Теги</span><div class="tags">${tags}<input id="tagIn" type="text" placeholder="Тег и Enter" list="taglist" autocomplete="off"></div><datalist id="taglist">${dl}</datalist></div>` +
     (it.aiDesc ? `<p class="ai-desc" title="Так эту картинку видит ИИ — по этим словам её найдёт поиск">✦ ${esc(it.aiDesc)}</p>` : '') +
     slot('scr') + piiBlock(it) + notesBlock(it) + ocrBlock(it) + slot('brand') +
@@ -160,7 +164,17 @@ function single(it) {
     // notes field is gone (#78: unused); `it.note` stays in index.json
     (it.url ? `<label class="fld"><span>Источник</span><input id="urlIn" type="text" value="${esc(it.url)}" placeholder="https://"></label>`
       : `<div class="fld"><button class="lnk add-url" data-act="addurl">+ Ссылка на источник</button></div>`) +
-    simBlock + actions;
+    slot('scrlink') + simBlock + actions;
+}
+
+// a link: its site and what the page says about itself — its own title (when the name is the person's own words) and
+// the description; both are found by the search
+function pageBlock(it) {
+  const p = it.page;
+  const ic0 = p.icon ? `<img class="lk-ic" src="${assetUrl(p.icon)}" alt="">` : p.cover === 'video' ? `<i class="lk-ic play">${ic('play')}</i>` : '';
+  const title = p.title && p.title !== it.name ? `<p class="ip-pt">${esc(p.title)}</p>` : '';
+  const desc = p.desc ? `<p class="ip-pd">${esc(p.desc)}</p>` : '';
+  return `<div class="ip-page"><span class="ip-site">${ic0}<span>${esc(p.host || p.site || '')}</span></span>${title}${desc}</div>`;
 }
 
 const BLENDER_NATIVE = new Set(['blend', 'abc']);
@@ -171,20 +185,41 @@ const openLabel = (it) => (BLENDER_NATIVE.has(it.ext) ? 'Открыть в Blend
 function modelBlock(it) {
   if (isSplatItem(it)) { // Gaussian splats: no mesh to remesh or wear materials, Blender 5.3+ opens them
     const stats = it.splats ? `<div class="m-stats"><div><b>${fmtNum(it.splats)}</b><span>${plural(it.splats, ['сплат', 'сплата', 'сплатов'])}</span></div></div>` : '';
+    if (LITE) return stats ? `<div class="m-blk">${stats}</div>` : ''; // Oddments Web has no splat viewer
     return `<div class="m-blk">${stats}<div class="m-acts"><button class="ibtn pri" data-act="pv">${ic('splat')}Смотреть</button>` +
       `<button class="ibtn" data-act="blender" title="Сплаты Blender открывает с версии 5.3">В Blender</button></div></div>`;
   }
   const stats = it.verts
     ? `<div class="m-stats"><div><b>${fmtNum(it.verts)}</b><span>${plural(it.verts, ['вершина', 'вершины', 'вершин'])}</span></div><div><b>${fmtNum(it.tris || 0)}</b><span>${plural(it.tris || 0, ['треугольник', 'треугольника', 'треугольников'])}</span></div></div>`
     : '';
-  const go = BLENDER_NATIVE.has(it.ext)
+  const native = BLENDER_NATIVE.has(it.ext);
+  // Oddments Web looks at models: no Blender, no remesh, no splats
+  if (LITE) return `<div class="m-blk">${stats}${native && !it.glb ? '' : `<button class="ibtn pri wide" data-act="pv">${ic('cube')}Смотреть</button>`}</div>`;
+  const go = native
     ? `<button class="ibtn pri wide" data-act="open">${ic('cube')}Открыть в Blender</button>`
     : `<div class="m-acts"><button class="ibtn pri" data-act="pv">${ic('cube')}Смотреть</button>` +
-      `<button class="ibtn" data-act="toblender" title="Как вставить модель в сцену Blender">В Blender</button></div>` +
-      (isMac ? '' : `<button class="ibtn wide flat" data-act="s3d" title="Квадовая сетка через AutoRemesher">Ремеш…</button>`);
-  const splat = !BLENDER_NATIVE.has(it.ext) || it.glb
-    ? `<button class="ibtn wide flat" data-act="splatmk" title="Модель — в облако гауссовых сплатов, свет из 3D-просмотра запекается">${ic('splat')}Сделать сплат…</button>` : '';
-  return `<div class="m-blk">${stats}${go}${splat}</div>`;
+      `<button class="ibtn" data-act="toblender" title="Как вставить модель в сцену Blender">В Blender</button></div>`;
+  // the model's tools: pills in a row under the main actions, like a picture's tools (they hung as bare centred text)
+  const tools = [
+    !native && !isMac ? `<button class="ibtn" data-act="s3d" title="Квадовая сетка через AutoRemesher">${ic('wire')}Ремеш…</button>` : '',
+    !native || it.glb ? `<button class="ibtn" data-act="splatmk" title="Модель — в облако гауссовых сплатов, свет из 3D-просмотра запекается">${ic('splat')}Сделать сплат…</button>` : '',
+  ].filter(Boolean);
+  return `<div class="m-blk">${stats}${go}${tools.length ? `<div class="m-tools">${tools.join('')}</div>` : ''}</div>`;
+}
+
+// An HDRI (a 2 : 1 panorama): its size, a look at it on the lighting balls, into Blender as the World, and as the light
+// the 3D view shows models in. An .exr that is not a panorama (a texture, a render pass) has only its size.
+function hdriBlock(it) {
+  const pano = it.w && it.h && Math.abs(it.w / it.h - 2) < 0.05;
+  const size = it.w ? `<div class="m-stats"><div><b>${fmtNum(it.w)} × ${fmtNum(it.h)}</b><span>${pano ? 'панорама' : 'пикселей'}</span></div></div>` : '';
+  const acts = pano && LITE
+    ? `<div class="m-acts"><button class="ibtn pri" data-act="pv">${ic('sun')}Смотреть</button><button class="ibtn" data-act="hdrlight" title="Модели в 3D-просмотре будут освещены этим HDRI">${ic('bulb')}Свет для 3D</button></div>`
+    : pano
+    ? `<div class="m-acts"><button class="ibtn pri" data-act="pv">${ic('sun')}Смотреть</button>` +
+      `<button class="ibtn" data-act="hdrsend" title="Поставить в World сцены — аддон Oddments примет">В Blender</button></div>` +
+      `<button class="ibtn wide" data-act="hdrlight" title="Модели в 3D-просмотре будут освещены этим HDRI">${ic('bulb')}Свет для 3D-просмотра</button>`
+    : '';
+  return size || acts ? `<div class="m-blk">${size}${acts}</div>` : '';
 }
 
 function afterSingle(it) { if (it.kind === 'font') ensureFont(it); }
@@ -248,6 +283,11 @@ export function initInspector() {
       else if (a === 's3d' && items[0]) import('./svg3d.js').then((m) => m.openFromItem(items[0]));
       else if (a === 'splatmk' && items[0]) import('./splatmaker.js').then((m) => m.openSplatMaker(items[0]));
       else if (a === 'blender' && items[0]) import('./toblender.js').then((m) => m.itemsToBlender(items));
+      else if (a === 'hdrsend' && items[0]) import('./toblender.js').then((m) => m.itemsToBlender([items[0]]));
+      else if (a === 'hdrlight' && items[0]) {
+        const it = items[0];
+        import('./viewer3d.js').then((m) => { m.prefs.light = 'lib:' + it.id; m.savePrefs(); toast(`Модели в 3D-просмотре теперь в свете «${it.name}»`); });
+      }
       else if (a === 'toblender') toast('В Blender: N › Oddments › «Вставить из Oddments»', 7000, { label: 'Аддон', fn: () => import('./settings.js').then((m) => m.openSettings('int')) });
       else if (a === 'trash') { trashItems(items); S.sel.clear(); ui.refresh(); toast('В корзину: ' + items.length, 0, { fn: () => { restoreItems(items); ui.refresh(); } }); }
       else if (a === 'restore') { restoreItems(items); S.sel.clear(); ui.refresh(); toast('Возвращено: ' + items.length); }
@@ -255,6 +295,7 @@ export function initInspector() {
       else if (a === 'open' && items[0]) { try { await openPath(absPath(items[0].file)); } catch (err) { toast('Не удалось открыть файл. Попробуйте «В папке» и откройте его оттуда.'); } }
       else if (a === 'mask') import('./mask.js').then((m) => m.openMask(items));
       else if (a === 'upscale' && items[0]) import('./upscale.js').then((m) => m.openUpscale(items[0]));
+      else if (a === 'effects' && items[0]) import('./effects.js').then((m) => m.openEffects(items[0]));
       else if (a === 'cutout' && items[0]) import('./cutout.js').then((m) => m.openCutout(items));
       else if (a === 'teamtake') import('./teamui.js').then((m) => m.takeFlow(items));
       else if (a === 'brandset') import('./settings.js').then((m) => m.openSettings && m.openSettings('sBrand'));

@@ -159,6 +159,7 @@ body:not(.motion) .pvm-row, body:not(.motion) .pvm-h::after, body:not(.motion) .
 .pv-btn.pri { background: var(--stage-fg); color: var(--stage-ink); }
 .pv-btn:disabled { opacity: .6; cursor: progress; }
 .lnk-url { font: 12px var(--mono); color: var(--stage-mut); overflow-wrap: anywhere; max-width: 520px; margin: 0 auto 4px; }
+.lnk-desc { max-width: 560px; margin: 0 auto 6px; color: var(--stage-fg, var(--fg)); font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 /* model inspector: render modes, matcaps, info panel */
 .m3d-bar { align-items: center; max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center; }
 /* centred by margins, not left: 50% (which caps the width at half the stage and wraps the bar early) */
@@ -211,6 +212,9 @@ body:not(.motion) .pvm-row, body:not(.motion) .pvm-h::after, body:not(.motion) .
 .m3d-lights button:hover { background: var(--stage-line); }
 .m3d-lights button.on { color: var(--stage-fg); }
 .m3d-lights i { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2); transition: transform .15s; }
+/* the library's HDRIs start a row of their own; their tiles are the panorama itself, so a pill (2 : 1), not a disc */
+.m3d-lsep { flex-basis: 100%; margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--stage-line); color: var(--stage-fg-2); font: 600 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; text-align: center; }
+.m3d-lights button[data-light^="lib:"] i { width: 56px; height: 28px; margin: 3px 0; border-radius: 99px; }
 .m3d-lights button:hover i { transform: scale(1.08); }
 .m3d-lights button.on i { box-shadow: 0 0 0 2px #1c1c1f, 0 0 0 3.5px var(--stage-fg); }
 .m3d-lights button:focus-visible { outline: 2px solid var(--stage-fg); outline-offset: -2px; }
@@ -267,6 +271,11 @@ body:not(.motion) .pvm-row, body:not(.motion) .pvm-h::after, body:not(.motion) .
 .bl-meta { font: 500 12px var(--mono); color: #a1a1a8; text-transform: uppercase; letter-spacing: .04em; }
 .bl-info p { margin: 6px 0 10px; font-size: 13px; line-height: 1.5; color: #a1a1a8; max-width: 44ch; }
 .pv-other.blend .pv-btn.pri { background: var(--acc); color: var(--acc-fg); }
+/* a link: its card beside the page's words, the address and «Открыть на …» (preview.js linkView) */
+.lnk-card .lnk-pic { flex: none; width: min(440px, 46vw); max-height: 64vh; object-fit: contain; border-radius: 22px; corner-shape: squircle; display: block; }
+.lnk-card .bl-info { flex: 1; }
+.lnk-card .lnk-desc, .lnk-card .lnk-url { margin: 0; text-align: left; }
+.lnk-card .bl-info .pv-btn { margin-top: 10px; }
 /* a video link: the cover large, the title and «Смотреть на …» under it */
 .pv-other.vlink { display: grid; gap: 20px; justify-items: center; max-width: min(960px, 100%); text-align: center; }
 /* a video link opens like a picture: the clip as large as the preview allows, in its own shape */

@@ -1,0 +1,13 @@
+/* «Только просмотр» (rolock.js, lib/liblock.js): the folder is open in another Oddments */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+/* centred by margins, not left: 50% (that capped the strip at half the window: four lines in a narrow one) */
+.ro-strip { position: fixed; z-index: 30; left: 16px; right: 16px; bottom: 84px; margin-inline: auto; width: fit-content; display: flex;
+  align-items: center; gap: 10px; max-width: 720px; padding: 6px 6px 6px 16px; border-radius: 99px; font-size: 13px; animation: fade .3s; }
+.ro-strip > span { min-width: 0; line-height: 1.35; }
+.ro-strip .ibtn { flex: none; height: 32px; border-radius: 99px; }
+.ro-strip .ro-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--mut); }
+.ro-strip.free .ro-dot { background: var(--acc); }
+/* nothing is added while only looking */
+body.ro .split, body.ro #dropOv, body.ro .qf { display: none !important; }
+}

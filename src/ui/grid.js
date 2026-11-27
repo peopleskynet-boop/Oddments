@@ -1,7 +1,7 @@
 // Virtualised masonry/grid: only cards near the viewport exist in the DOM,
 // so thousands of files scroll smoothly.
 import { S, ui, folderById } from '../state.js';
-import { esc, raf, fmtDur, typeLabel } from '../util.js';
+import { esc, raf, fmtDur, typeLabel, fmtSize } from '../util.js';
 import { assetUrl, saveIndex } from '../lib/library.js';
 import { ic } from './icons.js';
 import { computeLayout, visibleRange } from './layout.js';
@@ -9,14 +9,18 @@ import { settings } from './settings.js';
 import { sfx } from './sound.js';
 import { setFrameGeometry } from './frame.js';
 import { motionOn } from './motion.js';
-import { t } from '../lib/i18n.js';
+import { t, lang } from '../lib/i18n.js';
+import { layoutNow, syncLayoutBtns } from './viewlayout.js';
+import { LITE } from '../lib/lite.js';
 
 const scroller = () => document.getElementById('scroll');
 const host = () => document.getElementById('grid');
 
 let boxes = [], total = 0, nodes = new Map(), lastIds = '', lastView = '', lastSigs = new Map();
+let freeCols = 0; // the wall's columns before it made room for the properties panel (layoutGrid)
 let wave = false; // next render shows its cards in a staggered wave
 let cur = null; // keyboard cursor (item id); lives in data, cards come and go with scrolling
+let mode = 'masonry'; // the layout of the place on screen (viewlayout.js): 'masonry' | 'grid' | 'list'
 const OVERSCAN = 700;
 
 const KIND_ICON = { video: '▶', audio: '♪', font: 'Aa', pdf: 'PDF', psd: 'PSD', gif: 'GIF', model: '3D', other: '' };
@@ -26,9 +30,26 @@ const favTip = (it) => t(it.fav ? 'Убрать из избранного' : 'В
 
 function capHeight() { return settings.captions ? 24 : 0; }
 
+// A link's site on its card: a pill with the site's icon (a play mark for a clip, the first letter when the site gave
+// none) and its short name — «sketchfab», «YouTube». Links read before covers have no `page` and no pill yet.
+function sitePill(it) {
+  const p = it.page;
+  if (it.kind !== 'link' || !p || p.cover === 'figma' || !(p.site || p.host)) return ''; // the Figma card has its mark drawn
+  const name = p.site || p.host;
+  const mark = p.cover === 'video' ? `<i class="lk-ic play">${ic('play')}</i>`
+    : p.icon ? `<img class="lk-ic" src="${assetUrl(p.icon)}" alt="" decoding="async" draggable="false">`
+    : `<i class="lk-ic">${esc(name.slice(0, 1).toUpperCase())}</i>`;
+  return `<span class="lk-site">${mark}<span>${esc(name)}</span></span>`;
+}
+// a page without a picture: its name in big letters on the theme's card colour, washed with the site icon's colour
+const typeCard = (it) => it.kind === 'link' && !!it.page && !it.page.cover;
+const tintVar = (it) => (it.page && /^#[0-9a-f]{6}$/i.test(it.page.tint || '') ? ` style="--lk-tint:${it.page.tint}"` : '');
+
 function cardHTML(it) {
   let media;
-  if (it.thumb) {
+  if (typeCard(it)) {
+    media = `<div class="lk-type"${tintVar(it)}><b>${esc(it.name)}</b></div>`;
+  } else if (it.thumb) {
     media = `<img src="${assetUrl(it.thumb)}" alt="" decoding="async" draggable="false">`;
   } else {
     media = `<div class="nothumb"><b>${esc(typeLabel(it))}</b></div>`;
@@ -39,13 +60,14 @@ function cardHTML(it) {
   else if (it.kind === 'video' || it.kind === 'audio') badge = `<span class="badge">${KIND_ICON[it.kind]} ${esc(fmtDur(it.duration))}</span>`;
   else if (it.kind === 'gif') badge = '<span class="badge">GIF</span>';
   else if (it.kind === 'pdf') badge = `<span class="badge">PDF${it.pages ? ' · ' + it.pages : ''}</span>`;
-  else if (it.kind === 'psd') badge = '<span class="badge">PSD</span>';
+  else if (it.kind === 'psd') badge = `<span class="badge">${it.ext === 'tif' || it.ext === 'tiff' ? 'TIFF' : esc((it.ext || 'psd').toUpperCase())}</span>`;
+  else if (it.kind === 'hdri') badge = `<span class="badge">${it.w && it.h && Math.abs(it.w / it.h - 2) < 0.05 ? 'HDRI · ' : ''}${esc((it.ext || '').toUpperCase())}</span>`;
   else if (it.kind === 'font') badge = '<span class="badge">Aa</span>';
   else if (it.kind === 'material') badge = `<span class="badge">${t('Материал')}</span>`;
   else if (it.kind === 'block') badge = `<span class="badge">${t('Блок')}</span>`;
   else if (it.kind === 'model') badge = `<span class="badge">${it.ext === 'blend' ? 'BLEND' : '3D · ' + esc((it.ext || '').toUpperCase())}</span>`;
   // the type is said once: a card with a type badge does not repeat the extension in its caption
-  const ex = badge ? '' : `<span class="ex">${esc(it.ext || '')}</span>`;
+  const ex = badge || it.kind === 'link' ? '' : `<span class="ex">${esc(it.ext || '')}</span>`; // a link says its site on the pill, not «url»
   const cap = settings.captions
     ? `<div class="cap"><span class="nm">${esc(it.name)}</span>${ex}</div>` : '';
   const ovl = settings.captions ? '' : `<div class="ovl"><span class="nm">${esc(it.name)}</span>${ex}</div>`;
@@ -57,7 +79,39 @@ function cardHTML(it) {
   const step = at >= 0 ? `<span class="step">${String(at + 1).padStart(2, '0')}</span>` : '';
   const team = it.by ? t(`Из командной библиотеки · добавил(а) ${it.by}`) : t('Из командной библиотеки');
   const pii = piiMark(it) + (it.team ? `<span class="teamm" title="${esc(team)}">${ic('team')}</span>` : '');
-  return `<div class="ph">${media}${badge}${step}${dot}${pii}${fav}${ovl}</div>${cap}`;
+  return `<div class="ph">${media}${badge}${sitePill(it)}${step}${dot}${pii}${fav}${typeCard(it) ? '' : ovl}</div>${cap}`;
+}
+
+// A row of the list: the preview, the name in full (two lines), what it is — for a link its site and the page's own
+// description, for a file its type, size and length — up to three tags, the date, and on hover «open» and the heart
+const dayFmt = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short' });
+const yearFmt = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', year: 'numeric' });
+const when = (ms) => (new Date(ms).getFullYear() === new Date().getFullYear() ? dayFmt : yearFmt).format(ms);
+function rowHTML(it) {
+  const p = it.kind === 'link' ? it.page : null;
+  let media;
+  if (typeCard(it)) {
+    const mark = p.icon ? `<img src="${assetUrl(p.icon)}" alt="" decoding="async" draggable="false">` : `<b>${esc((p.site || p.host || '?').slice(0, 1).toUpperCase())}</b>`;
+    media = `<div class="lr-ic"${tintVar(it)}>${mark}</div>`;
+  } else if (it.thumb) media = `<img src="${assetUrl(it.thumb)}" alt="" decoding="async" draggable="false">`;
+  else media = `<div class="nothumb"><b>${esc(typeLabel(it))}</b></div>`;
+  const play = p && p.cover === 'video' ? `<span class="lr-play">${ic('play')}</span>` : '';
+  let meta;
+  if (p) {
+    const site = (p.icon ? `<img class="lk-ic" src="${assetUrl(p.icon)}" alt="" decoding="async" draggable="false">` : p.cover === 'video' ? `<i class="lk-ic play">${ic('play')}</i>` : '') + `<span class="lr-host">${esc(p.host || p.site || '')}</span>`;
+    const desc = p.desc || (p.title && p.title !== it.name ? p.title : '');
+    meta = site + (desc ? `<span class="lr-sep">·</span><span class="lr-desc">${esc(desc)}</span>` : '');
+  } else {
+    const dims = it.w && it.kind !== 'model' && it.kind !== 'material' && it.kind !== 'link' ? `${Math.round(it.w)} × ${Math.round(it.h)}` : '';
+    meta = [esc(typeLabel(it)), dims, it.duration ? fmtDur(it.duration) : '', it.pages ? it.pages + ' ' + t('стр.') : '', it.size ? fmtSize(it.size) : ''].filter(Boolean).map((x) => `<span>${x}</span>`).join('<span class="lr-sep">·</span>');
+  }
+  const tags = it.tags.slice(0, 3).map((x) => `<span class="lr-tag">${esc(x)}</span>`).join('');
+  const goTip = t(it.kind === 'link' ? 'Открыть на сайте' : 'Открыть в программе');
+  const go = it.kind === 'link' || !LITE ? `<button class="lr-go" data-go tabindex="-1" aria-label="${goTip}" title="${goTip}">${ic('external')}</button>` : '';
+  const fav = `<button class="fav${it.fav ? ' on' : ''}" data-fav tabindex="-1" aria-label="${favTip(it)}" title="${favTip(it)}">${ic(it.fav ? 'heartOn' : 'heart')}</button>`;
+  const dot = it.fresh ? `<span class="newdot" aria-label="${t('Новый файл')}"></span>` : '';
+  return `<div class="ph">${media}${play}</div><div class="lr-tx"><span class="lr-nm">${esc(it.name)}</span><span class="lr-mt">${meta}</span></div>` +
+    `<div class="lr-tags">${tags}</div><span class="lr-dt">${when(it.added)}</span><span class="lr-acts">${go}${fav}</span>${dot}`;
 }
 
 // what a screen reader hears for a card: name, type, and the states shown only visually
@@ -76,14 +130,14 @@ export function syncCard(id) {
   const b = n.querySelector('[data-fav]');
   if (b) { b.classList.toggle('on', it.fav); b.innerHTML = ic(it.fav ? 'heartOn' : 'heart'); b.title = b.ariaLabel = favTip(it); }
   n.setAttribute('aria-label', cardLabel(it));
-  const ph = n.querySelector('.ph'), m = ph && ph.querySelector('.piim'), want = piiMark(it);
+  const ph = n.querySelector('.ph'), m = ph && ph.querySelector('.piim'), want = piiMark(it), fv = ph && ph.querySelector('[data-fav]');
   if (m && !want) m.remove();
-  else if (ph && want && !m) ph.querySelector('[data-fav]').insertAdjacentHTML('beforebegin', want);
+  else if (fv && want && !m) fv.insertAdjacentHTML('beforebegin', want); // a list row has no mark on its little preview
 }
 
 function makeNode(it, b) {
   const el = document.createElement('div');
-  el.className = 'card' + (S.sel.has(it.id) ? ' sel' : '') + (it.id === cur ? ' cur' : '') + (settings.anim === 'smooth' ? ' enter' : '');
+  el.className = 'card' + (mode === 'list' ? ' row' : typeCard(it) ? ' lk-bare' : '') + (S.sel.has(it.id) ? ' sel' : '') + (it.id === cur ? ' cur' : '') + (settings.anim === 'smooth' ? ' enter' : '');
   el.dataset.id = it.id;
   el.dataset.kind = it.kind;
   el.id = 'c-' + it.id;
@@ -91,7 +145,7 @@ function makeNode(it, b) {
   el.setAttribute('aria-selected', S.sel.has(it.id) ? 'true' : 'false');
   el.setAttribute('aria-label', cardLabel(it));
   el.draggable = true;
-  el.innerHTML = cardHTML(it);
+  el.innerHTML = mode === 'list' ? rowHTML(it) : cardHTML(it);
   const lv = el.querySelector('video.live');
   if (lv) lv.addEventListener('error', () => lv.remove(), { once: true });
   place(el, b);
@@ -138,16 +192,26 @@ export function layoutGrid(keepNodes) {
   const sc = scroller(), g = host();
   const items = S.vis;
   const width = Math.max(120, sc.clientWidth - parseFloat(getComputedStyle(sc).paddingLeft) - parseFloat(getComputedStyle(sc).paddingRight));
-  const res = computeLayout(items, width, settings.zoom, settings.gap, capHeight(), settings.layout);
+  // making room for the properties panel (main.js makeRoom, body.insp-room) keeps the columns the wall had: narrower
+  // columns, every card in its own — a re-fit to fewer columns re-dealt the masonry and the clicked card jumped away.
+  // Not when that squeezes cards below 60 % of the chosen size (a narrow window): then the wall re-fits as before.
+  const room = document.body.classList.contains('insp-room');
+  const fit = Math.max(1, Math.floor((width + settings.gap) / (settings.zoom + settings.gap)));
+  const keep = room && freeCols > fit && (width - (freeCols - 1) * settings.gap) / freeCols >= settings.zoom * 0.6 ? freeCols : 0;
+  mode = layoutNow();
+  syncLayoutBtns(mode);
+  const list = mode === 'list';
+  const res = computeLayout(items, width, settings.zoom, settings.gap, list ? 0 : capHeight(), mode, list ? 0 : keep);
+  if (!room && !list) freeCols = res.cols;
   boxes = res.boxes; total = res.height;
   g.style.height = total + 'px';
   setFrameGeometry({ host: g, left: g.getBoundingClientRect().left, cols: res.cols, colW: res.colW, gap: settings.gap });
-  const sig = (i) => i.id + '|' + i.name + '|' + i.ext + '|' + (i.thumb || '');
+  const sig = (i) => i.id + '|' + i.name + '|' + i.ext + '|' + (i.thumb || '') + (i.page ? '|' + (i.page.cover || '-') + (i.page.icon || '') + (list ? i.page.desc : '') : '') + (list ? '|' + i.tags.join(',') : '');
   const ids = items.map(sig).join(',');
   // the same view (place, search, colour, sort) with files only taken out or put back — Delete, «В корзину»,
   // «Вернуть»: the cards stay; the gone ones fade, the rest slide to their new places, returned ones come in.
   // Only a different view rebuilds the wall with its entrance wave (rebuilding on Delete made it all blink).
-  const viewKey = JSON.stringify([S.view, S.q, S.color, S.sort, S.dir, settings.layout]);
+  const viewKey = JSON.stringify([S.view, S.q, S.color, S.sort, S.dir, mode]);
   if (!keepNodes || viewKey !== lastView) { nodes.forEach((n) => n.remove()); nodes = new Map(); wave = true; }
   else if (ids !== lastIds) {
     const now = new Map(items.map((i) => [i.id, sig(i)]));
@@ -270,6 +334,14 @@ export function scrollToItem(id) {
 export function initGrid() {
   const sc = scroller();
   // favourite heart on a card: toggles without selecting the card
+  // «open» on a list row: the page in the browser, the file in its program — without selecting the row
+  host().addEventListener('click', (e) => {
+    const g = e.target.closest('[data-go]');
+    if (!g) return;
+    e.stopPropagation();
+    const c = g.closest('.card'), it = c && S.byId.get(c.dataset.id);
+    if (it) import('./ctxmenu.js').then((m) => m.openInApp(it)).catch(() => {});
+  }, true);
   host().addEventListener('click', (e) => {
     const b = e.target.closest('[data-fav]');
     if (!b) return;

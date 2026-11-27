@@ -1,4 +1,4 @@
-// Oddments for Chrome and Edge: the page side. Alt+click and the hover button save a picture (embedded Vimeo players —
+// Oddments for Chrome, Edge, Zen and Firefox: the page side. Alt+click and the hover button save a picture (embedded Vimeo players —
 // Behance animations — have their own in embed.js), a dragged picture or
 // link can be dropped on the dock at the right edge, «Все картинки страницы» opens a picker, «Снимок области» draws
 // a frame. The downloads and the token stay in the service worker; this script only finds what to save.
@@ -28,44 +28,65 @@
   const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => toast(T('Расширение перезагружено: обновите страницу'), 'err'));
 
   /* ---------- one shadow root for everything we draw ---------- */
+  // the Oddments prism: a rounded triangle with the app icon's colours
+  const PRISM = '<svg class="prism" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="odd-prism" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6b4ff"/><stop offset=".5" stop-color="#a7c7ff"/><stop offset="1" stop-color="#ffc7e8"/></linearGradient></defs><path d="M12 4.4 20 18.4H4Z" fill="none" stroke="url(#odd-prism)" stroke-width="3.4" stroke-linejoin="round"/></svg>';
   const host = document.createElement('perch-ui');
   host.style.cssText = 'all: initial; position: fixed; inset: 0 auto auto 0; z-index: 2147483647;';
   const root = host.attachShadow({ mode: 'closed' });
   root.innerHTML = `<style>
-    :host { --acc: #c6ff00; --bg: rgba(14, 15, 13, .92); --fg: #f2f3ee; --mut: #9a9c94; --line: rgba(255,255,255,.1); }
+    :host { --acc: #d7ff63; --acc-fg: #0b0c10; --bg: rgba(16, 19, 30, .88); --solid: #12141b; --fg: #eceaf2; --mut: #9a9bab; --line: rgba(255,255,255,.1);
+      --red: #ff2e88; --rim-a: #d6b4ff; --rim-b: #a7c7ff; --rim-c: #ffc7e8; }
     * { box-sizing: border-box; font-family: "Golos Text", "Segoe UI", system-ui, sans-serif; }
+    /* the app's glass: a gradient rim (lavender → sky → pink) drawn as a 1px masked border */
+    .rim { position: fixed; }
+    .rim::after { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+      background: linear-gradient(140deg, rgba(214,180,255,.6), rgba(167,199,255,.3) 28%, rgba(255,255,255,.05) 52%, rgba(255,255,255,.04) 70%, rgba(255,199,232,.42));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+      mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+    .prism { width: 16px; height: 16px; flex: none; display: block; }
+    [hidden] { display: none !important; }
     .toast { position: fixed; right: 20px; bottom: 20px; max-width: 360px; padding: 11px 18px 11px 14px; border-radius: 999px;
       background: var(--bg); color: var(--fg); font-size: 13px; line-height: 1.3; display: flex; gap: 10px; align-items: center;
       backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 40px rgba(0,0,0,.35), inset 0 0 0 1px var(--line);
       transform: translateY(14px) scale(.96); opacity: 0; transition: transform .38s cubic-bezier(.32,1.28,.6,1), opacity .2s; pointer-events: none; }
     .toast.on { transform: none; opacity: 1; }
     .toast i { width: 8px; height: 8px; border-radius: 50%; background: var(--acc); flex: none; }
-    .toast.err i { background: #ff2d6f; }
+    .toast.err i { background: var(--red); }
     .toast.busy i { animation: pulse 1s infinite; }
     @keyframes pulse { 50% { opacity: .3; } }
     .hov { position: fixed; padding: 6px 12px 6px 9px; border: 0; border-radius: 999px; background: var(--bg); color: var(--fg); font-size: 12px;
       cursor: pointer; display: none; align-items: center; gap: 7px; box-shadow: 0 4px 18px rgba(0,0,0,.3), inset 0 0 0 1px var(--line); }
     .hov.on { display: flex; }
-    .hov:hover { background: var(--acc); color: #0a0b09; }
-    .hov i, .dock i { width: 9px; height: 9px; border-radius: 3px; border: 2px solid currentColor; position: relative; }
+    .hov:hover { background: var(--acc); color: var(--acc-fg); }
     .dock { position: fixed; right: 18px; top: 50%; width: 132px; height: 132px; margin-top: -66px; border-radius: 34px; display: none;
       flex-direction: column; gap: 10px; align-items: center; justify-content: center; text-align: center; padding: 14px;
       background: var(--bg); color: var(--fg); font-size: 12px; line-height: 1.3; box-shadow: 0 16px 50px rgba(0,0,0,.4), inset 0 0 0 1px var(--line);
       transition: transform .3s cubic-bezier(.32,1.28,.6,1), background .15s; }
     .dock.on { display: flex; }
-    .dock.over { transform: scale(1.08); background: var(--acc); color: #0a0b09; }
-    .dock i { width: 22px; height: 22px; border-radius: 7px; border-width: 2.5px; }
+    .dock.over { transform: scale(1.08); background: var(--acc); color: var(--acc-fg); }
+    .dock .prism { width: 30px; height: 30px; }
     .area { position: fixed; inset: 0; width: 100vw; height: 100vh; cursor: crosshair; background: rgba(0,0,0,.28); }
     .area b { position: fixed; border: 1.5px solid var(--acc); border-radius: 4px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.28); }
-    .area span { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: var(--bg); color: var(--fg); font-size: 12px; }
+    .area-bar { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; padding: 6px 6px 6px 16px;
+      border-radius: 999px; background: var(--bg); color: var(--fg); font-size: 12.5px; backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 40px rgba(0,0,0,.35); cursor: default; }
+    .area-bar .btn { height: 30px; font-size: 12.5px; }
+    .area.adjust { background: none; cursor: default; }
+    .area.adjust b { cursor: move; border-width: 2px; }
+    .area .h { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 0 2px var(--solid); }
+    .area .size { position: absolute; left: 0; top: -26px; font: 11px ui-monospace, Consolas, monospace; color: var(--fg); padding: 3px 8px; border-radius: 999px; background: var(--bg); white-space: nowrap; }
+    .area-go { position: fixed; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; padding: 6px; border-radius: 999px; background: var(--bg);
+      backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+    .area-go .btn { height: 34px; }
+    .area-go .btn.pri::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--red); margin-right: 8px; vertical-align: 0; }
+    .mark-cal { position: fixed; pointer-events: none; box-shadow: inset 0 0 0 5px #ff00ff; }
     .rec-frame { position: fixed; pointer-events: none; border-radius: 2px; box-shadow: 0 0 0 2px var(--acc), 0 0 0 100vmax rgba(0,0,0,.22); }
     .rec-bar { position: fixed; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; padding: 6px 6px 6px 14px; border-radius: 999px;
       background: var(--bg); color: var(--fg); font-size: 13px; backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 40px rgba(0,0,0,.35), inset 0 0 0 1px var(--line); }
-    .rec-bar i { width: 10px; height: 10px; border-radius: 50%; background: #ff2d6f; animation: pulse 1.2s infinite; }
+    .rec-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: pulse 1.2s infinite; }
     .rec-bar.paused i { animation: none; opacity: .35; }
     .rec-bar b { min-width: 38px; font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
     .rec-bar .x { width: 34px; padding: 0; font-size: 18px; line-height: 1; }
-    .gal { position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(6,7,5,.86); backdrop-filter: blur(10px); color: var(--fg);
+    .gal { position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(8,9,13,.88); backdrop-filter: blur(10px); color: var(--fg);
       display: flex; flex-direction: column; }
     .gal header { display: flex; gap: 12px; align-items: center; padding: 18px 24px; flex-wrap: wrap; }
     .gal h2 { margin: 0 auto 0 0; font-size: 18px; font-weight: 500; }
@@ -74,7 +95,7 @@
     .gal input[type=range] { accent-color: var(--acc); width: 120px; }
     .btn { height: 34px; padding: 0 16px; border: 0; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--fg); font-size: 13px; cursor: pointer; }
     .btn:hover { background: rgba(255,255,255,.14); }
-    .btn.pri { background: var(--acc); color: #0a0b09; font-weight: 500; }
+    .btn.pri { background: var(--acc); color: var(--acc-fg); font-weight: 500; box-shadow: inset 0 1px 0 rgba(255,255,255,.65), 0 0 18px rgba(215,255,99,.2); }
     .btn.pri:disabled { opacity: .4; cursor: default; }
     .grid { flex: 1; overflow: auto; padding: 4px 24px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; align-content: start; }
     .tile { position: relative; aspect-ratio: 1; border-radius: 18px; overflow: hidden; background: rgba(255,255,255,.05); cursor: pointer; border: 0; padding: 0; }
@@ -82,10 +103,10 @@
     .tile small { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.6); color: #ddd; font-size: 11px; }
     .tile::after { content: ''; position: absolute; top: 9px; right: 9px; width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(255,255,255,.7); background: rgba(0,0,0,.3); }
     .tile.on { box-shadow: inset 0 0 0 2.5px var(--acc); }
-    .tile.on::after { background: var(--acc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.5l3 3 6-7' fill='none' stroke='%230a0b09' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); box-shadow: none; }
+    .tile.on::after { background: var(--acc) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.5l3 3 6-7' fill='none' stroke='%230b0c10' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); box-shadow: none; }
     .tile:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
     .empty { grid-column: 1 / -1; padding: 60px 0; text-align: center; color: var(--mut); }
-  </style><div class="toast"><i></i><span></span></div><button class="hov"><i></i>${T('В Oddments')}</button><div class="dock"><i></i>${T('Бросьте сюда — в Oddments')}</div>`;
+  </style><div class="toast rim"><i></i><span></span></div><button class="hov rim">${PRISM}${T('В Oddments')}</button><div class="dock rim">${PRISM}${T('Бросьте сюда — в Oddments')}</div>`;
   const mount = () => { if (!host.isConnected) (document.body || document.documentElement).appendChild(host); };
   const $ = (s) => root.querySelector(s);
 
@@ -137,7 +158,8 @@
       fetch(msg.url).then((r) => r.blob()).then((b) => new Promise((res) => { const f = new FileReader(); f.onload = () => res(f.result); f.readAsDataURL(b); }))
         .then((data) => reply({ data }), () => reply({}));
       return true;
-    } else if (msg.t === 'pickArea') { pickArea(msg.label).then(reply); return true; }
+    } else if (msg.t === 'pickArea') { pickArea(msg.label, { video: !!msg.video }).then(reply); return true; }
+    else if (msg.t === 'recLocal') { recLocal(msg).then(reply, (e) => reply({ error: (e && e.message) || String(e) })); return true; }
     else if (msg.t === 'recUi') { recUi(msg); reply(true); }
     else if (msg.t === 'recEnd') { recEnd(); reply(true); }
     else if (msg.t === 'gallery') { gallery(); reply(true); }
@@ -419,40 +441,137 @@
     else send({ t: 'saveLink', url: d.link, title: d.title });
   });
 
-  /* ---------- area screenshot ---------- */
-  function pickArea(label) {
+  /* ---------- area screenshot, area video ---------- */
+  // A frame drawn with the pointer. For a screenshot it is taken at once. For a video (opts.video) it stays: it can
+  // be moved and resized by its handles, and the recording starts on «Начать запись» (or Enter); «Вся вкладка» takes
+  // the whole visible page. The answer is the frame in CSS pixels of the viewport.
+  function pickArea(label, opts = {}) {
     return new Promise((resolve) => {
       mount();
       const ov = document.createElement('div');
       ov.className = 'area';
-      ov.innerHTML = '<b hidden></b><span></span>';
-      ov.querySelector('span').textContent = label || T('Выделите область · Esc — отмена');
+      ov.innerHTML = '<b hidden></b><div class="area-bar rim"><span></span></div>';
+      const bar = ov.querySelector('.area-bar');
+      bar.querySelector('span').textContent = label || T('Выделите область · Esc — отмена');
+      if (opts.video) {
+        const all = Object.assign(document.createElement('button'), { className: 'btn', textContent: T('Вся вкладка') });
+        all.onclick = (e) => { e.stopPropagation(); finish({ x: 0, y: 0, w: innerWidth, h: innerHeight }); };
+        bar.appendChild(all);
+      }
+      bar.addEventListener('pointerdown', (e) => e.stopPropagation());
       root.appendChild(ov);
       const box = ov.querySelector('b');
-      let x0 = 0, y0 = 0, rect = null;
+      let x0 = 0, y0 = 0, rect = null, go = null;
+      const out = (r) => ({ ...r, vw: innerWidth, vh: innerHeight, dpr: devicePixelRatio || 1 });
       const done = (r) => {
         removeEventListener('keydown', key, true);
+        removeEventListener('resize', place);
         ov.remove();
+        if (go) go.remove();
         // the frame must be gone from the screen before the capture
         requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => resolve(r), 40)));
       };
-      const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); } };
+      const finish = (r) => done(r && r.w > 4 && r.h > 4 ? out(r) : null);
+      const key = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); }
+        else if (e.key === 'Enter' && go) { e.preventDefault(); e.stopPropagation(); finish(rect); }
+      };
       addEventListener('keydown', key, true);
+      const draw = () => Object.assign(box.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
       ov.addEventListener('pointerdown', (e) => {
+        if (go) return;
         ov.setPointerCapture(e.pointerId);
         x0 = e.clientX; y0 = e.clientY;
         box.hidden = false;
-        ov.querySelector('span').hidden = true;
+        bar.hidden = true;
         ov.style.background = 'none';
       });
       ov.addEventListener('pointermove', (e) => {
-        if (box.hidden) return;
+        if (box.hidden || go) return;
         rect = { x: Math.min(x0, e.clientX), y: Math.min(y0, e.clientY), w: Math.abs(e.clientX - x0), h: Math.abs(e.clientY - y0) };
-        Object.assign(box.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
+        draw();
       });
-      ov.addEventListener('pointerup', () => done(rect && rect.w > 4 && rect.h > 4 ? { ...rect, vw: innerWidth, vh: innerHeight, dpr: devicePixelRatio || 1 } : null));
+      ov.addEventListener('pointerup', () => {
+        if (go) return;
+        if (!opts.video || !rect || rect.w < 8 || rect.h < 8) return finish(rect);
+        adjust();
+      });
+
+      // the video's second step: handles, moving, the size, «Начать запись»
+      function adjust() {
+        ov.classList.add('adjust');
+        const hs = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map((d) => {
+          const h = document.createElement('i');
+          h.className = 'h';
+          h.dataset.d = d;
+          h.style.cursor = d + '-resize';
+          box.appendChild(h);
+          return h;
+        });
+        const size = document.createElement('span');
+        size.className = 'size';
+        box.appendChild(size);
+        go = document.createElement('div');
+        go.className = 'area-go rim';
+        go.innerHTML = `<button class="btn pri" data-g="start"></button><button class="btn" data-g="all"></button><button class="btn" data-g="cancel"></button>`;
+        go.querySelector('[data-g=start]').textContent = T('Начать запись');
+        go.querySelector('[data-g=all]').textContent = T('Вся вкладка');
+        go.querySelector('[data-g=cancel]').textContent = T('Отмена');
+        go.title = T('Enter — начать, Esc — отмена');
+        root.appendChild(go);
+        go.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-g]');
+          if (!b) return;
+          if (b.dataset.g === 'start') finish(rect);
+          else if (b.dataset.g === 'all') finish({ x: 0, y: 0, w: innerWidth, h: innerHeight });
+          else done(null);
+        });
+        place();
+        addEventListener('resize', place);
+        let drag = null;
+        box.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          box.setPointerCapture(e.pointerId);
+          drag = { d: e.target.dataset.d || 'move', x: e.clientX, y: e.clientY, r: { ...rect } };
+        });
+        box.addEventListener('pointermove', (e) => {
+          if (!drag) return;
+          const dx = e.clientX - drag.x, dy = e.clientY - drag.y, r = { ...drag.r };
+          if (drag.d === 'move') { r.x = clamp(r.x + dx, 0, innerWidth - r.w); r.y = clamp(r.y + dy, 0, innerHeight - r.h); }
+          else {
+            if (/w/.test(drag.d)) { const x = clamp(r.x + dx, 0, r.x + r.w - 16); r.w += r.x - x; r.x = x; }
+            if (/e/.test(drag.d)) r.w = clamp(r.w + dx, 16, innerWidth - r.x);
+            if (/n/.test(drag.d)) { const y = clamp(r.y + dy, 0, r.y + r.h - 16); r.h += r.y - y; r.y = y; }
+            if (/s/.test(drag.d)) r.h = clamp(r.h + dy, 16, innerHeight - r.y);
+          }
+          rect = r;
+          place();
+        });
+        const end = () => { drag = null; };
+        box.addEventListener('pointerup', end);
+        box.addEventListener('lostpointercapture', end);
+        function spots() {
+          const at = { nw: [0, 0], n: [50, 0], ne: [100, 0], e: [100, 50], se: [100, 100], s: [50, 100], sw: [0, 100], w: [0, 50] };
+          for (const h of hs) { const [l, t] = at[h.dataset.d]; h.style.left = l + '%'; h.style.top = t + '%'; }
+        }
+        spots();
+      }
+      // the box, its size, and the bar under it (above it when there is no room below)
+      function place() {
+        if (!rect) return;
+        draw();
+        const k = devicePixelRatio || 1;
+        const size = box.querySelector('.size');
+        if (size) size.textContent = `${Math.round(rect.w * k)} × ${Math.round(rect.h * k)}`;
+        if (!go) return;
+        const bh = 46, gap = 12;
+        const top = rect.y + rect.h + gap + bh <= innerHeight ? rect.y + rect.h + gap : rect.y - gap - bh >= 0 ? rect.y - gap - bh : rect.y + rect.h - bh - gap;
+        go.style.top = top + 'px';
+        go.style.left = clamp(rect.x + rect.w / 2, 170, innerWidth - 170) + 'px';
+      }
     });
   }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   /* ---------- a video of an area: the frame and the bar ---------- */
   // The recording itself runs in the extension (offscreen.js); here the frame shows what is recorded and the bar
@@ -483,7 +602,7 @@
       bar.querySelector('b').textContent = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
       bar.classList.toggle('paused', s.paused);
       bar.querySelector('[data-r=pause]').textContent = s.paused ? T('Продолжить') : T('Пауза');
-      if (time() >= s.max && recording === s) send({ t: 'recCtl', do: 'stop' });
+      if (time() >= s.max && recording === s) { if (localRec) localRec.control('stop'); else send({ t: 'recCtl', do: 'stop' }); }
     };
     show();
     s.tick = setInterval(show, 250);
@@ -495,7 +614,7 @@
       if (what === 'pause' && s.paused) what = 'resume';
       if (what === 'pause') { s.base = time(); s.paused = true; } else if (what === 'resume') { s.from = performance.now(); s.paused = false; }
       show();
-      send({ t: 'recCtl', do: what });
+      if (localRec) localRec.control(what); else send({ t: 'recCtl', do: what });
     });
     $('.hov').classList.remove('on');
   }
@@ -504,6 +623,120 @@
     clearInterval(recording.tick);
     recording.ui.remove();
     recording = null;
+  }
+
+  /* ---------- a video of an area in Zen and Firefox ---------- */
+  // Gecko gives extensions no way to capture a tab, so the page asks for «show the screen» (getDisplayMedia) right in
+  // the click on «Начать запись». What is shown — the Zen window or the whole screen — is not the page itself, so the
+  // frame is found on it: for a moment a magenta border is drawn just inside the frame, the picture before and after
+  // is compared, and the changed magenta pixels give the frame in the captured picture (any window position, scale
+  // or monitor). Every captured frame is then cropped to it on a canvas and recorded as WebM (Gecko records no MP4),
+  // without sound (Gecko's screen sharing has none). The file goes to the extension (recFile) and on to Oddments.
+  let localRec = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function recLocal({ max = 300000, name, page }) {
+    if (localRec) { localRec.control('stop'); return { ok: true }; } // the same command again stops
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return { error: T('Этот браузер не умеет записывать экран') };
+    const rect = await pickArea(T('Выделите область для видео · Esc — отмена'), { video: true });
+    if (!rect) return { ok: true }; // cancelled
+    let stream;
+    try { stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 } }, audio: false }); } catch (e) {
+      if (e && e.name === 'NotAllowedError') { toast(T('Запись отменена')); return { ok: true }; }
+      return { error: T('Запись не началась: ') + ((e && e.message) || e) };
+    }
+    const [track] = stream.getVideoTracks();
+    const video = document.createElement('video');
+    video.muted = true;
+    video.srcObject = stream;
+    try { await video.play(); } catch (e) { /* plays once frames come */ }
+    toast(T('Ищу область на экране…'), 'busy');
+    let crop;
+    try { crop = await findFrame(video, rect); } catch (e) { crop = null; }
+    if (!crop) {
+      track.stop();
+      return { error: T('Не нашёл область на том, что показал браузер: при записи выберите окно Zen (или весь экран), а не другое окно') };
+    }
+    const cv = document.createElement('canvas');
+    cv.width = crop.w; cv.height = crop.h;
+    const cx = cv.getContext('2d');
+    let on = true;
+    const draw = () => { if (on && video.videoWidth) cx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h); };
+    const loop = () => { if (!on) return; draw(); if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(loop); };
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(loop);
+    const tick = video.requestVideoFrameCallback ? 0 : setInterval(draw, 33);
+    draw();
+    const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
+    const bits = Math.min(16e6, Math.max(2e6, crop.w * crop.h * 30 * 0.1));
+    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: type, videoBitsPerSecond: bits });
+    const parts = [];
+    let cancel = false;
+    rec.ondataavailable = (e) => { if (e.data.size) parts.push(e.data); };
+    const job = {
+      control(what) {
+        if (what === 'pause' && rec.state === 'recording') rec.pause();
+        else if (what === 'resume' && rec.state === 'paused') rec.resume();
+        else if ((what === 'stop' || what === 'cancel') && rec.state !== 'inactive') { cancel = what === 'cancel'; rec.stop(); }
+      },
+    };
+    rec.onstop = () => {
+      on = false;
+      clearInterval(tick);
+      clearTimeout(limit);
+      track.stop();
+      localRec = null;
+      recEnd();
+      if (cancel) return;
+      const blob = new Blob(parts, { type: 'video/webm' });
+      if (!blob.size) { toast(T('Запись пустая'), 'err'); return; }
+      toast(T('Сохраняю видео…'), 'busy');
+      chrome.runtime.sendMessage({ t: 'recFile', blob, name, page: page || location.href }).catch(() => toast(T('Расширение перезагружено: обновите страницу'), 'err'));
+    };
+    // «Прекратить показ» in the browser's own bar: what was recorded is kept
+    track.addEventListener('ended', () => job.control('stop'));
+    addEventListener('pagehide', () => job.control('stop'), { once: true });
+    const limit = setTimeout(() => job.control('stop'), max);
+    localRec = job;
+    rec.start(1000);
+    recUi({ rect, elapsed: 0, paused: false, max });
+    toast(T('Идёт запись · «Стоп» под рамкой'));
+    return { ok: true };
+  }
+  // the frame on the captured picture: the magenta border's pixels that were not there a moment before
+  async function findFrame(video, rect) {
+    for (let i = 0; i < 40 && !video.videoWidth; i++) await sleep(50);
+    const W = video.videoWidth, H = video.videoHeight;
+    if (!W || !H) return null;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    const grab = () => { g.drawImage(video, 0, 0, W, H); return g.getImageData(0, 0, W, H).data; };
+    const pink = (d, i) => d[i] > 200 && d[i + 1] < 80 && d[i + 2] > 200;
+    await sleep(350);
+    const before = grab();
+    const m = document.createElement('div');
+    m.className = 'mark-cal';
+    Object.assign(m.style, { left: rect.x + 'px', top: rect.y + 'px', width: rect.w + 'px', height: rect.h + 'px' });
+    root.appendChild(m);
+    let box = null;
+    try {
+      for (let tries = 0; tries < 6 && !box; tries++) {
+        await sleep(220);
+        const after = grab();
+        let x0 = W, y0 = H, x1 = -1, y1 = -1, n = 0;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 4;
+            if (pink(after, i) && !pink(before, i)) { n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+          }
+        }
+        // a real border: enough pixels, and a box of about the frame's proportions
+        if (n > 40 && x1 > x0 + 8 && y1 > y0 + 8 && Math.abs((x1 - x0) / (y1 - y0) - rect.w / rect.h) < 0.12 * (rect.w / rect.h) + 0.05) box = { x0, y0, x1, y1 };
+      }
+    } finally { m.remove(); }
+    if (!box) return null;
+    const even = (v) => Math.max(2, Math.floor(v / 2) * 2);
+    await sleep(120); // the border must be gone from the captured picture before the first recorded frame
+    return { x: box.x0, y: box.y0, w: even(box.x1 - box.x0 + 1), h: even(box.y1 - box.y0 + 1) };
   }
 
   /* ---------- all pictures of the page ---------- */

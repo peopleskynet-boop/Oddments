@@ -1,0 +1,47 @@
+/* «Поделиться…» (share.js); builds on .modal / .dlg from styles.css */
+@layer tokens, base, components, screens, themes;
+@layer screens {
+.shr-dlg { width: min(520px, 100%); max-height: calc(100vh - 32px); overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.shr-dlg h2 { margin: 0; overflow-wrap: anywhere; }
+.shr-sum { margin: -4px 0 4px; color: var(--mut); font-size: 13px; font-variant-numeric: tabular-nums; }
+.shr-txt, .shr-note { margin: 0; color: var(--mut); font-size: 13px; line-height: 1.45; }
+.shr-note { font-size: 12px; }
+.shr-l { font-size: 12px; color: var(--mut); margin-top: 4px; }
+.shr-dlg input[type=text] { width: 100%; background: var(--field); border: 0; border-radius: 12px; padding: 10px 12px; outline: 0; color: var(--fg); font: inherit; font-size: 13px; box-shadow: inset 0 0 0 1px var(--field-line); }
+.shr-dlg input[type=text]:focus { box-shadow: inset 0 0 0 1.5px var(--acc), 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent); }
+.shr-terms { display: flex; flex-wrap: wrap; gap: 6px; }
+.shr-chip { height: 32px; padding: 0 14px; border: 0; border-radius: 99px; background: var(--hover); color: var(--mut); font: inherit; font-size: 12px; cursor: pointer; }
+.shr-chip:hover { color: var(--fg); }
+.shr-chip[aria-checked="true"] { background: var(--fg); color: var(--bg); }
+.shr-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--acc); }
+.shr-warn, .shr-opt { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.4; cursor: pointer; }
+.shr-warn { padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--warn, var(--acc)) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn, var(--acc)) 30%, transparent); }
+.shr-warn input, .shr-opt input { margin-top: 2px; flex: none; accent-color: var(--acc); }
+.shr-url { display: flex; gap: 6px; align-items: center; }
+.shr-url input { flex: 1; min-width: 0; font-family: var(--mono) !important; font-size: 12px !important; }
+.shr-url .ibtn { flex: none; height: 38px; gap: 6px; }
+.shr-chg { margin: 0; display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--fg); }
+.shr-chg i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--acc); translate: 0 -1px; }
+.shr-bar { height: 6px; border-radius: 99px; background: var(--hover); overflow: hidden; }
+.shr-bar i { display: block; height: 100%; background: var(--acc); transform: scaleX(0); transform-origin: 0 50%; transition: transform .25s; }
+.shr-dlg .row { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 6px; }
+.shr-dlg .row .sp { flex: 1; }
+@media (max-width: 560px) { .shr-dlg .row { flex-wrap: wrap; } .shr-dlg .row .sp { display: none; } }
+/* Настройки › Ссылки (settingsshare.js) */
+.sh-box .sh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sh-box .sh-grid label { display: grid; gap: 4px; font-size: 12px; color: var(--mut); }
+.sh-box .sh-grid label[hidden] { display: none; }
+.sh-box .sh-grid input { width: 100%; background: var(--field); border: 0; border-radius: 10px; padding: 8px 10px; outline: 0; color: var(--fg); font: inherit; font-size: 13px; box-shadow: inset 0 0 0 1px var(--field-line); }
+.sh-box .sh-grid input:focus { box-shadow: inset 0 0 0 1.5px var(--acc); }
+.sh-links { display: grid; gap: 6px; margin-top: 6px; }
+.sh-h { font-size: 12px; color: var(--mut); }
+.sh-row { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: 14px; background: var(--hover); }
+.sh-row.gone { opacity: .6; }
+.sh-t { min-width: 0; flex: 1; display: grid; gap: 2px; font-size: 13px; }
+.sh-t b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-t span { color: var(--mut); font-size: 12px; }
+.sh-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--acc); margin: 0 5px 1px 0; }
+.sh-acts { display: flex; gap: 4px; flex: none; }
+.sh-acts .ibtn { height: 30px; font-size: 12px; }
+@media (max-width: 560px) { .sh-box .sh-grid { grid-template-columns: 1fr; } .sh-row { flex-wrap: wrap; } }
+}

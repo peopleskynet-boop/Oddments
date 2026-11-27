@@ -3,24 +3,30 @@
     "message": "Oddments — сохранить в библиотеку"
   },
   "desc": {
-    "message": "Сохраняет картинки, видео, ссылки и снимки экрана в Oddments на этом компьютере: правый клик, Alt+клик, перетаскивание, все картинки страницы сразу, блоки интерфейса со снимком и кодом, анимации Behance (Vimeo) — файлом."
-  },
-  "cmd_shot_visible": {
-    "message": "Снимок видимой области в Oddments"
+    "message": "Сохраняет картинки, видео, ссылки и снимки экрана в Oddments на этом компьютере: правый клик, Alt+клик, перетаскивание, все картинки страницы, видео выбранной области, куски вёрстки с кодом, доски Pinterest, Cosmos, Are.na и Savee целиком."
   },
   "cmd_shot_area": {
-    "message": "Снимок выбранной области в Oddments"
+    "message": "Снимок области в Oddments"
+  },
+  "cmd_record_area": {
+    "message": "Видео области в Oddments (ещё раз — стоп)"
+  },
+  "cmd_shot_visible": {
+    "message": "Снимок всего, что видно, в Oddments"
   },
   "cmd_save_all": {
     "message": "Все картинки страницы…"
   },
-  "cmd_save_article": {
-    "message": "Сохранить статью в Oddments — читать там"
+  "cmd_save_page": {
+    "message": "Страницу закладкой в Oddments"
   },
-  "cmd_record_area": {
-    "message": "Видео выбранной области в Oddments (ещё раз — стоп)"
+  "cmd_save_article": {
+    "message": "Страницу текстом для чтения в Oddments"
   },
   "cmd_grab_block": {
-    "message": "Забрать блок интерфейса в Oddments"
+    "message": "Кусок вёрстки: картинка и код…"
+  },
+  "cmd_grab_board": {
+    "message": "Забрать доску целиком в Oddments"
   }
 }

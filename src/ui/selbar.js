@@ -6,6 +6,8 @@ import { S } from '../state.js';
 import { ic } from './icons.js';
 import { cardAction, openCardMenu, isMenuOpen, closeMenu } from './ctxmenu.js';
 import { toast } from './dialogs.js';
+import { LITE, SHARE } from '../lib/lite.js';
+import { SHARE_LINKS } from '../lib/shareon.js';
 
 let el = null, onSel = null, shown = false;
 
@@ -17,13 +19,16 @@ function html(list) {
   if (list.every((i) => i.trashed)) {
     return `<span class="sb-n"><b>${n}</b> выбрано</span>${b('restore', 'restore', 'Вернуть')}<button type="button" class="ib sb-x" data-sb="clear" title="Снять выделение (Esc)" aria-label="Снять выделение">${ic('x')}</button>`;
   }
+  // a shared link (lite.js SHARE): only taking the files away
+  if (SHARE) return `<span class="sb-n"><b>${n}</b> выбрано</span>${b('exportzip', 'download', 'Скачать')}<button type="button" class="ib sb-x" data-sb="clear" title="Снять выделение (Esc)" aria-label="Снять выделение">${ic('x')}</button>`;
   const allFav = list.every((i) => i.fav);
-  const b3d = list.some((i) => i.kind === 'model' || i.kind === 'material');
+  const b3d = !LITE && list.some((i) => i.kind === 'model' || i.kind === 'material'); // Oddments Web: no Blender, no drag out
   const pii = list.some((i) => i.pii && i.pii.length && !i.masked);
   return `<span class="sb-n"><b>${n}</b> выбрано</span>`
-    + `<button type="button" class="ib sb-grip" data-sb="grip" title="Перетащите выбранные в другую программу" aria-label="Перетащить выбранные в другую программу">${ic('grip')}</button>`
+    + (LITE ? '' : `<button type="button" class="ib sb-grip" data-sb="grip" title="Перетащите выбранные в другую программу" aria-label="Перетащить выбранные в другую программу">${ic('grip')}</button>`)
     + b('fav', allFav ? 'heartOn' : 'heart', allFav ? 'Из избранного' : 'В избранное')
     + b('folder', 'folderplus', 'В подборку')
+    + (SHARE_LINKS ? b('share', 'link', 'Поделиться') : '')
     + (b3d ? b('blender', 'external', 'В Blender') : '')
     + (pii ? b('mask', 'shield', 'Скрыть личные данные') : '')
     + ((S.teams || []).length && list.every((i) => !i.team) ? b('toteam', 'team', 'В команду') : '')

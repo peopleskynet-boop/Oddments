@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_name__",
   "short_name": "Oddments",
-  "version": "1.6.0",
+  "version": "1.8.0",
   "description": "__MSG_desc__",
   "minimum_chrome_version": "116",
   "icons": {
@@ -61,17 +61,23 @@
     }
   ],
   "commands": {
+    "shot-area": {
+      "suggested_key": {
+        "default": "Alt+Shift+E"
+      },
+      "description": "__MSG_cmd_shot_area__"
+    },
+    "record-area": {
+      "suggested_key": {
+        "default": "Alt+Shift+V"
+      },
+      "description": "__MSG_cmd_record_area__"
+    },
     "shot-visible": {
       "suggested_key": {
         "default": "Alt+Shift+S"
       },
       "description": "__MSG_cmd_shot_visible__"
-    },
-    "shot-area": {
-      "suggested_key": {
-        "default": "Alt+Shift+A"
-      },
-      "description": "__MSG_cmd_shot_area__"
     },
     "save-all": {
       "suggested_key": {
@@ -79,17 +85,17 @@
       },
       "description": "__MSG_cmd_save_all__"
     },
+    "save-page": {
+      "description": "__MSG_cmd_save_page__"
+    },
     "save-article": {
-      "suggested_key": {
-        "default": "Alt+Shift+R"
-      },
       "description": "__MSG_cmd_save_article__"
     },
     "grab-block": {
       "description": "__MSG_cmd_grab_block__"
     },
-    "record-area": {
-      "description": "__MSG_cmd_record_area__"
+    "grab-board": {
+      "description": "__MSG_cmd_grab_board__"
     }
   },
   "default_locale": "en"

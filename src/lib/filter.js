@@ -42,7 +42,7 @@ export function stemsHit(parts, text) {
 }
 
 // `ocr` — the text read on the picture (ocr.js): a screenshot is found by what is written on it
-export const hayOf = (i) => (i.name + ' ' + i.tags.join(' ') + ' ' + (i.aiTags || []).join(' ') + ' ' + i.note + ' ' + i.url + ' ' + i.ext + ' ' + (i.ocr || '') + (i.pii && i.pii.length ? ' личные данные' : '') + (i.masked ? ' без личных данных' : '') + (i.scr ? ' ' + screenWords(i.scr) : '') + (i.notes ? ' ' + i.notes.map((n) => n.text).join(' ') : '')).toLowerCase().replace(/ё/g, 'е');
+export const hayOf = (i) => (i.name + ' ' + i.tags.join(' ') + ' ' + (i.aiTags || []).join(' ') + ' ' + i.note + ' ' + i.url + ' ' + i.ext + ' ' + (i.ocr || '') + (i.page ? ' ' + (i.page.title || '') + ' ' + (i.page.desc || '') + ' ' + (i.page.host || '') : '') + (i.pii && i.pii.length ? ' личные данные' : '') + (i.masked ? ' без личных данных' : '') + (i.scr ? ' ' + screenWords(i.scr) : '') + (i.notes ? ' ' + i.notes.map((n) => n.text).join(' ') : '')).toLowerCase().replace(/ё/g, 'е');
 
 export function matchesQuery() {
   const parts = S.q.trim().toLowerCase().replace(/ё/g, 'е').split(/\s+/).filter(Boolean);

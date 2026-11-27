@@ -74,10 +74,32 @@ function system() {
   return `${os} · ${web} · ${navigator.language} · ${screen.width}×${screen.height} @${devicePixelRatio}`;
 }
 
+// The panics for the report. The message opens a panic and its backtrace runs to dozens of lines, so whole panics are
+// taken, not the last lines of the file (that cut the message off, bug #127). Frames without a name shrink to one line
+// with their numbers; a backtrace still too long loses its end, the frames furthest from the panic.
+export function panicsForReport(log, keep = 3, maxLines = 120) {
+  const shrink = (panic) => {
+    const out = [];
+    let first = null, last = null;
+    const flush = () => {
+      if (first !== null) out.push(`${(first === last ? first : `${first}-${last}`).toString().padStart(4)}: <unknown>`);
+      first = null;
+    };
+    for (const line of panic.split('\n')) {
+      const m = line.match(/^\s*(\d+): <unknown>\s*$/);
+      if (m) { if (first === null) first = m[1]; last = m[1]; } else { flush(); out.push(line); }
+    }
+    flush();
+    return out.length > maxLines ? [...out.slice(0, maxLines), `  ... ${out.length - maxLines} more lines`] : out;
+  };
+  return log.split(/^(?=--- panic)/m).map((p) => p.trim()).filter(Boolean).slice(-keep).map((p) => shrink(p).join('\n')).join('\n\n');
+}
+
 // the report as text: what it is, where it runs, and the last errors; personal paths taken out. In English whatever the
 // interface, like the log lines: it is for whoever fixes the bug
 export async function buildReport({ version = '', items = 0, root = '', extra = [] } = {}) {
-  const [errs, crash] = await Promise.all([tail('errors.log', 120), tail('crash.log', 80)]);
+  const [errs, log] = await Promise.all([tail('errors.log', 120), tail('crash.log', 100000)]);
+  const crash = panicsForReport(log);
   let home = '';
   try { const p = await import('@tauri-apps/api/path'); if (p.homeDir) home = await p.homeDir(); } catch (e) { /* the browser build */ }
   const out = [

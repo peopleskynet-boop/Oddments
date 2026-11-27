@@ -769,9 +769,11 @@ export function mountGlassReveal(wrap, { logo, look = 'dark', speed = 1, onEnd, 
     data = d;
     renderer.setLogo(d);
     time = 0;
-    playing = true;
-    dirty = true;
-    kick();
+    // the first draw finishes the shader on the video card (on a cold start that took ~160 ms and ate the first tenth
+    // of a second of the reveal): it is drawn now, on a frame where nothing shows yet, and the clock starts once that
+    // frame is on screen
+    if (!lost) draw();
+    return new Promise((res) => requestAnimationFrame(() => { playing = true; dirty = true; kick(); res(); }));
   });
 
   return {
